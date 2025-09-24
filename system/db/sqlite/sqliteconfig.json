@@ -1,0 +1,44 @@
+{
+  "tables": [
+    {
+      "name": "Users",
+      "columns": [
+        { "name": "UserID", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "GUID", "type": "TEXT", "constraint": "UNIQUE NOT NULL" },
+        { "name": "Email", "type": "TEXT", "constraint": "UNIQUE NOT NULL" },
+        { "name": "PasswordHash", "type": "TEXT", "constraint": "NOT NULL" }
+      ]
+    },
+    {
+      "name": "User_Data",
+      "columns": [
+        { "name": "GUID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Name", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Data", "type": "BLOB", "constraint": "" }
+      ],
+      "primary_key": ["GUID", "Name"]
+    },
+    {
+      "name": "LoginSessions",
+      "columns": [
+        { "name": "SessionID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "UserID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Provider", "type": "TEXT", "constraint": "" },
+        { "name": "AuthenticationTime", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "LogonExpires", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "AuthenticationState", "type": "TEXT", "constraint": "" }
+      ],
+      "primary_key": ["SessionID", "UserID"]
+    },
+    {
+      "name": "LoginLockout",
+      "columns": [
+        { "name": "IPAddress", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Username", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "FailedAttempts", "type": "INTEGER", "constraint": "DEFAULT 0" },
+        { "name": "LockedUntil", "type": "INTEGER", "constraint": "DEFAULT 0" }
+      ],
+      "primary_key": ["IPAddress", "Username"]
+    }
+  ]
+}

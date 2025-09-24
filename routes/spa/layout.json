@@ -1,0 +1,29 @@
+{
+  "layout": {
+    "title": {
+      "left": ["main-menu"],
+      "middle": ["app-title"],
+      "right": ["user-profile"]
+    },
+    "main": {
+      "left": ["file-explorer"],
+      "middle": ["system-log", "agent-status"],
+      "right": []
+    },
+    "footer": {
+      "left": ["status-bar"],
+      "middle": [],
+      "right": ["notifications"]
+    }
+  },
+  "elements": {
+    "main-menu": { "Type": "Menu", "Title": "File" },
+    "app-title": { "Type": "Title", "Title": "PsWebHost Control Panel" },
+    "user-profile": { "Type": "UserProfile", "Title": "Eskar" },
+    "file-explorer": { "Type": "Files", "Title": "File Explorer" },
+    "system-log": { "Type": "Log", "Title": "System Log" },
+    "agent-status": { "Type": "Grid", "Title": "Agent Status" },
+    "status-bar": { "Type": "Info", "Title": "System OK" },
+    "notifications": { "Type": "Info", "Title": "3 new notifications" }
+  }
+}

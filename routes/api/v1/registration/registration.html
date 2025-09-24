@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registration</title>
+    <style>
+        body { font-family: Segoe UI, Arial, sans-serif; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .reg-container { background-color: #fff; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); width: 100%; max-width: 450px; }
+        #registration-content { min-height: 200px; }
+        .error { color: #721c24; }
+        input[type="email"], input[type="text"], input[type="password"] { width: 95%; padding: 0.75rem; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 1rem; }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 4px; background-color: #007bff; color: white; font-size: 1rem; cursor: pointer; transition: background-color 0.3s; }
+        .btn:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="reg-container">
+        <div id="registration-content">
+            <p>Loading registration form...</p>
+        </div>
+    </div>
+
+    <script>
+        const regContentDiv = document.getElementById('registration-content');
+
+        async function postRegData(url = '', data = {}) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams(data).toString()
+            });
+            return response.json();
+        }
+
+        // Initial call to get the first page of the survey
+        document.addEventListener('DOMContentLoaded', () => {
+            postRegData('/api/v1/registration')
+                .then(data => {
+                    updateRegForm(data);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    regContentDiv.innerHTML = '<p class="error">An unexpected error occurred.</p>';
+                });
+        });
+
+        function updateRegForm(data) {
+            if (data.Html) {
+                regContentDiv.innerHTML = data.Html;
+                const form = regContentDiv.querySelector('form');
+                if (form) {
+                    form.addEventListener('submit', handleRegFormSubmit);
+                }
+            } else {
+                regContentDiv.innerHTML = '<p class="error">Received an empty response from the server.</p>';
+            }
+        }
+
+        function handleRegFormSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+
+            // Special handling for the "Check Confirmation Status" page
+            if (data.page === 'ConfirmEmail') {
+                const checkStatus = () => {
+                    postRegData('/api/v1/registration', data)
+                        .then(newData => {
+                            if (newData.status === 'continue') {
+                                // If still waiting, check again after a delay
+                                setTimeout(checkStatus, 2000);
+                            }
+                            updateRegForm(newData);
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            regContentDiv.innerHTML = '<p class="error">An unexpected error occurred.</p>';
+                        });
+                };
+                checkStatus();
+            } else {
+                postRegData(form.action || '/api/v1/registration', data)
+                    .then(newData => {
+                        updateRegForm(newData);
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        regContentDiv.innerHTML = '<p class="error">An unexpected error occurred.</p>';
+                    });
+            }
+        }
+    </script>
+</body>
+</html>

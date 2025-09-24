@@ -1,0 +1,31 @@
+{
+    "pages": {
+        "ProvideEmail": {
+            "title": "Step 1: Provide Email",
+            "form": {
+                "fields": [
+                    { "name": "email", "type": "email", "label": "Email Address", "required": true }
+                ],
+                "hidden": [
+                    { "name": "page", "value": "ProvideEmail" }
+                ],
+                "submit": { "label": "Send Confirmation" }
+            }
+        },
+        "ConfirmEmail": {
+            "title": "Step 2: Confirm Email",
+            "message": "A confirmation link has been sent to your email address. Please click the link to continue.",
+            "form": {
+                "hidden": [
+                    { "name": "email", "value": "{email}" },
+                    { "name": "page", "value": "ConfirmEmail" }
+                ],
+                "submit": { "label": "Check Confirmation Status" }
+            }
+        },
+        "RegistrationComplete": {
+            "title": "Registration Complete",
+            "message": "Your email has been confirmed. You can now log in."
+        }
+    }
+}

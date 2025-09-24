@@ -1,0 +1,270 @@
+/* --- Dark Theme & Core Layout --- */
+:root {
+    --bg-color: #1a1a1a;
+    --pane-bg-color: #252525;
+    --card-bg-color: #2a2a2a;
+    --header-bg-color: #222;
+    --text-color: #f0f0f0;
+    --border-color: #444;
+    --title-bar-color: #333;
+    --title-height: 45px;
+    --footer-height: 35px;
+    --splitter-size: 8px;
+    --pane-min-width: 140px;
+    --accent-primary: #007acc;
+    --accent-hover: #0098ff;
+}
+body, html { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-color); overflow: hidden; }
+#root { height: 100%; }
+
+/* --- App Layout --- */
+.app-container { display: flex; flex-direction: column; height: 100vh; position: relative; padding-top: var(--title-height); }
+.center-body { display: flex; flex-grow: 1; overflow: hidden; height: calc(100vh - var(--title-height) - var(--footer-height)); }
+
+/* --- Pane Definitions --- */
+.title-pane { position: absolute; top: 0; left: 0; right: 0; height: var(--title-height); flex-shrink: 0; display: flex; align-items: center; padding: 0 2px; background-color: var(--header-bg-color); border-bottom: 1px solid var(--border-color); z-index: 10; }
+.footer-pane { flex-shrink: 0; display: flex; align-items: center; padding: 2px; background-color: var(--header-bg-color); border-top: 1px solid var(--border-color); }
+
+/* Make panes scrollable and allow resize by changing flex-basis */
+.left-pane, .right-pane {
+    flex: 0 0 220px; /* initial width */
+    min-width: var(--pane-min-width);
+    max-width: 60%;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--pane-bg-color);
+    overflow: auto;
+    padding: 2px;
+}
+.main-pane {
+    flex: 1 1 auto;
+    min-width: 200px;
+    overflow: auto;
+    padding: 2px;
+}
+
+/* Splitter between panes (vertical) */
+.splitter {
+    width: var(--splitter-size);
+    background: transparent;
+    cursor: col-resize;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    z-index: 5;
+}
+.splitter:hover { background: rgba(255,255,255,0.03); }
+.splitter.active { background: rgba(255,255,255,0.06); }
+
+    /* --- Pane Sections --- */
+    .pane-section { padding: 2px; display: flex; flex-direction: column; gap: 8px; width:fit-content;}
+    .pane-section:target, :root:not(:has(:target)) .pane-section {
+        display: flex;
+        width: -webkit-fill-available;
+    }
+    
+    .left-pane:empty, .right-pane:empty { max-width: 15px; }
+
+/* Title Pane Layout */
+.title-pane .pane-section { flex-direction: row; align-items: center; gap: 15px; }
+.title-pane .pane-section.title-left { justify-content: flex-start; }
+.title-pane .pane-section.title-content { flex-grow: 1; }
+.title-pane .pane-section.title-right { justify-content: flex-end; }
+
+/* Left Pane Layout */
+.left-pane .pane-section.left-pane-top { flex-grow: 1; }
+.left-pane .pane-section.left-pane-bottom { flex-shrink: 0; }
+
+/* Footer Pane Layout */
+.footer-pane .pane-section { flex-grow: 1; flex-basis: 33.33%; }
+.footer-pane .pane-section.footer-center { justify-content: center; }
+.footer-pane .pane-section.footer-right { justify-content: flex-end; }
+
+/* --- Cards --- */
+.card { border: 1px solid var(--border-color); border-radius: 4px; background-color: var(--card-bg-color); box-shadow: 0 1px 3px rgba(0,0,0,0.2); display: flex; flex-direction: column; margin-bottom: 3px; }
+.card:hover {
+    border-color: var(--accent-primary);
+}
+.card-title-bar { display: flex; align-items: center; background-color: var(--title-bar-color); padding: 2px 3px; font-weight: bold; border-bottom: 1px solid var(--border-color); cursor: grab; }
+.card-content { padding: 3px; flex-grow: 1; overflow: auto; }
+
+.react-resizable-handle {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    bottom: 0;
+    right: 0;
+    background: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2IDYiIHN0eWxlPSJiYWNrZ3JvdW5kLWNvbG9yOiNmZmZmZmYwMCIgeD0iMHB4IiB5PSIwcHgiIHdpZHRoPSI2cHgiIGhlaWdodD0iNnB4Ij48ZyBvcGFjaXR5PSIwLjMwMiI+PHBhdGggZD0iTSA2IDYgTCAwIDYgTCAwIDQuOCBMIDQuOCA0LjggTCA0LjggMCBMIDYgMCBMIDYgNiBaIiBmaWxsPSIjMDAwMDAwIi8+PC9nPjwvc3ZnPg==');
+    background-position: bottom right;
+    padding: 0 3px 3px 0;
+    background-repeat: no-repeat;
+    background-origin: content-box;
+    box-sizing: border-box;
+    cursor: se-resize;
+}
+.spacer { flex-grow: 1; }
+.settings-icon, .maximize-icon { cursor: pointer; padding: 4px; }
+.close-icon { cursor: pointer; padding: 4px; margin-left: 5px; font-weight: bold; }
+.card-error-content {
+    padding: 10px;
+    background-color: #4a1a1a;
+    color: #ffd2d2;
+    border-top: 1px solid var(--border-color);
+}
+
+.card-title-bar .settings-icon:hover, .card-title-bar .maximize-icon:hover {
+    color: var(--accent-hover);
+}
+
+.move-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    z-index: 100;
+    padding: 1px;
+    width: 150px;
+}
+
+.move-menu p {
+    margin: 0 0 5px 0;
+    font-weight: normal;
+    padding: 1px;
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
+.move-menu div {
+    padding: 2px 3px;
+    font-weight: normal;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.move-menu div:hover {
+    background-color: var(--accent-primary);
+    color: var(--text-primary);
+}
+
+/* Special card in title pane */
+.title-pane .card { flex-direction: row; align-items: center; background: none; border: none; box-shadow: none; padding: 0; margin: 0; }
+.title-pane .card .card-title-bar { font-size: 1.2em; font-weight: normal; padding: 0; }
+.title-pane .card .card-content { display: none; } /* Hide content for title cards */
+.title-pane .user-card .card-content { display: flex !important; } /* Show user-card content */
+.title-pane .card .settings-icon { display: none; } /* Hide settings for title cards */
+.title-pane .card-icon { width: 32px; height: 32px; margin-right: 3px; }
+
+/* Floating User Card */
+.user-card { position: relative; margin-left: auto; }
+.floating-card { position: absolute; top: 40px; right: 0; background-color: var(--card-bg-color); border: 1px solid var(--border-color); border-radius: 4px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000; width: 200px; }
+.floating-card-content { display: flex; flex-direction: column; padding: 2px; }
+.floating-card-content a { color: var(--text-color); text-decoration: none; padding: 2px 3px; border-radius: 3px; }
+.floating-card-content a:hover { background-color: var(--title-bar-color); }
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+::-webkit-scrollbar-track {
+    background: var(--pane-bg-color);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--title-bar-color);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--border-color);
+}
+
+/* --- Main Menu Styles --- */
+.main-menu-list, .submenu-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.submenu-list {
+    padding-left: 20px; /* Indent sub-items */
+}
+
+.menu-item a, .menu-item a:visited {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    color: var(--text-color);
+    text-decoration: none;
+    transition: background-color 0.2s ease-in-out;
+    cursor: pointer;
+}
+
+.menu-item a:hover {
+    background-color: var(--title-bar-color);
+}
+
+.menu-item.has-children > a {
+    /* Style for parent items */
+}
+
+.arrow {
+    display: inline-block;
+    width: 15px;
+    text-align: center;
+    margin-right: 5px;
+    font-size: 0.8em;
+    color: var(--text-secondary);
+}
+
+.tags {
+    margin-left: auto;
+    display: flex;
+    gap: 5px;
+}
+
+.tag {
+    background-color: var(--accent-primary);
+    color: var(--text-color);
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 0.8em;
+}
+
+/* Card Settings Modal */
+.modal-content {
+    background-color: var(--card-bg-color);
+    color: var(--text-color);
+    padding: 20px;
+}
+
+.modal-content h3 {
+    margin-top: 0;
+}
+
+.modal-content label {
+    color: var(--text-color);
+}
+
+.modal-content input {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    width: 100%;
+    padding: 8px;
+    box-sizing: border-box;
+    margin-top: 4px;
+}
+
+.modal-content button {
+    background-color: var(--accent-primary);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    margin-top: 10px;
+    cursor: pointer;
+}
+
+.modal-content button:hover {
+    background-color: var(--accent-hover);
+}.card-footer { padding: 5px; border-top: 1px solid var(--border-color); font-size: 0.8em; color: var(--text-secondary); } 

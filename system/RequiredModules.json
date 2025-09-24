@@ -1,0 +1,18 @@
+[
+    {
+        "Name": "LogError",
+        "Version": "1.0.0"
+    },
+    {
+        "Name": "PSSQLite"
+    },
+    {
+        "Name": "powershell-yaml"
+    },
+    {
+        "Name": "Sanitization"
+    },
+    {
+        "Name": "PSWebHost_Support"
+    }
+]

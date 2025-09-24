@@ -1,0 +1,60 @@
+<template id="card-template">
+    <style>
+        /* Card-specific styles */
+        .card {
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--card-bg-color);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 3px;
+            overflow: hidden; /* Ensures content respects border-radius */
+        }
+        .card-title-bar {
+            display: flex;
+            align-items: center;
+            background-color: var(--title-bar-color);
+            padding: 2px 3px;
+            font-weight: bold;
+            border-bottom: 1px solid var(--border-color);
+            cursor: grab; /* Indicate draggable */
+            user-select: none; /* Prevent text selection during drag */
+        }
+        .card-title-bar.dragging {
+            cursor: grabbing;
+        }
+        .card-content {
+            padding: 3px;
+            flex-grow: 1;
+            overflow: auto; /* Enable scrolling for content if it overflows */
+        }
+        .card-icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 5px;
+            flex-shrink: 0; /* Prevent icon from shrinking */
+        }
+        .card-title {
+            flex-grow: 1; /* Allows title to take available space */
+            white-space: nowrap; /* Prevent title from wrapping */
+            overflow: hidden; /* Hide overflowed text */
+            text-overflow: ellipsis; /* Show ellipsis for overflowed text */
+        }
+        .settings-icon {
+            cursor: pointer;
+            padding: 4px;
+            flex-shrink: 0; /* Prevent settings icon from shrinking */
+        }
+    </style>
+    <div class="card">
+        <div class="card-title-bar">
+            <img class="card-icon" src="" alt="icon" style="display: none;">
+            <span class="card-title"></span>
+            <div class="settings-icon">⚙️</div>
+        </div>
+        <div class="card-content">
+            <p>This is a card component.</p>
+        </div>
+    </div>
+</template>

@@ -1,0 +1,47 @@
+{
+    "elements": {
+        "title" : {
+            "icon": "/public/icon/Tank1_48x48.png",
+            "Title": "PSWeb Server",
+            "display-close-icon": false
+        },
+        "main-menu": { "Type": "Menu", "Title": "Main Menu" },
+        "file-explorer": { "Type": "card", "Title": "Files" },
+        "system-status": { "Type": "Log", "Title": "System Log" },
+        "world-map": { "Type": "Map", "Title": "World Map" },
+        "server-heatmap": { "Type": "Heatmap", "Title": "Server Load" },
+        "event-stream": { "Type": "Events", "Title": "Real-time Events" },
+        "header-icon": { "Type": "Icon", "Title": "Icon" },
+        "user-card": { "Type": "User", "Title": "User Management" },
+        "footer-info": { "Type": "card", "Title": "", "Content": "© 2024 PSWebHost" }
+    },
+    "layout": {
+        "title": {
+            "left": ["title"],
+            "content": [],
+            "right": ["user-card"]
+        },
+        "leftPane": {
+            "top": ["main-menu"],
+            "bottom": []
+        },
+        "mainPane": {
+            "content": ["file-explorer", "server-heatmap","world-map","event-stream"]
+        },
+        "rightPane": {
+            "content": []
+        },
+        "footer": {
+            "left": [],
+            "center": ["footer-info"],
+            "right": []
+        }
+    },
+    "gridLayout": [
+        { "i": "default", "w": 6, "h": 12 },
+        { "i": "server-heatmap", "x": 0, "y": 0, "w": 6, "h": 12 },
+        { "i": "world-map", "x": 6, "y": 0, "w": 6, "h": 12 },
+        { "i": "file-explorer", "x": 0, "y": 2, "w": 6, "h": 12 },
+        { "i": "event-stream", "x": 0, "y": 4, "w": 12, "h": 12 }
+    ]
+}

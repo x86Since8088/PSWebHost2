@@ -1,0 +1,6 @@
+{
+    "Allowed_Roles": [
+        "unauthenticated",
+        "authenticated"
+    ]
+}

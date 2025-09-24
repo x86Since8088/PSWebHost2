@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>File Explorer</title>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; display: flex; flex-direction: column; }
+        #main-container { display: flex; flex-grow: 1; }
+        #tree { width: 200px; border-right: 1px solid #ccc; padding: 10px; overflow: auto; }
+        #content { flex-grow: 1; padding: 10px; overflow: auto; }
+        #events { border-top: 1px solid #ccc; padding: 10px; height: 100px; overflow: auto; background-color: #f0f0f0; }
+        .folder { cursor: pointer; font-weight: bold; }
+        .file { margin-left: 15px; }
+        .error-message { color: red; }
+    </style>
+</head>
+<body>
+    <div id="main-container">
+        <div id="tree"></div>
+        <div id="content"></div>
+    </div>
+    <div id="events"></div>
+
+    <script>
+        const treeDiv = document.getElementById('tree');
+        const contentDiv = document.getElementById('content');
+        const eventsDiv = document.getElementById('events');
+
+        async function getDirectoryListing(path = '', filter = '*') {
+            const response = await fetch('/api/v1/ui/elements/file-explorer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ path, filter })
+            });
+            return response.json();
+        }
+
+        function renderTree(items) {
+            // Simple tree rendering for now. A proper tree view would be more complex.
+            treeDiv.innerHTML = '';
+            items.filter(item => item.IsDirectory).forEach(folder => {
+                const div = document.createElement('div');
+                div.className = 'folder';
+                div.textContent = folder.Name;
+                div.onclick = () => {
+                    loadContent(folder.FullName);
+                };
+                treeDiv.appendChild(div);
+            });
+        }
+
+        function renderContent(items) {
+            contentDiv.innerHTML = '';
+            items.forEach(item => {
+                const div = document.createElement('div');
+                div.className = item.IsDirectory ? 'folder' : 'file';
+                div.textContent = `${item.Name} (${item.Length} bytes)`;
+                if (item.IsDirectory) {
+                    div.onclick = () => {
+                        loadContent(item.FullName);
+                    };
+                }
+                contentDiv.appendChild(div);
+            });
+        }
+
+        async function loadContent(path) {
+            const response = await getDirectoryListing(path);
+            if (response.error) {
+                const p = document.createElement('p');
+                p.className = 'error-message';
+                p.textContent = `[${new Date().toLocaleTimeString()}] ${response.error}`;
+                eventsDiv.prepend(p);
+            } else {
+                renderContent(response);
+                // For simplicity, the tree is not updated recursively here.
+                // A full implementation would update the tree based on the new path.
+                if (treeDiv.innerHTML === '') {
+                    renderTree(response);
+                }
+            }
+        }
+
+        // Initial load
+        loadContent('');
+
+    </script>
+</body>
+</html>

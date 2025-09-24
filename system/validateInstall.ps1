@@ -1,0 +1,107 @@
+[cmdletbinding()]
+param (
+    [switch]$ShowVariables,
+    [switch]$Upgrade # New parameter
+)
+begin{
+    Write-Verbose -Message 'Initializing variables.' -Verbose
+    $ScriptFolder             = Split-Path $MyInvocation.MyCommand.Definition
+
+    # Add project modules folder to PSModulePath if not already present
+    $projectRoot = Split-Path -Parent $ScriptFolder
+    $modulesFolderPath = Join-Path $projectRoot "modules"
+    if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
+        $Env:PSModulePath = "$modulesFolderPath;$($Env:PSModulePath)"
+        Write-Verbose "Added '$modulesFolderPath' to PSModulePath." -Verbose
+    }
+
+    Write-Verbose -Message 'Validating required modules.'
+    # Store the content of Requiredmodules.json for dumping
+    $RequiredModulesJsonContent = Get-Content -Path "$ScriptFolder\Requiredmodules.json" | ConvertFrom-Json
+
+    $RequiredModulesJsonContent |
+        ForEach-Object{
+            $ModuleRequirement = $_
+            [string]$ModuleRequirementVersion = $ModuleRequirement.Version
+            if ('' -eq $ModuleRequirementVersion) {$ModuleRequirementVersion = '*'}
+            $module = (Get-Module -Name $ModuleRequirement.Name -ListAvailable | 
+                Sort-Object -Property Version -Descending | 
+                Select-Object -First 1)
+            if($null -eq $module){
+                Write-Error -Message "Required module not found: $($ModuleRequirement.Name). Please install it."
+            }
+            else{
+                [string]$ModuleVersion = $module.Version.ToString()
+                if ('' -eq $ModuleVersion) {$ModuleVersion = '0.0.0.0'}
+                $foundVersion = [System.Version]($ModuleVersion)
+                if ($ModuleRequirementVersion -ne '*' -and $foundVersion -lt [System.Version]$ModuleRequirementVersion) {
+                    Write-Error -Message "Required module $($ModuleRequirement.Name) found (version $($foundVersion)), but requires version $($ModuleRequirement.Version) or higher. Please update it."
+                } else {
+                    Write-Verbose "Module found: $($module.Name) version $($foundVersion)"
+                }
+            }
+        }
+    Write-Verbose -Message 'Validating required modules - complete.' -Verbose
+
+    Write-Verbose -Message 'Validating SQLite installation.' -Verbose
+    # Check if sqlite3 command is available
+    try {
+        $sqlite3Path = (Get-Command sqlite3 -ErrorAction Stop).Path
+        Write-Verbose "SQLite found at: $sqlite3Path" -Verbose
+    }
+    catch {
+        Write-Warning "SQLite (sqlite3 command) not found. Attempting to install via Winget."
+        # Check if Winget is available
+        try {
+            (Get-Command winget -ErrorAction Stop) | Out-Null
+            Write-Verbose "Winget found." -Verbose
+
+            $wingetCommand = "winget install --id SQLite.SQLite --accept-package-agreements --accept-source-agreements --silent"
+            if ($Upgrade) {
+                $wingetCommand = "winget upgrade --id SQLite.SQLite --accept-package-agreements --accept-source-agreements --silent"
+                Write-Verbose "Attempting to upgrade SQLite via Winget." -Verbose
+            } else {
+                Write-Verbose "Attempting to install SQLite via Winget (skipping upgrade unless -Upgrade switch is provided)." -Verbose
+            }
+
+            $wingetResult = Invoke-Expression $wingetCommand
+            if ($LASTEXITCODE -eq 0) {
+                Write-Verbose "SQLite operation completed successfully via Winget." -Verbose
+            } else {
+                Write-Error "Failed to install/upgrade SQLite via Winget. Winget exit code: $LASTEXITCODE. Output: $($wingetResult | Out-String)"
+                Write-Warning "Please install SQLite manually or run this script with administrative privileges if Winget requires them."
+            }
+        }
+        catch {
+            Write-Error "Winget not found or failed to execute. Please install SQLite manually."
+        }
+    }
+    Write-Verbose -Message 'Validating SQLite installation - complete.' -Verbose
+}
+end {
+    Write-Verbose "Validating database schema..." -Verbose
+    try {
+        $dbValidatorScript = Join-Path $ScriptFolder "db/sqlite/validatetables.ps1"
+        $dbConfigFile = Join-Path $ScriptFolder "db/sqlite/sqliteconfig.json"
+        $databaseFile = Join-Path $projectRoot "PsWebHost_Data/pswebhost.db"
+
+        if (Test-Path $dbValidatorScript) {
+            & $dbValidatorScript -DatabaseFile $databaseFile -ConfigFile $dbConfigFile -Verbose
+        } else {
+            Write-Warning "Database validator script not found at $dbValidatorScript. Skipping schema validation."
+        }
+    } catch {
+        Write-Error "An error occurred during database schema validation: $($_.Exception.Message)"
+    }
+
+    if ($ShowVariables.IsPresent) {
+        $variablesToDump = @{
+            ScriptFolder = $ScriptFolder
+            ProjectRoot = $projectRoot
+            ModulesFolderPath = $modulesFolderPath
+            RequiredModules = $RequiredModulesJsonContent
+            # Add any other relevant variables here
+        }
+        $variablesToDump | ConvertTo-Json -Depth 10 # Use a sufficient depth
+    }
+}

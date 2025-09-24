@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PsWebHost - SPA Docking System</title>
+    
+    <!-- React Libraries -->
+    <script src="/public/lib/react.development.js"></script>
+    <script src="/public/lib/react-dom.development.js"></script>
+    <script src="/public/lib/babel.min.js"></script>
+
+    <link rel="stylesheet" href="/public/style.css">
+    <link rel="stylesheet" href="/public/react-grid-layout.css">
+    </head>
+<body>
+    <div id="root"></div>
+    <!-- Insert splitters into the DOM after SPA script mounts; fallback insertion here too -->
+    <script>
+    // Adds splitters between left/main and main/right and wires pointer events for resizing.
+    (function(){
+      function initSplitters(){
+        const center = document.querySelector('.center-body');
+        if (!center) return;
+        const left = center.querySelector('.left-pane');
+        const main = center.querySelector('.main-pane');
+        const right = center.querySelector('.right-pane');
+
+        // avoid double-insert
+        if (center.querySelector('.splitter')) return;
+
+        function makeSplitter(beforeElem, leftElem, rightElem){
+          const s = document.createElement('div');
+          s.className = 'splitter';
+          center.insertBefore(s, beforeElem);
+          let startX, startLeftWidth, startRightWidth;
+          s.addEventListener('pointerdown', (ev)=>{
+            ev.preventDefault();
+            s.classList.add('active');
+            startX = ev.clientX;
+            startLeftWidth = leftElem.getBoundingClientRect().width;
+            startRightWidth = rightElem.getBoundingClientRect().width;
+            document.addEventListener('pointermove', onMove);
+            document.addEventListener('pointerup', onUp, { once:true });
+          });
+          function onMove(ev){
+            const dx = ev.clientX - startX;
+            // adjust left width; keep within min/max
+            const min = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--pane-min-width')) || 140;
+            const centerWidth = center.getBoundingClientRect().width;
+            let newLeft = startLeftWidth + dx;
+            let newRight = startRightWidth - dx;
+            // enforce min widths and not exceed center width
+            const maxLeft = centerWidth - min - (parseInt(getComputedStyle(document.documentElement).getPropertyValue('--splitter-size'))||8) - min;
+            if (newLeft < min) newLeft = min;
+            if (newLeft > maxLeft) newLeft = maxLeft;
+            leftElem.style.flex = `0 0 ${newLeft}px`;
+            if (rightElem) {
+              // keep right's flex as-is, allow main to adjust naturally
+              rightElem.style.flex = rightElem.style.flex || rightElem.style.flex;
+            }
+          }
+          function onUp(){ document.removeEventListener('pointermove', onMove); s.classList.remove('active'); }
+        }
+
+        if (left && main) { makeSplitter(main, left, main); }
+        if (main && right) {
+          // insert splitter before right pane
+          makeSplitter(right, main, right);
+        }
+      }
+
+      // Try to init on DOMContentLoaded and after a short delay to catch React mount
+      document.addEventListener('DOMContentLoaded', initSplitters);
+      setTimeout(initSplitters, 500);
+      setTimeout(initSplitters, 2000);
+    })();
+    </script>
+     <script src="/public/lib/react-grid-layout.min.js"></script>
+     <script type="text/babel" src="/public/components/SortableTable.js"></script>
+     <script type="text/babel" src="/public/psweb_spa.js"></script>
+</body>
+</html>

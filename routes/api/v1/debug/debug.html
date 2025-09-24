@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>PSWebHost - Debug Variables</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body{font-family:Segoe UI,Arial;margin:0;padding:0;display:block;height:100vh}
+  .topnav{position: fixed;top: 0;left: 0;right: 0;background:#1e1e1e;color:#ddd;padding:0px; padding:0px 0px}
+  .topnav a{display:inline-flex;color:#9cdcfe;padding:6px 8px;margin-top:6px;text-decoration:none}
+  .content{margin-top: 48px;flex:1;padding:3px;box-sizing:border-box;overflow:auto}
+  table{border-collapse:collapse;width:100%}
+  th,td{border:1px solid #ccc;padding:3px;text-align:left;vertical-align:top}
+  th{background:#f3f3f3;cursor:pointer}
+  .controls{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .search{flex:1;padding:6px}
+  .btn{padding:6px 8px;border:1px solid #666;background:#eee;cursor:pointer}
+  .small{font-size:0.9em;padding:4px 6px}
+  textarea{width:100%;height:120px;font-family:monospace}
+  pre{margin:0;font-family:monospace;white-space:pre-wrap;word-wrap:break-word;max-height:15em;overflow-y:auto;}
+  .type-badge{display:inline-block;padding:1px 1px;border-radius:4px;font-size:0.8em;margin-left:1px;background:#f3f3f3;color:#333}
+  .error{color:#900;font-size:0.9em;margin-top:4px}
+  .row-editor textarea{height:140px}
+  .actions{display:flex;gap:6px;align-items:center}
+  th[data-key="Name"],
+  th[data-key="Type"],
+  td:nth-child(1),
+  td:nth-child(2) {
+  width: 90px; /* Fixed width for Name and Type columns */
+  min-width: 150px; /* Ensure minimum width */
+  max-width: 150px; /* Prevent exceeding 90px */
+  word-wrap: break-word; /* Allow text to wrap */
+  overflow-wrap: break-word; /* Modern standard for word-wrap */
+  white-space: normal; /* Allow text to wrap to multiple lines */
+  text-align: left; /* Maintain left alignment */
+  padding: 1px; /* From your existing CSS */
+  border: 1px solid #ccc; /* From your existing CSS */
+}
+
+/* Ensure other columns (Value, Actions) remain flexible */
+th[data-key="Value"],
+td:nth-child(3) {
+width: auto; /* Allow Value column to take remaining space */
+}
+</style>
+</head>
+<body>
+  <div class="topnav" id="left-panel">
+    <span></span><h3>Navigation</h3></span>
+    <span><a href="/spa">SPA</a></span>
+    <span><a href="/api/v1/debug">Debug</a></span>
+  </div>
+
+  <div class="content">
+    <h2>Debug — Global Variables</h2>
+    <div class="controls">
+      <input id="search" class="search" placeholder="Search name / type / value..." />
+      <select id="filterType" title="Filter by variable type">
+        <option value="">All types</option>
+      </select>
+      <button id="refresh" class="btn small">Refresh</button>
+      <button id="create" class="btn small">New Variable</button>
+    </div>
+
+    <div class="muted">Click header to sort. Non-string values shown as pretty JSON. Inline edit preserves original type. JSON validation on save.</div>
+
+    <table id="varsTable" aria-live="polite">
+      <thead>
+        <tr>
+          <th data-key="Name">Name</th>
+          <th data-key="Type" class="type-header">Type</th>
+          <th data-key="Value">Value</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+<script>
+(async function(){
+  const apiVars = '/api/v1/debug/vars';
+  const apiVar = '/api/v1/debug/var';
+  let vars = [];
+  let sortKey = 'Name', sortAsc = true;
+  const tbody = document.querySelector('#varsTable tbody');
+  const searchBox = document.getElementById('search');
+  const filterType = document.getElementById('filterType');
+
+  function typeHint(type){
+    if(!type) return 'unknown';
+    if(type.includes('String')) return 'string';
+    if(type.includes('Int') || type.includes('Long')) return 'int';
+    if(type.includes('Double') || type.includes('Single') || type.includes('Decimal')) return 'float';
+    if(type.includes('Boolean')) return 'bool';
+    if(type.includes('DateTime')) return 'datetime';
+    if(type.endsWith('[]')) return 'array';
+    if(type === 'System.Object' || type.endsWith('Hashtable') || type.endsWith('Dictionary`2') || type.startsWith('System.Collections')) return 'object';
+    return 'object';
+  }
+
+  function pretty(val, t) {
+    try {
+      if (t === 'string') return val === null || val === undefined ? '' : String(val);
+      return JSON.stringify(val, null, 2);
+    } catch(e) { return String(val); }
+  }
+
+  function renderTable() {
+    // populate filter select
+    const types = Array.from(new Set(vars.map(v => v.Type))).sort();
+    filterType.innerHTML = '<option value="">All types</option>' + types.map(t=>`<option value="${escapeAttr(t)}">${escapeHtml(t)}</option>`).join('');
+    let filtered = vars.slice();
+    const q = (searchBox.value||'').toLowerCase();
+    if (q) {
+      filtered = filtered.filter(r =>
+        (r.Name||'').toLowerCase().includes(q) ||
+        (r.Type||'').toLowerCase().includes(q) ||
+        (r.DisplayValue||'').toLowerCase().includes(q)
+      );
+    }
+    const tfilter = filterType.value;
+    if (tfilter) filtered = filtered.filter(r => r.Type === tfilter);
+
+    filtered.sort((a,b)=>{
+      let A = (a[sortKey]||'').toString().toLowerCase();
+      let B = (b[sortKey]||'').toString().toLowerCase();
+      if (A<B) return sortAsc ? -1:1;
+      if (A>B) return sortAsc ? 1:-1;
+      return 0;
+    });
+
+    tbody.innerHTML = '';
+    for (const row of filtered) {
+      const tr = document.createElement('tr');
+
+      // Name
+      const tdName = document.createElement('td'); tdName.textContent = row.Name; tr.appendChild(tdName);
+
+      // Type with badge
+      const tdType = document.createElement('td');
+      const hint = typeHint(row.Type);
+      const span = document.createElement('span'); span.textContent = row.Type || '';
+      const badge = document.createElement('span'); badge.className='type-badge'; badge.textContent = hint;
+      tdType.appendChild(span); tdType.appendChild(badge);
+      tr.appendChild(tdType);
+
+      // Value cell: either display or editor if editing
+      const tdVal = document.createElement('td');
+      if (row.editing) {
+        tdVal.className = 'row-editor';
+        const ta = document.createElement('textarea'); ta.value = row.editBuffer; tdVal.appendChild(ta);
+        const err = document.createElement('div'); err.className='error'; tdVal.appendChild(err);
+        // validate live for non-string types
+        ta.oninput = function(){
+          if (hint !== 'string') {
+            try { JSON.parse(ta.value); err.textContent=''; } catch(e){ err.textContent='Invalid JSON: '+e.message; }
+          } else { err.textContent=''; }
+        };
+      } else {
+        const pre = document.createElement('pre'); pre.textContent = row.DisplayValue || '';
+        tdVal.appendChild(pre);
+      }
+      tr.appendChild(tdVal);
+
+      // Actions
+      const tdAct = document.createElement('td'); tdAct.className='actions';
+      if (row.editing) {
+        const saveBtn = document.createElement('button'); saveBtn.className='btn small'; saveBtn.textContent='Save';
+        const cancelBtn = document.createElement('button'); cancelBtn.className='btn small'; cancelBtn.textContent='Cancel';
+        saveBtn.onclick = async ()=> {
+          const ta = tdVal.querySelector('textarea');
+          const eDiv = tdVal.querySelector('.error');
+          if (eDiv && eDiv.textContent) { alert('Fix errors before saving.'); return; }
+          const payload = { Name: row.Name, OriginalType: row.Type, NewText: ta.value };
+          const r = await fetch(apiVar, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+          if (r.ok) { await loadVars(); } else { const txt = await r.text(); alert('Save failed: '+txt); }
+        };
+        cancelBtn.onclick = ()=>{ row.editing = false; renderTable(); };
+        tdAct.appendChild(saveBtn); tdAct.appendChild(cancelBtn);
+      } else {
+        const editBtn = document.createElement('button'); editBtn.className='btn small'; editBtn.textContent='Edit';
+        const delBtn = document.createElement('button'); delBtn.className='btn small'; delBtn.textContent='Delete';
+        editBtn.onclick = ()=>{ row.editing = true; row.editBuffer = row.DisplayValueRaw; renderTable(); };
+        delBtn.onclick = ()=>deleteVar(row.Name);
+        tdAct.appendChild(editBtn); tdAct.appendChild(delBtn);
+      }
+      tr.appendChild(tdAct);
+
+      tbody.appendChild(tr);
+    }
+  }
+
+  function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;').replace(/&/g,'&amp;'); }
+
+  async function loadVars(){
+    const r = await fetch(apiVars);
+    if (!r.ok) {
+      const txt = await r.text().catch(()=>'<no body>');
+      alert('Failed to load variables: ' + r.status + ' ' + r.statusText + '\n' + txt);
+      return;
+    }
+    vars = await r.json();
+    vars.forEach(v=>{
+      try{
+        const hint = typeHint(v.Type);
+        // If server returned RawValue as a JSON string for complex objects, try to detect and parse it
+        if (hint === 'string') {
+          v.DisplayValue = v.RawValue === null || v.RawValue === undefined ? '' : String(v.RawValue);
+          v.DisplayValueRaw = v.DisplayValue;
+        } else {
+          // If RawValue is a string, attempt to parse it as JSON so structured values show nicely
+          if (typeof v.RawValue === 'string') {
+            try {
+              const parsed = JSON.parse(v.RawValue);
+              v.DisplayValue = JSON.stringify(parsed, null, 2);
+              v.DisplayValueRaw = v.DisplayValue;
+            } catch(e) {
+              // not JSON, show raw string
+              v.DisplayValue = v.RawValue;
+              v.DisplayValueRaw = v.DisplayValue;
+            }
+          } else {
+            try {
+              v.DisplayValue = JSON.stringify(v.RawValue, null, 2);
+              v.DisplayValueRaw = v.DisplayValue;
+            } catch (e) {
+              v.DisplayValue = String(v.RawValue);
+              v.DisplayValueRaw = v.DisplayValue;
+            }
+          }
+        }
+        v.editing = false;
+        v.editBuffer = v.DisplayValueRaw;
+      }catch(e){ v.DisplayValue = String(v.RawValue); v.DisplayValueRaw = v.DisplayValue; }
+    });
+    renderTable();
+  }
+
+  async function deleteVar(name){
+    if (!confirm('Delete variable '+name+' ?')) return;
+    const r = await fetch(apiVar + '?name=' + encodeURIComponent(name), { method:'DELETE' });
+    if (r.ok) { await loadVars(); alert('Deleted'); } else { alert('Delete failed'); }
+  }
+
+  document.getElementById('refresh').onclick = loadVars;
+  document.getElementById('create').onclick = async ()=>{
+    const nm = prompt('Variable name (no $):');
+    if(!nm) return;
+    const t = prompt('Type hint (string,int,bool,object,float,datetime) default=string:','string');
+    const val = prompt('Initial value (for object, enter valid JSON):','');
+    const map = { string:'System.String', int:'System.Int32', bool:'System.Boolean', object:'System.Object', float:'System.Double', datetime:'System.DateTime' };
+    const payload = { Name: nm, OriginalType: map[t]||'System.String', NewText: val || '' };
+    const r = await fetch(apiVar, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (r.ok) { await loadVars(); alert('Created'); } else { const txt = await r.text(); alert('Create failed: '+txt); }
+  };
+
+  searchBox.oninput = renderTable;
+  filterType.onchange = renderTable;
+
+  document.querySelectorAll('#varsTable th[data-key]').forEach(th=>{
+    th.onclick = ()=>{ const key = th.getAttribute('data-key'); if (sortKey===key) sortAsc=!sortAsc; else { sortKey=key; sortAsc=true } ; renderTable(); }
+  });
+
+  await loadVars();
+})();
+</script>
+</body>
+</html>

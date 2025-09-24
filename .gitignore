@@ -1,0 +1,13 @@
+# Dependencies
+/node_modules
+/PsWebHost_Data/Logs
+/backups
+
+# VS Code
+.vscode/
+
+# Configuration
+/config/settings.json
+
+/PsWebHost_Data
+/_ImportFrom
