@@ -42,7 +42,8 @@ $encryptedSecret = $providerData.Secret
 $secret = Unprotect-String -EncryptedString $encryptedSecret
 
 # 4. Validate the code
-$isValid = Test-OTPToken -Secret $secret -Code $code
+$expectedCode = Get-OTPCode -Secret $secret
+$isValid = $expectedCode.Code -eq $code
 
 if ($isValid) {
     # 5. On success, complete the login flow

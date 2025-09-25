@@ -55,7 +55,8 @@ if (-not $pendingSecretObject) {
 }
 
 # 2. Verify the code
-$isValid = Test-OTPToken -Secret $pendingSecretObject.Secret -Code $code
+$expectedCode = Get-OTPCode -Secret $pendingSecretObject.Secret
+$isValid = $expectedCode.Code -eq $code
 
 if ($isValid) {
     # 3. On success, save the provider data

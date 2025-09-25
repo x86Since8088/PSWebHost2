@@ -33,7 +33,7 @@ if ($Request.QueryString.Get("qrcode") -eq "true") {
     if ($secretObject) {
         $tempFile = New-TemporaryFile
         try {
-            New-QRCode -TextInput $secretObject.SetupUri -OutFile $tempFile.FullName -ImageFormat Png
+            New-QRCode -TextInput $secretObject.ProvisioningUri -OutFile $tempFile.FullName -ImageFormat Png
             $qrCodeBytes = [System.IO.File]::ReadAllBytes($tempFile.FullName)
             context_reponse -Response $Response -StatusCode 200 -Bytes $qrCodeBytes -ContentType "image/png"
         } finally {
@@ -49,10 +49,10 @@ if ($Request.QueryString.Get("qrcode") -eq "true") {
 
 # 1. Generate a new TOTP Secret
 $issuer = "PsWebHost"
-$secretObject = New-OTPSecret -Account $user.Email -Issuer $issuer
+$secretObject = New-OTPSecret -Label $user.Email -Issuer $issuer
 
 # 2. Store the secret object temporarily in the session for verification later
-# We store the whole object as it contains the SetupUri for the QR code
+# We store the whole object as it contains the ProvisioningUri for the QR code
 $SessionData.PendingTwoFactorSecret = $secretObject
 
 # 3. Serve the registration page

@@ -9,7 +9,11 @@ function Sanitize-HtmlInput {
         if ([string]::IsNullOrEmpty($InputString)) {
             return ""
         }
-        return [System.Web.HttpUtility]::HtmlEncode($InputString)
+        # Regex to find and remove ANSI escape codes
+        $ansiEscapeRegex = '[\u001B\u009B][[()#;?]*.{0,2}(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]'
+        $sanitizedString = $InputString -replace $ansiEscapeRegex, ''
+
+        return [System.Web.HttpUtility]::HtmlEncode($sanitizedString)
     }
 }
 

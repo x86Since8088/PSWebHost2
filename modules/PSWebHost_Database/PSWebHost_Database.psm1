@@ -152,15 +152,17 @@ function Invoke-PSWebSQLiteNonQuery {
     param(
         [Parameter(Mandatory=$true)]
         [string]$File,
-        [Parameter(Mandatory=$true)]
+        [Parameter(ParameterSetName='Verb',Mandatory=$true)]
         [ValidateSet('INSERT', 'INSERT OR REPLACE', 'UPDATE', 'DELETE')]
         [string]$Verb,
-        [Parameter(Mandatory=$true)]
+        [Parameter(ParameterSetName='Verb',Mandatory=$true)]
         [string]$TableName,
-        [Parameter(Mandatory=$false)]
+        [Parameter(ParameterSetName='Verb',Mandatory=$false)]
         [hashtable]$Data,
-        [Parameter(Mandatory=$false)]
-        [string]$Where
+        [Parameter(ParameterSetName='Verb',Mandatory=$false)]
+        [string]$Where,
+        [Parameter(ParameterSetName='Query', Mandatory=$false)]
+        [string]$query
     )
 
     $baseDirectory = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data"
@@ -186,37 +188,43 @@ function Invoke-PSWebSQLiteNonQuery {
         }
     }
 
-    $query = ""
-    switch ($Verb) {
-        'INSERT' {
-            if (-not $Data) { Write-Error "-Data parameter is required for INSERT."; return }
-            $columns = ($Data.Keys | ForEach-Object { "`"$_`"" }) -join ', '
-            $values = ($Data.Values | ForEach-Object { Format-SQLiteValue -value $_ }) -join ', '
-            $query = "INSERT INTO `"$TableName`" ($columns) VALUES ($values);"
-            break
-        }
-        'INSERT OR REPLACE' {
-            if (-not $Data) { Write-Error "-Data parameter is required for INSERT OR REPLACE."; return }
-            $columns = ($Data.Keys | ForEach-Object { "`"$_`"" }) -join ', '
-            $values = ($Data.Values | ForEach-Object { Format-SQLiteValue -value $_ }) -join ', '
-            $query = "INSERT OR REPLACE INTO `"$TableName`" ($columns) VALUES ($values);"
-            break
-        }
-        'UPDATE' {
-            if (-not $Data) { Write-Error "-Data parameter is required for UPDATE."; return }
-            if (-not $Where) { Write-Error "-Where parameter is required for UPDATE."; return }
-            $setClauses = @()
-            foreach ($key in $Data.Keys) {
-                $formattedValue = Format-SQLiteValue -value $Data[$key]
-                $setClauses += "`"$key`" = $formattedValue"
+    if ($query) {
+        $CallstaskItem = Get-PSCallStack|Select-Object -Skip 1 -First 1
+        Write-Warning -Message "Direct -Query was used:`n`tCommand: $($CallstaskItem.Command)`n`tLocation: $($CallstaskItem.Location)`n`tLineNumber: $($CallstaskItem.ScriptLineNumber)`n`tFunctionName: $($CallstaskItem.FunctionName)`n`tPosition: $($CallstaskItem.Position)`n`tQuery: $($query -replace '`(e\[\d+[a-z])','!ANSI ESCAPE SEQUENCE REMOVED($1)!')"
+    }
+    else {
+        $query = ""
+        switch ($Verb) {
+            'INSERT' {
+                if (-not $Data) { Write-Error "-Data parameter is required for INSERT."; return }
+                $columns = ($Data.Keys | ForEach-Object { "`"$_`"" }) -join ', '
+                $values = ($Data.Values | ForEach-Object { Format-SQLiteValue -value $_ }) -join ', '
+                $query = "INSERT INTO `"$TableName`" ($columns) VALUES ($values);"
+                break
             }
-            $query = "UPDATE `"$TableName`" SET $($setClauses -join ', ') WHERE $Where;"
-            break
-        }
-        'DELETE' {
-            if (-not $Where) { Write-Error "-Where parameter is required for DELETE."; return }
-            $query = "DELETE FROM `"$TableName`" WHERE $Where;"
-            break
+            'INSERT OR REPLACE' {
+                if (-not $Data) { Write-Error "-Data parameter is required for INSERT OR REPLACE."; return }
+                $columns = ($Data.Keys | ForEach-Object { "`"$_`"" }) -join ', '
+                $values = ($Data.Values | ForEach-Object { Format-SQLiteValue -value $_ }) -join ', '
+                $query = "INSERT OR REPLACE INTO `"$TableName`" ($columns) VALUES ($values);"
+                break
+            }
+            'UPDATE' {
+                if (-not $Data) { Write-Error "-Data parameter is required for UPDATE."; return }
+                if (-not $Where) { Write-Error "-Where parameter is required for UPDATE."; return }
+                $setClauses = @()
+                foreach ($key in $Data.Keys) {
+                    $formattedValue = Format-SQLiteValue -value $Data[$key]
+                    $setClauses += "`"$key`" = $formattedValue"
+                }
+                $query = "UPDATE `"$TableName`" SET $($setClauses -join ', ') WHERE $Where;"
+                break
+            }
+            'DELETE' {
+                if (-not $Where) { Write-Error "-Where parameter is required for DELETE."; return }
+                $query = "DELETE FROM `"$TableName`" WHERE $Where;"
+                break
+            }
         }
     }
 
@@ -224,7 +232,14 @@ function Invoke-PSWebSQLiteNonQuery {
         Write-Error "Could not construct a valid query from the provided parameters."
         return
     }
-
+    if ($query -match '`(e\[\d+[a-z])') {
+        $CallstaskItem = Get-PSCallStack|Select-Object -Skip 1 -First 1
+        $message = "ANSI escape characters in query.`n`t$($query -split '`(e\[\d+[a-z])')" +
+            "`n`tCommand: $($CallstaskItem.Command)`n`tLocation: $($CallstaskItem.Location)`n`tLineNumber: $($CallstaskItem.ScriptLineNumber)`n`tFunctionName: $($CallstaskItem.FunctionName)`n`tPosition: $($CallstaskItem.Position)`n`tQuery: $($query -replace '`(e\[\d+[a-z])','!ANSI ESCAPE SEQUENCE REMOVED($1)!')"
+        Write-Warning -Message $message
+        Write-PSWebHostLog -message $message -level Warning -Severity Critical -Category 'Suspicious ANSI Escape Sequences'
+        return 'aborted'
+    }
     sqlite3 $dbFile $query
 }
 
@@ -871,92 +886,3 @@ function Remove-PSWebAuthProvider {
 }
 
 #endregion
-
-function Invoke-TestToken {
-    [cmdletbinding()]
-    param(
-        [Parameter(Mandatory=$false)]
-        [string]$State,
-
-        [Parameter(Mandatory=$false)]
-        [string]$SessionID = '%',
-
-        [Parameter(Mandatory=$false)]
-        [string]$UserID = '%',
-
-        [Parameter(Mandatory=$false)]
-        [string]$Provider = '%',
-
-        [Parameter(Mandatory=$false)]
-        [string]$AuthenticationState,
-
-        [Parameter(Mandatory=$false)]
-        [switch]$Completed
-    )
-
-    if ($null -eq $global:PSWebServer) {
-        $ProjectRoot = $PSScriptRoot -replace '[\/]system[\/].*'
-        . "$ProjectRoot\system\init.ps1"
-    }
-
-    $DatabaseFile = "pswebhost.db"
-
-    # Cleanup expired and incomplete sessions first
-    $cleanupTime = (Get-Date).AddMinutes(-5).ToUniversalTime()
-    $cleanupTimeUnix = [int64]((Get-Date $cleanupTime) - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
-    $cleanupQuery = "DELETE FROM LoginSessions WHERE AuthenticationTime < $cleanupTimeUnix AND (AuthenticationState IS NOT 'completed' OR AuthenticationState IS NULL);"
-    Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $cleanupQuery
-
-    # Handle state updates
-    if ($PSBoundParameters.ContainsKey('AuthenticationState') -or $Completed) {
-        if ($SessionID -eq '%') {
-            Write-Error "A specific SessionID must be provided to update AuthenticationState."
-            return
-        }
-        $newState = if ($Completed) { 'completed' } else { $AuthenticationState }
-        Write-Verbose "[TestToken.ps1] Attempting to upsert state to '$newState' for SessionID $SessionID."
-
-        # Get existing session data to preserve fields that aren't being updated
-        $existingSession = Get-LoginSession -SessionID $SessionID
-
-        $finalUserID = if ($UserID -ne '%') { $UserID } else { $existingSession.UserID }
-        if (-not $finalUserID) { $finalUserID = 'pending' } # Default for new records
-
-        $finalProvider = if ($Provider -ne '%') { $Provider } else { $existingSession.Provider }
-        if (-not $finalProvider) { $finalProvider = 'PsWebHost' } # Default for new records
-
-        $authTime = [int64]((Get-Date) - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
-        $expiresTime = if ($Completed) { (Get-Date).AddDays(7) } else { (Get-Date).AddMinutes(10) }
-        $expiresUnix = [int64]($expiresTime - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
-
-        $upsertQuery = "INSERT OR REPLACE INTO LoginSessions (SessionID, UserID, Provider, AuthenticationState, AuthenticationTime, LogonExpires) VALUES ('$SessionID', '$finalUserID', '$finalProvider', '$newState', $authTime, $expiresUnix);"
-        
-        Write-Verbose "[TestToken.ps1] Executing query: $upsertQuery"
-        Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $upsertQuery
-        return
-    }
-
-    # Handle state validation
-    Write-Verbose "[TestToken.ps1] Attempting to validate state '$State' for SessionID $SessionID."
-    $query = "SELECT * FROM LoginSessions WHERE SessionID LIKE '$SessionID' AND UserID LIKE '$UserID' AND Provider LIKE '$Provider' ORDER BY AuthenticationTime DESC;"
-    $results = Get-PSWebSQLiteData -File $DatabaseFile -Query $query
-    Write-Verbose "[TestToken.ps1] Found $($results.Count) matching sessions."
-
-    if ($null -ne $State) {
-        foreach ($result in $results) {
-            if ($result.AuthenticationState -eq $State) {
-                Write-Verbose "[TestToken.ps1] Match found! AuthenticationState is '$($result.AuthenticationState)'. Clearing state and returning object."
-                # State matches, clear it to prevent reuse, and return the session object
-                $updateQuery = "UPDATE LoginSessions SET AuthenticationState = NULL WHERE SessionID = '$($result.SessionID)';"
-                Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $updateQuery
-                return $result
-            }
-        }
-        # If no session matched the state
-        Write-Verbose "[TestToken.ps1] No session found with matching state."
-        return $null
-    }
-
-    # If no state is provided for validation, just return the query results
-    return $results
-}
