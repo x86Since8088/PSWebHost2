@@ -9,7 +9,7 @@ This script is executed after the user has been presented with a QR code and has
 1.  **Authentication Check**: Ensures that a user is logged in by checking for a `UserID` in the current session data.
 2.  **Input Retrieval**: Reads the `code` submitted by the user from the request body.
 3.  **Secret Verification**: Retrieves the temporary TOTP secret that was generated in the first step of registration and stored in the user's session (`$SessionData.PendingTwoFactorSecret`).
-4.  **Code Validation**: Uses the `Test-GATotp` function to verify that the submitted code is valid for the pending secret.
+4.  **Code Validation**: Uses the `Test-OTPToken` function to verify that the submitted code is valid for the pending secret.
 5.  **On Success**:
     - The TOTP secret is encrypted using `Protect-String`.
     - A new set of user-friendly recovery codes is generated and hashed.

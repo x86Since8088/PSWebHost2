@@ -7,9 +7,9 @@ param (
 
 #region Dependencies
 try {
-    Import-Module -Name TOTP -ErrorAction Stop
+    Import-Module -Name OTP -ErrorAction Stop
 } catch {
-    $errorMessage = "Required MFA module (TOTP) not found. Please run validation scripts. Error: $($_.Exception.Message)"
+    $errorMessage = "Required MFA module (OTP) not found. Please run validation scripts. Error: $($_.Exception.Message)"
     Write-Error $errorMessage
     context_reponse -Response $Response -StatusCode 500 -String $errorMessage
     return
@@ -55,7 +55,7 @@ if (-not $pendingSecretObject) {
 }
 
 # 2. Verify the code
-$isValid = Test-GATotp -Secret $pendingSecretObject.Secret -Code $code
+$isValid = Test-OTPToken -Secret $pendingSecretObject.Secret -Code $code
 
 if ($isValid) {
     # 3. On success, save the provider data

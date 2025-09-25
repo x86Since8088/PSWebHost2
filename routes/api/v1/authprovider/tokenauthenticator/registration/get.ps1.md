@@ -11,7 +11,7 @@ The script has two primary modes of operation, determined by the query string.
 When a user navigates to the registration endpoint, this script performs the following actions:
 
 - **Authentication Check**: Verifies that the user is logged in. If not, they are redirected to the login page.
-- **Generate Secret**: Creates a new TOTP secret and setup URI using the `New-GATotpSecret` function.
+- **Generate Secret**: Creates a new TOTP secret and setup URI using the `New-OTPSecret` function.
 - **Store Secret in Session**: The newly generated secret object (which includes the key and the setup URI) is stored temporarily in the user's session data under the key `PendingTwoFactorSecret`. This is used later for verification and QR code generation.
 - **Serve HTML Page**: It loads the `register.html` file, injects the plain-text secret key into the page for users who want to perform manual setup, and returns the HTML to the user.
 

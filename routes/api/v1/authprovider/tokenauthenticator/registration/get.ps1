@@ -6,13 +6,13 @@ param (
 )
 
 #region Dependencies
-# This script uses functions from the TOTP and QRCodeGenerator modules.
+# This script uses functions from the OTP and QRCodeGenerator modules.
 # These are expected to be downloaded by Validate3rdPartyModules.ps1
 try {
-    Import-Module -Name TOTP -ErrorAction Stop
+    Import-Module -Name OTP -ErrorAction Stop
     Import-Module -Name QRCodeGenerator -ErrorAction Stop
 } catch {
-    $errorMessage = "Required MFA modules (TOTP, QRCodeGenerator) not found. Please run validation scripts. Error: $($_.Exception.Message)"
+    $errorMessage = "Required MFA modules (OTP, QRCodeGenerator) not found. Please run validation scripts. Error: $($_.Exception.Message)"
     Write-Error $errorMessage
     context_reponse -Response $Response -StatusCode 500 -String $errorMessage
     return
@@ -49,7 +49,7 @@ if ($Request.QueryString.Get("qrcode") -eq "true") {
 
 # 1. Generate a new TOTP Secret
 $issuer = "PsWebHost"
-$secretObject = New-GATotpSecret -Account $user.Email -Issuer $issuer
+$secretObject = New-OTPSecret -Account $user.Email -Issuer $issuer
 
 # 2. Store the secret object temporarily in the session for verification later
 # We store the whole object as it contains the SetupUri for the QR code

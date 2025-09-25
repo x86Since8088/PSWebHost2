@@ -4,10 +4,10 @@ This script serves as the route handler for a `POST` request to `/api/v1/authpro
 
 ## Workflow
 
-1.  **Dependency Check**: Verifies that the required `TOTP` PowerShell module is installed.
+1.  **Dependency Check**: Verifies that the required `OTP` PowerShell module is installed.
 2.  **Session State Verification**: It calls `Invoke-TestToken` to confirm that the user's current session is in the `mfa_required` state. This ensures that this second authentication factor is only performed after the primary authentication (e.g., password) has succeeded.
 3.  **Input Retrieval**: Reads the request body to extract the `code` submitted by the user.
 4.  **Secret Retrieval**: Fetches the current user's TOTP secret, which is stored in an encrypted format in the database, and decrypts it.
-5.  **Code Validation**: Uses the `Test-GATotp` function (from the `TOTP` module) to check if the submitted code is valid for the user's secret.
+5.  **Code Validation**: Uses the `Test-OTPToken` function (from the `OTP` module) to check if the submitted code is valid for the user's secret.
 6.  **Success**: If the code is valid, it marks the authentication as complete by calling `Invoke-TestToken -Completed`. It then redirects the user to `/api/v1/auth/getaccesstoken` to obtain their final session access token.
 7.  **Failure**: If the code is invalid, it returns a `400 Bad Request` error. The script also resets the session state back to `mfa_required`, allowing the user to attempt the MFA challenge again.

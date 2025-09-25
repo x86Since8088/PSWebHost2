@@ -1,8 +1,8 @@
-- Name: TOTP
+- Name: OTP
   Repository: PSGallery
-  # This is the module we will use for MFA functionality.
-  # We are pinning to a specific version for reproducibility.
-  Version: 1.2.0
+  # This module is used for MFA functionality, replacing the unavailable TOTP module.
+  # Pinning to a specific version for reproducibility.
+  Version: 0.1.1
 
 - Name: powershell-yaml
   Repository: PSGallery
