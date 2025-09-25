@@ -11,7 +11,7 @@ $redirectTo = $Request.QueryString["RedirectTo"]
 
 # Check if the user is authenticated
 
-$isSessionValid = Validate-UserSession -Context $Context
+$isSessionValid = Validate-UserSession -Context $Context -Verbose
 if ($isSessionValid -and ($SessionData.UserID -match '\S{4,256}')) {
     # Redirect back to getaccesstoken
     $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"

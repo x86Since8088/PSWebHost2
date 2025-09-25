@@ -15,7 +15,13 @@ function New-PSWebSQLiteTable {
     if (-not (Test-Path $baseDirectory)) {
         New-Item -Path $baseDirectory -ItemType Directory -Force | Out-Null
     }
-    $dbFile = Join-Path $baseDirectory $File
+    if (Test-Path $File) {
+        Write-Verbose "Using file: $File"
+        $dbFile = $File
+    }
+    else {
+        $dbFile = Join-Path $baseDirectory $File
+    }
 
     $columnDefinitions = @()
     if ($Columns[0] -is [string]) {
@@ -58,7 +64,13 @@ function New-PSWebSQLiteData {
     )
 
     $baseDirectory = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data"
-    $dbFile = Join-Path $baseDirectory $File
+    if (Test-Path $File) {
+        Write-Verbose "Using file: $File"
+        $dbFile = $File
+    }
+    else {
+        $dbFile = Join-Path $baseDirectory $File
+    }
 
     $keys = $Data.Keys | ForEach-Object { "`"$_`"" }
     $values = $Data.Values | ForEach-Object { "'$_'" }
@@ -85,7 +97,13 @@ function New-PSWebSQLiteDataByID {
     )
 
     $baseDirectory = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data"
-    $dbFile = Join-Path $baseDirectory $File
+    if (Test-Path $File) {
+        Write-Verbose "Using file: $File"
+        $dbFile = $File
+    }
+    else {
+        $dbFile = Join-Path $baseDirectory $File
+    }
 
     $setClauses = @()
     foreach ($key in $Columns.Keys) {
@@ -134,9 +152,15 @@ function Invoke-PSWebSQLiteNonQuery {
     param(
         [Parameter(Mandatory=$true)]
         [string]$File,
-
         [Parameter(Mandatory=$true)]
-        [string]$Query
+        [ValidateSet('INSERT', 'INSERT OR REPLACE', 'UPDATE', 'DELETE')]
+        [string]$Verb,
+        [Parameter(Mandatory=$true)]
+        [string]$TableName,
+        [Parameter(Mandatory=$false)]
+        [hashtable]$Data,
+        [Parameter(Mandatory=$false)]
+        [string]$Where
     )
 
     $baseDirectory = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data"
@@ -147,7 +171,61 @@ function Invoke-PSWebSQLiteNonQuery {
         return
     }
 
-    sqlite3 $dbFile $Query
+    # Helper function to format values based on type
+    function Format-SQLiteValue {
+        param($value)
+        if ($null -eq $value) { return "NULL" }
+        if ($value -is [string] -and $value.StartsWith("X'")) {
+            return $value # Hex literal for BLOB
+        } elseif ($value -is [string]) {
+            return "'$($value -replace "'", "''")'" # Quote and escape string
+        } elseif ($value -is [boolean]) {
+            return if ($value) { 1 } else { 0 } # Convert boolean to integer
+        } else {
+            return $value # Number or other literal
+        }
+    }
+
+    $query = ""
+    switch ($Verb) {
+        'INSERT' {
+            if (-not $Data) { Write-Error "-Data parameter is required for INSERT."; return }
+            $columns = ($Data.Keys | ForEach-Object { "`"$_`"" }) -join ', '
+            $values = ($Data.Values | ForEach-Object { Format-SQLiteValue -value $_ }) -join ', '
+            $query = "INSERT INTO `"$TableName`" ($columns) VALUES ($values);"
+            break
+        }
+        'INSERT OR REPLACE' {
+            if (-not $Data) { Write-Error "-Data parameter is required for INSERT OR REPLACE."; return }
+            $columns = ($Data.Keys | ForEach-Object { "`"$_`"" }) -join ', '
+            $values = ($Data.Values | ForEach-Object { Format-SQLiteValue -value $_ }) -join ', '
+            $query = "INSERT OR REPLACE INTO `"$TableName`" ($columns) VALUES ($values);"
+            break
+        }
+        'UPDATE' {
+            if (-not $Data) { Write-Error "-Data parameter is required for UPDATE."; return }
+            if (-not $Where) { Write-Error "-Where parameter is required for UPDATE."; return }
+            $setClauses = @()
+            foreach ($key in $Data.Keys) {
+                $formattedValue = Format-SQLiteValue -value $Data[$key]
+                $setClauses += "`"$key`" = $formattedValue"
+            }
+            $query = "UPDATE `"$TableName`" SET $($setClauses -join ', ') WHERE $Where;"
+            break
+        }
+        'DELETE' {
+            if (-not $Where) { Write-Error "-Where parameter is required for DELETE."; return }
+            $query = "DELETE FROM `"$TableName`" WHERE $Where;"
+            break
+        }
+    }
+
+    if ([string]::IsNullOrEmpty($query)) {
+        Write-Error "Could not construct a valid query from the provided parameters."
+        return
+    }
+
+    sqlite3 $dbFile $query
 }
 
 function Set-CardSession {
@@ -235,12 +313,32 @@ function Add-UserToGroup {
     sqlite3 $dbFile $query
 }
 
+function Remove-UserFromGroup {
+    [cmdletbinding()]
+    param(
+        [string]$UserID,
+        [string]$GroupID
+    )
+    $dbFile = "pswebhost.db"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'DELETE' -TableName 'User_Groups_Map' -Where "UserID = '$UserID' AND GroupID = '$GroupID'"
+}
+
 function Set-RoleForPrincipal {
     [cmdletbinding()]
     param([string]$PrincipalID, [string]$RoleName) # Principal can be a UserID or GroupID
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $query = "INSERT OR IGNORE INTO PSWeb_Roles (PrincipalID, RoleName) VALUES ('$PrincipalID','$RoleName');"
     sqlite3 $dbFile $query
+}
+
+function Remove-RoleForPrincipal {
+    [cmdletbinding()]
+    param(
+        [string]$PrincipalID,
+        [string]$RoleName
+    )
+    $dbFile = "pswebhost.db"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'DELETE' -TableName 'PSWeb_Roles' -Where "PrincipalID = '$PrincipalID' AND RoleName = '$RoleName'"
 }
 
 function Get-PSWebRoles {
@@ -314,10 +412,11 @@ function Set-LoginSession {
         [Parameter(Mandatory=$true)] [string]$UserID,
         [Parameter(Mandatory=$true)] [string]$Provider,
         [Parameter(Mandatory=$true)] [datetime]$AuthenticationTime,
-        [Parameter(Mandatory=$true)] [datetime]$LogonExpires
+        [Parameter(Mandatory=$true)] [datetime]$LogonExpires,
+        [Parameter(Mandatory=$false)] [string]$UserAgent
     )
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
-    $query = "INSERT OR REPLACE INTO LoginSessions (SessionID, UserID, AuthenticationTime, Provider, LogonExpires) VALUES ('$SessionID', '$UserID', '$(Get-Date $AuthenticationTime -UFormat %s)', '$Provider', '$(Get-Date $LogonExpires -UFormat %s)');"
+    $query = "INSERT OR REPLACE INTO LoginSessions (SessionID, UserID, AuthenticationTime, Provider, LogonExpires, UserAgent) VALUES ('$SessionID', '$UserID', '$(Get-Date $AuthenticationTime -UFormat %s)', '$Provider', '$(Get-Date $LogonExpires -UFormat %s)', '$UserAgent');"
     sqlite3 $dbFile $query
 }
 
@@ -334,30 +433,285 @@ function Get-LoginSession {
 function Set-UserData {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)] [string]$GUID,
+        [Parameter(Mandatory=$true)] [string]$ID,
         [Parameter(Mandatory=$true)] [string]$Name,
         [Parameter(Mandatory=$true)] [byte[]]$Data
     )
-    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $hexData = "X'" + ($Data | ForEach-Object { $_.ToString('X2') }) -join '' + "'"
-    $query = "INSERT OR REPLACE INTO User_Data (GUID, Name, Data) VALUES ('$GUID', '$Name', $hexData);"
-    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query $query
+    $dataToSet = @{
+        ID = $ID
+        Name = $Name
+        Data = $hexData
+    }
+    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'INSERT OR REPLACE' -TableName 'User_Data' -Data $dataToSet
 }
 
 function Get-UserData {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)] [string]$GUID,
+        [Parameter(Mandatory=$true)] [string]$ID,
         [Parameter(Mandatory=$true)] [string]$Name
     )
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
-    $query = "SELECT Data FROM User_Data WHERE GUID = '$GUID' AND Name = '$Name';"
+    $query = "SELECT Data FROM User_Data WHERE ID = '$ID' AND Name LIKE '$Name';"
     $result = Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
     if ($result) {
-        return $result.Data
+        return $result
     } else {
         return $null
     }
+}
+
+function Get-CardSettings {
+    [cmdletbinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$EndpointGuid,
+
+        [Parameter(Mandatory=$true)]
+        [string]$UserId
+    )
+
+    $query = "SELECT data FROM card_settings WHERE endpoint_guid = '$EndpointGuid' AND user_id = '$UserId';"
+    $settings = Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
+    
+    if ($settings) {
+        return $settings.data
+    } else {
+        return $null
+    }
+}
+
+function Set-CardSettings {
+    [cmdletbinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$EndpointGuid,
+
+        [Parameter(Mandatory=$true)]
+        [string]$UserId,
+
+        [Parameter(Mandatory=$true)]
+        [string]$Data # Compressed JSON
+    )
+
+    $date = (Get-Date).ToString("s")
+    # TODO: This query uses a sub-select and is too complex for the basic Invoke-PSWebSQLiteNonQuery builder.
+    # It should be refactored or the builder function enhanced if this pattern is common.
+    $query = "INSERT OR REPLACE INTO card_settings (endpoint_guid, user_id, created_date, last_updated, data) VALUES ('$EndpointGuid', '$UserId', COALESCE((SELECT created_date FROM card_settings WHERE endpoint_guid = '$EndpointGuid' AND user_id = '$UserId'), '$date'), '$date', '$Data');"
+    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query $query
+}
+
+#region Provider Data Functions
+
+function ConvertFrom-CompressedBase64 {
+    param (
+        [string]$InputString
+    )
+    try {
+        $compressedBytes = [System.Convert]::FromBase64String($InputString)
+        $memStream = New-Object System.IO.MemoryStream
+        $memStream.Write($compressedBytes, 0, $compressedBytes.Length)
+        $memStream.Position = 0
+        $gzipStream = New-Object System.IO.Compression.GZipStream($memStream, [System.IO.Compression.CompressionMode]::Decompress)
+        $streamReader = New-Object System.IO.StreamReader($gzipStream)
+        $uncompressedString = $streamReader.ReadToEnd()
+        $gzipStream.Close()
+        $memStream.Close()
+        return $uncompressedString
+    } catch {
+        Write-Error "Failed to decompress or decode Base64 string. Error: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Get-PSWebUserIDFromDb {
+    param(
+        [string]$UserID,
+        [string]$Email
+    )
+    $dbFile = "pswebhost.db"
+    if ($UserID) {
+        $query = "SELECT ID FROM Users WHERE UserID = '$UserID';"
+    } elseif ($Email) {
+        $query = "SELECT ID FROM Users WHERE Email = '$Email';"
+    } else {
+        return $null
+    }
+    return (Get-PSWebSQLiteData -File $dbFile -Query $query).ID
+}
+
+function Get-PSWebAuthProvider {
+    [cmdletbinding()]
+    param(
+        [string]$UserID,
+        [string]$Email,
+        [string]$Provider = '*'
+    )
+
+    $id = Get-PSWebUserIDFromDb -UserID $UserID -Email $Email
+    if (-not $id) { return $null }
+
+    $providerName = if ($Provider -eq '*') { '%' } else { $Provider }
+    $nameQuery = "Auth_${providerName}_Registration"
+
+    $userData = Get-UserData -ID $id -Name $nameQuery
+    if (-not $userData) { return $null }
+
+    $results = @()
+    foreach($data in $userData) {
+        $decompressedJson = ConvertFrom-CompressedBase64 -InputString $data.Data
+        $psObject = $decompressedJson | ConvertFrom-Json
+        $results += $psObject
+    }
+    return $results
+}
+
+function Set-PSWebAuthProvider {
+    [cmdletbinding()]
+    param(
+        [string]$UserID,
+        [string]$Email,
+        [string]$Provider,
+        [hashtable]$Data
+    )
+
+    $id = Get-PSWebUserIDFromDb -UserID $UserID -Email $Email
+    if (-not $id) { Write-Error "User not found."; return }
+
+    $name = "Auth_${Provider}_Registration"
+    $json = $Data | ConvertTo-Json -Compress
+    $compressedData = ConvertTo-CompressedBase64 -InputString $json
+
+    Set-UserData -ID $id -Name $name -Data $compressedData
+}
+
+function Add-PSWebAuthProvider {
+    [cmdletbinding()]
+    param(
+        [string]$UserID,
+        [string]$Email,
+        [string]$Provider,
+        [hashtable]$Data
+    )
+
+    $existing = Get-PSWebAuthProvider -UserID $UserID -Email $Email -Provider $Provider
+    if ($existing) {
+        Write-Error "Provider '$Provider' already exists for this user."
+        return
+    }
+    Set-PSWebAuthProvider -UserID $UserID -Email $Email -Provider $Provider -Data $Data
+}
+
+function Remove-PSWebAuthProvider {
+    [cmdletbinding()]
+    param(
+        [string]$UserID,
+        [string]$Email,
+        [string]$Provider
+    )
+    $id = Get-PSWebUserIDFromDb -UserID $UserID -Email $Email
+    if (-not $id) { Write-Error "User not found."; return }
+
+    $name = "Auth_${Provider}_Registration"
+    $dbFile = "pswebhost.db"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'DELETE' -TableName 'User_Data' -Where "ID = '$id' AND Name = '$name'"
+}
+
+#endregion
+
+function Invoke-TestToken {
+    [cmdletbinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$State,
+
+        [Parameter(Mandatory=$false)]
+        [string]$SessionID = '%',
+
+        [Parameter(Mandatory=$false)]
+        [string]$UserID = '%',
+
+        [Parameter(Mandatory=$false)]
+        [string]$Provider = '%',
+
+        [Parameter(Mandatory=$false)]
+        [string]$AuthenticationState,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$Completed
+    )
+
+    if ($null -eq $global:PSWebServer) {
+        $ProjectRoot = $PSScriptRoot -replace '[\/]system[\/].*'
+        . "$ProjectRoot\system\init.ps1"
+    }
+
+    $DatabaseFile = "pswebhost.db"
+
+    # Cleanup expired and incomplete sessions first
+    $cleanupTime = (Get-Date).AddMinutes(-5).ToUniversalTime()
+    $cleanupTimeUnix = [int64]((Get-Date $cleanupTime) - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
+    Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Verb 'DELETE' -TableName 'LoginSessions' -Where "AuthenticationTime < $cleanupTimeUnix AND (AuthenticationState IS NOT 'completed' OR AuthenticationState IS NULL)"
+
+    # Handle state updates
+    if ($PSBoundParameters.ContainsKey('AuthenticationState') -or $Completed) {
+        if ($SessionID -eq '%') {
+            Write-Error "A specific SessionID must be provided to update AuthenticationState."
+            return
+        }
+        $newState = if ($Completed) { 'completed' } else { $AuthenticationState }
+        Write-Verbose "[TestToken.ps1] Attempting to upsert state to '$newState' for SessionID $SessionID."
+
+        # Get existing session data to preserve fields that aren't being updated
+        $existingSession = Get-LoginSession -SessionID $SessionID
+
+        $finalUserID = if ($UserID -ne '%') { $UserID } else { $existingSession.UserID }
+        if (-not $finalUserID) { $finalUserID = 'pending' } # Default for new records
+
+        $finalProvider = if ($Provider -ne '%') { $Provider } else { $existingSession.Provider }
+        if (-not $finalProvider) { $finalProvider = 'PsWebHost' } # Default for new records
+
+        $authTime = [int64]((Get-Date) - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
+        $expiresTime = if ($Completed) { (Get-Date).AddDays(7) } else { (Get-Date).AddMinutes(10) }
+        $expiresUnix = [int64]($expiresTime - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
+
+        $upsertData = @{
+            SessionID = $SessionID
+            UserID = $finalUserID
+            Provider = $finalProvider
+            AuthenticationState = $newState
+            AuthenticationTime = $authTime
+            LogonExpires = $expiresUnix
+        }
+        
+        Write-Verbose "[TestToken.ps1] Executing upsert..."
+        Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Verb 'INSERT OR REPLACE' -TableName 'LoginSessions' -Data $upsertData
+        return
+    }
+
+    # Handle state validation
+    Write-Verbose "[TestToken.ps1] Attempting to validate state '$State' for SessionID $SessionID."
+    $query = "SELECT * FROM LoginSessions WHERE SessionID LIKE '$SessionID' AND UserID LIKE '$UserID' AND Provider LIKE '$Provider' ORDER BY AuthenticationTime DESC;"
+    $results = Get-PSWebSQLiteData -File $DatabaseFile -Query $query
+    Write-Verbose "[TestToken.ps1] Found $($results.Count) matching sessions."
+
+    if ($null -ne $State) {
+        foreach ($result in $results) {
+            if ($result.AuthenticationState -eq $State) {
+                Write-Verbose "[TestToken.ps1] Match found! AuthenticationState is '$($result.AuthenticationState)'. Clearing state and returning object."
+                # State matches, clear it to prevent reuse, and return the session object
+                Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Verb 'UPDATE' -TableName 'LoginSessions' -Data @{ AuthenticationState = $null } -Where "SessionID = '$($result.SessionID)'"
+                return $result
+            }
+        }
+        # If no session matched the state
+        Write-Verbose "[TestToken.ps1] No session found with matching state."
+        return $null
+    }
+
+    # If no state is provided for validation, just return the query results
+    return $results
 }
 
 function Get-CardSettings {
@@ -518,3 +872,91 @@ function Remove-PSWebAuthProvider {
 
 #endregion
 
+function Invoke-TestToken {
+    [cmdletbinding()]
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$State,
+
+        [Parameter(Mandatory=$false)]
+        [string]$SessionID = '%',
+
+        [Parameter(Mandatory=$false)]
+        [string]$UserID = '%',
+
+        [Parameter(Mandatory=$false)]
+        [string]$Provider = '%',
+
+        [Parameter(Mandatory=$false)]
+        [string]$AuthenticationState,
+
+        [Parameter(Mandatory=$false)]
+        [switch]$Completed
+    )
+
+    if ($null -eq $global:PSWebServer) {
+        $ProjectRoot = $PSScriptRoot -replace '[\/]system[\/].*'
+        . "$ProjectRoot\system\init.ps1"
+    }
+
+    $DatabaseFile = "pswebhost.db"
+
+    # Cleanup expired and incomplete sessions first
+    $cleanupTime = (Get-Date).AddMinutes(-5).ToUniversalTime()
+    $cleanupTimeUnix = [int64]((Get-Date $cleanupTime) - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
+    $cleanupQuery = "DELETE FROM LoginSessions WHERE AuthenticationTime < $cleanupTimeUnix AND (AuthenticationState IS NOT 'completed' OR AuthenticationState IS NULL);"
+    Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $cleanupQuery
+
+    # Handle state updates
+    if ($PSBoundParameters.ContainsKey('AuthenticationState') -or $Completed) {
+        if ($SessionID -eq '%') {
+            Write-Error "A specific SessionID must be provided to update AuthenticationState."
+            return
+        }
+        $newState = if ($Completed) { 'completed' } else { $AuthenticationState }
+        Write-Verbose "[TestToken.ps1] Attempting to upsert state to '$newState' for SessionID $SessionID."
+
+        # Get existing session data to preserve fields that aren't being updated
+        $existingSession = Get-LoginSession -SessionID $SessionID
+
+        $finalUserID = if ($UserID -ne '%') { $UserID } else { $existingSession.UserID }
+        if (-not $finalUserID) { $finalUserID = 'pending' } # Default for new records
+
+        $finalProvider = if ($Provider -ne '%') { $Provider } else { $existingSession.Provider }
+        if (-not $finalProvider) { $finalProvider = 'PsWebHost' } # Default for new records
+
+        $authTime = [int64]((Get-Date) - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
+        $expiresTime = if ($Completed) { (Get-Date).AddDays(7) } else { (Get-Date).AddMinutes(10) }
+        $expiresUnix = [int64]($expiresTime - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
+
+        $upsertQuery = "INSERT OR REPLACE INTO LoginSessions (SessionID, UserID, Provider, AuthenticationState, AuthenticationTime, LogonExpires) VALUES ('$SessionID', '$finalUserID', '$finalProvider', '$newState', $authTime, $expiresUnix);"
+        
+        Write-Verbose "[TestToken.ps1] Executing query: $upsertQuery"
+        Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $upsertQuery
+        return
+    }
+
+    # Handle state validation
+    Write-Verbose "[TestToken.ps1] Attempting to validate state '$State' for SessionID $SessionID."
+    $query = "SELECT * FROM LoginSessions WHERE SessionID LIKE '$SessionID' AND UserID LIKE '$UserID' AND Provider LIKE '$Provider' ORDER BY AuthenticationTime DESC;"
+    $results = Get-PSWebSQLiteData -File $DatabaseFile -Query $query
+    Write-Verbose "[TestToken.ps1] Found $($results.Count) matching sessions."
+
+    if ($null -ne $State) {
+        foreach ($result in $results) {
+            if ($result.AuthenticationState -eq $State) {
+                Write-Verbose "[TestToken.ps1] Match found! AuthenticationState is '$($result.AuthenticationState)'. Clearing state and returning object."
+                # State matches, clear it to prevent reuse, and return the session object
+                $updateQuery = "UPDATE LoginSessions SET AuthenticationState = NULL WHERE SessionID = '$($result.SessionID)';"
+                Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $updateQuery
+                return $result
+            }
+        }
+        # If no session matched the state
+        Write-Verbose "[TestToken.ps1] No session found with matching state."
+        return $null
+    }
+
+    # If no state is provided for validation, just return the query results
+    return $results
+}

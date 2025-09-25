@@ -3,8 +3,8 @@
     {
       "name": "Users",
       "columns": [
-        { "name": "UserID", "type": "TEXT", "constraint": "PRIMARY KEY" },
-        { "name": "GUID", "type": "TEXT", "constraint": "UNIQUE NOT NULL" },
+        { "name": "ID", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "UserID", "type": "TEXT", "constraint": "UNIQUE NOT NULL" },
         { "name": "Email", "type": "TEXT", "constraint": "UNIQUE NOT NULL" },
         { "name": "PasswordHash", "type": "TEXT", "constraint": "NOT NULL" }
       ]
@@ -12,11 +12,11 @@
     {
       "name": "User_Data",
       "columns": [
-        { "name": "GUID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "ID", "type": "TEXT", "constraint": "NOT NULL" },
         { "name": "Name", "type": "TEXT", "constraint": "NOT NULL" },
         { "name": "Data", "type": "BLOB", "constraint": "" }
       ],
-      "primary_key": ["GUID", "Name"]
+      "primary_key": ["ID", "Name"]
     },
     {
       "name": "LoginSessions",
@@ -26,7 +26,8 @@
         { "name": "Provider", "type": "TEXT", "constraint": "" },
         { "name": "AuthenticationTime", "type": "INTEGER", "constraint": "NOT NULL" },
         { "name": "LogonExpires", "type": "INTEGER", "constraint": "NOT NULL" },
-        { "name": "AuthenticationState", "type": "TEXT", "constraint": "" }
+        { "name": "AuthenticationState", "type": "TEXT", "constraint": "" },
+        { "name": "UserAgent", "type": "TEXT", "constraint": "" }
       ],
       "primary_key": ["SessionID", "UserID"]
     },

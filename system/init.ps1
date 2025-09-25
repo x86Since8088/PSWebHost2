@@ -110,5 +110,5 @@ Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Authenticati
 Import-TrackedModule -Path (Join-Path $modulesFolderPath "smtp/smtp.psd1")
 
 
-# Initialize the database
-Initialize-PSWebHostDatabase
+# Validate installation, dependencies, and database schema
+& (Join-Path $PSScriptRoot 'validateInstall.ps1')

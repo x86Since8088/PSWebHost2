@@ -15,10 +15,12 @@
         'Invoke-AuthenticationMethod',
         'New-PSWebHostUser',
         'New-PSWebUser',
+        'Protect-String',
+        'PSWebLogon',
         'Test-IsValidEmailAddress',
         'Test-IsValidPassword',
         'Test-LoginLockout',
-        'PSWebLogon'
+        'Unprotect-String'
     )
     RootModule = 'PSWebHost_Authentication.psm1'
     RequiredModules = @(

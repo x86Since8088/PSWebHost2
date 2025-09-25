@@ -51,14 +51,14 @@ function Set-PSWebSession {
 
     if ($UserID) { $sessionData.UserID = $UserID }
     if ($Roles) { $sessionData.Roles = @($Roles) }
-    if ($RemoveRoles) { $sessionData.Roles|Where-Object{$RemoveRoles -contains $_}|ForEach-Object{$sessionData.Roles.Remove($_)} }
+    if ($RemoveRoles) { $sessionData.Roles.RemoveAll( { param($item) $RemoveRoles -contains $item } ) }
     if ($Request) { $sessionData.UserAgent = $Request.UserAgent }
     if ($Provider) { $sessionData.Provider = $Provider }
     
     $sessionData.AuthTokenExpiration = (Get-Date).AddDays(7)
     $sessionData.LastUpdated = Get-Date
 
-    Set-LoginSession -SessionID $SessionID -UserID $sessionData.UserID -Provider $sessionData.Provider -AuthenticationTime $sessionData.LastUpdated -LogonExpires $sessionData.AuthTokenExpiration
+    Set-LoginSession -SessionID $SessionID -UserID $sessionData.UserID -Provider $sessionData.Provider -AuthenticationTime $sessionData.LastUpdated -LogonExpires $sessionData.AuthTokenExpiration -UserAgent $sessionData.UserAgent
 
     Write-Verbose "Updated session data for UserID: $UserID" -Verbose
 }
@@ -74,6 +74,7 @@ function Get-PSWebSessions {
             $global:PSWebSessions[$SessionID] = [hashtable]::Synchronized(@{
                 UserID = $loginSession.UserID
                 Provider = $loginSession.Provider
+                UserAgent = $loginSession.UserAgent
                 AuthTokenExpiration = [datetimeoffset]::FromUnixTimeSeconds([int64]$loginSession.LogonExpires).DateTime
                 LastUpdated = [datetimeoffset]::FromUnixTimeSeconds([int64]$loginSession.AuthenticationTime).DateTime
                 Roles = @("authenticated") # Default role, can be expanded later
@@ -116,7 +117,7 @@ function Remove-PSWebSession {
     if ($global:PSWebSessions.ContainsKey($SessionID)) {
         $global:PSWebSessions.Remove($SessionID)
     }
-    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query "DELETE FROM LoginSessions WHERE SessionID = '$SessionID';"
+    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'DELETE' -TableName 'LoginSessions' -Where "SessionID = '$SessionID'"
 }
 
 
@@ -126,25 +127,29 @@ function Validate-UserSession {
         [System.Net.HttpListenerContext]$Context,
         [string]$SessionID = $Context.Request.Cookies["PSWebSessionID"].Value
     )
-
+    [switch]$Verbose = $PSBoundParameters['Verbose']
     $SessionData = Get-PSWebSessions -SessionID $SessionID
 
-    if (-not $SessionID) { return $false }
+    if (-not $SessionID) {
+        if ($Verbose.IsPresent){Write-Host -Message "`tValidate-UserSession No session ID provided."}
+        return $false 
+    }
 
     if (-not $SessionData -or -not $SessionData.Roles -or -not ($SessionData.Roles -contains "authenticated")) {
+        if ($Verbose.IsPresent){Write-Host -Message "`tValidate-UserSession User is not authenticated."}
         return $false
     }
 
     if ($SessionData.AuthTokenExpiration -lt (Get-Date)) {
-        Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "Expired auth token for SessionID '$SessionID'."
+        Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "Expired auth token for SessionID '$SessionID'." -WriteHost:$Verbose.ispresent
         return $false
     }
 
+    # The UserAgent must have been set when the session was created.
+    # If it's missing or doesn't match, the session is invalid.
     $requestUserAgent = $Context.Request.UserAgent
-    if ([string]::IsNullOrEmpty($SessionData.UserAgent)) {
-        $SessionData.UserAgent = $requestUserAgent
-    } elseif ($SessionData.UserAgent -ne $requestUserAgent) {
-        Write-PSWebHostLog -Severity 'Warning' -Category 'Session' -Message "User-Agent mismatch for SessionID '$SessionID'. Expected: '$($SessionData.UserAgent)', Got: '$requestUserAgent'."
+    if ([string]::IsNullOrEmpty($SessionData.UserAgent) -or $SessionData.UserAgent -ne $requestUserAgent) {
+        Write-PSWebHostLog -Severity 'Warning' -Category 'Session' -Message "User-Agent mismatch for SessionID '$SessionID'. Expected: '$($SessionData.UserAgent)', Got: '$requestUserAgent'." -WriteHost:$Verbose.ispresent
         return $false
     }
     
@@ -187,12 +192,30 @@ function Process-HttpRequest {
     $sessionCookie = $request.Cookies["PSWebSessionID"]
     $sessionID = $null
     if ($sessionCookie) {
+        if (
+            $request.IsSecureConnection -ne $sessionCookie.Secure -or
+            -not $sessionCookie.HttpOnly
+        ) {
+            Write-Host "Update PSWebSessionID cookie from secure $($sessionCookie.Secure) to $($request.IsSecureConnection) to match request and change httpOnly from $($sessionCookie.HttpOnly) to true."
+            $request.Cookies["PSWebSessionID"].Secure = $request.IsSecureConnection
+            $request.Cookies["PSWebSessionID"].HttpOnly = $true
+            $request.Cookies["PSWebSessionID"].Path = "/"
+        }
+    }
+    if ($sessionCookie) {
         $sessionID = $sessionCookie.Value
     } else {
         $sessionID = [Guid]::NewGuid().ToString()
         $newCookie = New-Object System.Net.Cookie("PSWebSessionID", $sessionID)
         $newCookie.Expires = (Get-Date).AddDays(7)
+        $newCookie.Path = "/"
+        $newCookie.HttpOnly = $true
+        # Only set the Secure flag if the connection is actually HTTPS
+        $newCookie.Secure = $request.IsSecureConnection
+        
         $response.AppendCookie($newCookie)
+        # Also add the cookie to the current request so it's available immediately
+        $request.Cookies.Add($newCookie)
     }
 
     $session = Get-PSWebSessions -SessionID $sessionID

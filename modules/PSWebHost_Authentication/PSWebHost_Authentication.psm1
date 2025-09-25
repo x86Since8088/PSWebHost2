@@ -413,13 +413,37 @@ function Test-LoginLockout {
             return [PSCustomObject]@{
                 LockedOut = $true
                 LockedUntil = ($lastAttempt.UserNameLockedUntil -as [datetime])
-                Message = "Too many requests for this user. Please try again after $(($lastAttempt.UserNameLockedUntil -as [datetime]).ToString('o'))."
+                Message = "Too many requests for this user. Please try again after $((($lastAttempt.UserNameLockedUntil -as [datetime]::ToString) - (get-date)).TotalSeconds) seconds."
             }
         }
     }
     return [PSCustomObject]@{
         LockedOut = $false
     }
+}
+
+function Protect-String {
+    [cmdletbinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$PlainText
+    )
+    $secureString = $PlainText | ConvertTo-SecureString -AsPlainText -Force
+    # The encrypted string is tied to the current user context and machine
+    return $secureString | ConvertFrom-SecureString
+}
+
+function Unprotect-String {
+    [cmdletbinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$EncryptedString
+    )
+    $secureString = $EncryptedString | ConvertTo-SecureString
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureString)
+    $plainText = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
+    [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    return $plainText
 }
 
 function New-PSWebHostUser {

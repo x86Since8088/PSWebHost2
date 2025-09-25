@@ -39,8 +39,12 @@ if ($confirmationRequest.request_ip -ne $responseIp -or $confirmationRequest.req
 
 # All checks passed, update the record
 $responseDate = (Get-Date).ToString("s")
-$updateQuery = "UPDATE account_email_confirmation SET response_date = '$responseDate', response_ip = '$responseIp', response_session_id = '$responseSessionId' WHERE email_request_guid = '$refGuid';"
-Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query $updateQuery
+$updateData = @{
+    response_date = $responseDate
+    response_ip = $responseIp
+    response_session_id = $responseSessionId
+}
+Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'UPDATE' -TableName 'account_email_confirmation' -Data $updateData -Where "email_request_guid = '$refGuid'"
 
 $successMessage = "Email confirmed successfully! You can now close this page."
 context_reponse -Response $Response -String $successMessage

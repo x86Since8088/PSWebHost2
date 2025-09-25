@@ -1,0 +1,15 @@
+- Name: TOTP
+  Repository: PSGallery
+  # This is the module we will use for MFA functionality.
+  # We are pinning to a specific version for reproducibility.
+  Version: 1.2.0
+
+- Name: powershell-yaml
+  Repository: PSGallery
+  # This module is required by Validate3rdPartyModules.ps1 to parse this YAML file.
+  Version: 0.4.2
+
+- Name: QRCodeGenerator
+  Repository: PSGallery
+  # This module is used to generate QR codes for MFA setup.
+  Version: 2.0.0

@@ -9,7 +9,7 @@ $responseObject = @{
     user = $null
 }
 
-$isSessionValid = Validate-UserSession -Context $Context -SessionID $SessionData.SessionID -SessionData $SessionData
+$isSessionValid = Validate-UserSession -Context $Context -SessionID $SessionData.SessionID -SessionData $SessionData -Verbose
 
 if ($isSessionValid -and $SessionData.UserID) {
     $userRoles = Get-UserRoles -UserID $SessionData.UserID

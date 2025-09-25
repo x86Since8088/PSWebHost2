@@ -7,6 +7,13 @@ param(
     [string]$ConfigFile
 )
 
+if ($null -eq $Global:PSWebServer) {
+    # Resolve the project root, which is three levels up from this script's location
+    $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot -Path '..', '..', '..')).Path
+    # Dot-source the main init script to load the environment
+    . (Join-Path $ProjectRoot 'system', 'init.ps1')
+}
+
 # Import required modules
 Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
 
@@ -47,7 +54,7 @@ foreach ($table in $schema.tables) {
         foreach ($column in $table.columns) {
             if ($column.name -notin $existingColumnNames) {
                 Write-Host "Column '$($column.name)' not found in table '$tableName'. Adding it."
-                $addColumnQuery = "ALTER TABLE `"$tableName`" ADD COLUMN `"$($column.name)"`" $($column.type) $($column.constraint);"
+                $addColumnQuery = "ALTER TABLE `"$tableName`" ADD COLUMN `"$($column.name)`" $($column.type) $($column.constraint);"
                 Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $addColumnQuery
             }
         }

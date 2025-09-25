@@ -68,8 +68,13 @@ foreach ($group in $groups) {
     $existingGroup = Get-PSWebGroup -Name $groupName
     if (-not $existingGroup) {
         # Add group to the database
-        $query = "INSERT INTO User_Groups (GroupID, Name, Created, Updated) VALUES ('$groupId', '$groupName', '$createdDate', '$createdDate')"
-        Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query $query
+        $groupData = @{
+            GroupID = $groupId
+            Name = $groupName
+            Created = $createdDate
+            Updated = $createdDate
+        }
+        Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'INSERT' -TableName 'User_Groups' -Data $groupData
     }
 
     # Map system_admin role to administrators group

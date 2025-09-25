@@ -43,6 +43,15 @@ begin{
         }
     Write-Verbose -Message 'Validating required modules - complete.' -Verbose
 
+    Write-Verbose -Message 'Validating third-party modules...' -Verbose
+    $thirdPartyValidatorScript = Join-Path $ScriptFolder "Validate3rdPartyModules.ps1"
+    if (Test-Path $thirdPartyValidatorScript) {
+        & $thirdPartyValidatorScript
+    } else {
+        Write-Warning "Third-party module validator script not found at $thirdPartyValidatorScript."
+    }
+    Write-Verbose -Message 'Validating third-party modules - complete.' -Verbose
+
     Write-Verbose -Message 'Validating SQLite installation.' -Verbose
     # Check if sqlite3 command is available
     try {

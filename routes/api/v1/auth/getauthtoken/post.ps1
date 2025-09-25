@@ -35,7 +35,7 @@ $email = $parsedBody["email"]
 
 if ([string]::IsNullOrEmpty($email)) {
     # --- Step 1: Initial check ---
-    $isSessionValid = Validate-UserSession -Context $Context -SessionID $SessionData.SessionID -SessionData $SessionData
+    $isSessionValid = Validate-UserSession -Context $Context -SessionID $SessionData.SessionID -SessionData $SessionData -Verbose
     if ($isSessionValid -and $SessionData.UserID) {
         $jsonResponse = New-JsonResponse -status 'success' -message "You are already logged in as $($SessionData.UserID)."
         context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"

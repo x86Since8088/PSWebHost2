@@ -10,7 +10,15 @@ if (-not $userID) {
     return
 }
 
-Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query "DELETE FROM Users WHERE UserID = '$userID';"
-Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query "DELETE FROM User_Data WHERE GUID = '$userID';"
+# First, get the user's unique ID (GUID) to ensure related data is deleted
+$userToDelete = Get-PSWebSQLiteData -File "pswebhost.db" -Query "SELECT ID FROM Users WHERE UserID = '$userID';"
+if ($userToDelete) {
+    $id = $userToDelete.ID
+    # Delete associated data from User_Data table
+    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'DELETE' -TableName 'User_Data' -Where "ID = '$id'"
+}
+
+# Now delete the main user record
+Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'DELETE' -TableName 'Users' -Where "UserID = '$userID'"
 
 context_reponse -Response $Response -String "User deleted successfully."

@@ -17,7 +17,7 @@ $redirectTo = $Request.QueryString["RedirectTo"]
 
 # This script is the final step. It validates that a login flow was completed and then issues the access token.
 Write-Verbose "[getaccesstoken/get.ps1] Validating for a completed session with SessionID $sessionID."
-$completedSession = TestToken -SessionID $sessionID -State 'completed'
+$completedSession = Invoke-TestToken -SessionID $sessionID -State 'completed'
 
 if ($completedSession) {
     Write-Verbose "[getaccesstoken/get.ps1] Completed session found for UserID $($completedSession.UserID). Granting access token."
