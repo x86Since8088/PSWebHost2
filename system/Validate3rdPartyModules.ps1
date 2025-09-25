@@ -63,7 +63,7 @@ foreach ($moduleSpec in $modulesToValidate) {
                 Repository = $repository
                 Path = $moduleDownloadDir
                 Force = $true
-                AcceptLicense = $true
+                #AcceptLicense = $true
             }
             Save-Module @saveParams -ErrorAction Stop
             Write-Host "Successfully downloaded '$moduleName'."

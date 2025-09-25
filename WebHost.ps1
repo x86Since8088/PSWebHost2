@@ -91,7 +91,8 @@ end {
 
     function Invoke-ModuleRefreshAsNeeded {
         if ($null -eq $script:ModuleRefreshAsNeeded) {
-            return $script:ModuleRefreshAsNeeded = (Get-Date).AddSeconds(30)
+            $script:ModuleRefreshAsNeeded = (Get-Date).AddSeconds(30)
+            return 
         }
         elseif ($Script:ModuleRefreshAsNeeded -lt (get-date)) {
             return
