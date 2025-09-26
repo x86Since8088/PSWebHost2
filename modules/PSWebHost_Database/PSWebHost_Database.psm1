@@ -166,8 +166,13 @@ function Invoke-PSWebSQLiteNonQuery {
     )
 
     $baseDirectory = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data"
-    $dbFile = Join-Path $baseDirectory $File
-
+    if (($File -split '[\\/]').count -gt 2 -and (Test-Path $File)) {
+        Write-Verbose "Using file: $File"
+        $dbFile = $File
+    }
+    else {
+        $dbFile = Join-Path $baseDirectory $File
+    }
     if (-not (Test-Path $dbFile)) {
         Write-Error "Database file not found at $dbFile"
         return
