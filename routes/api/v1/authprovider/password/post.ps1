@@ -84,12 +84,12 @@ try {
 
         if ($tokenProvider.Enabled) {
             # MFA is enabled. Set intermediate state and redirect to MFA challenge.
-            Invoke-TestToken -SessionID $sessionID -UserID $user.UserID -AuthenticationState 'mfa_required'
+            Invoke-TestToken -SessionID $sessionID -UserID $user.UserID -AuthenticationState 'mfa_required' -UserAgent $Request.UserAgent -Verbose
             $redirectUrl = "/api/v1/authprovider/tokenauthenticator/mfa.html?RedirectTo=$redirectTo"
             context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
         } else {
             # MFA is not enabled. Complete the login directly.
-            Invoke-TestToken -SessionID $sessionID -UserID $user.UserID -Completed
+            Invoke-TestToken -SessionID $sessionID -UserID $user.UserID -Completed -UserAgent $Request.UserAgent -Verbose
             $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
             context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
         }

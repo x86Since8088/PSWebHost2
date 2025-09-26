@@ -91,13 +91,13 @@ $password = $null
         if ($tokenProvider.Enabled) {
             # MFA is enabled. Set intermediate state and redirect to MFA challenge.
             Write-Verbose "[windows/post.ps1] MFA enabled. Setting state to 'mfa_required' for SessionID $sessionID."
-            Invoke-TestToken -SessionID $sessionID -UserID $UserPrincipalName -AuthenticationState 'mfa_required'
+            Invoke-TestToken -SessionID $sessionID -UserID $UserPrincipalName -AuthenticationState 'mfa_required' -UserAgent $Request.UserAgent -Verbose
             $redirectUrl = "/api/v1/authprovider/tokenauthenticator/mfa.html?RedirectTo=$redirectTo"
             context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
         } else {
             # MFA is not enabled. Complete the login directly.
             Write-Verbose "[windows/post.ps1] MFA not enabled. Setting state to 'completed' for SessionID $sessionID."
-            Invoke-TestToken -SessionID $sessionID -UserID $UserPrincipalName -Completed
+            Invoke-TestToken -SessionID $sessionID -UserID $UserPrincipalName -Completed -UserAgent $Request.UserAgent -Verbose
             Write-Verbose "[windows/post.ps1] State set. Redirecting to getaccesstoken."
             $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
             context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl

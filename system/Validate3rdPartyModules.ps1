@@ -49,7 +49,7 @@ foreach ($moduleSpec in $modulesToValidate) {
     [version]$VersionMAX = FixVersionLength -version $moduleSpec.VersionMAX
 
     foreach ($ModuleFolder in $ModuleFolders){
-        foreach($Versionfolder in (gci $ModuleFolder.FullName|Where-Object{$_.Name -match '^[\d\.]+(|\.disabled)$'})) {
+        foreach($Versionfolder in (Get-ChildItem $ModuleFolder.FullName|Where-Object{$_.Name -match '^[\d\.]+(|\.disabled)$'})) {
             [version]$version = FixVersionLength -version ($Versionfolder.Name -replace '\.disabled$')
             $Disable = $false
             Write-Host "Validating module: $moduleName version $version..."

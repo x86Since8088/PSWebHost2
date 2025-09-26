@@ -190,7 +190,7 @@ function Invoke-PSWebSQLiteNonQuery {
 
     if ($query) {
         $CallstaskItem = Get-PSCallStack|Select-Object -Skip 1 -First 1
-        Write-Warning -Message "Direct -Query was used:`n`tCommand: $($CallstaskItem.Command)`n`tLocation: $($CallstaskItem.Location)`n`tLineNumber: $($CallstaskItem.ScriptLineNumber)`n`tFunctionName: $($CallstaskItem.FunctionName)`n`tPosition: $($CallstaskItem.Position)`n`tQuery: $($query -replace '`(e\[\d+[a-z])','!ANSI ESCAPE SEQUENCE REMOVED($1)!')"
+        Write-Warning -Message "Direct -Query was used:`n`tCommand: $($CallstaskItem.Command)`n`tLocation: $($CallstaskItem.Location)`n`tLineNumber: $($CallstaskItem.ScriptLineNumber)`n`tFunctionName: $($CallstaskItem.FunctionName)`n`tPosition: $($CallstaskItem.Position)`n`tQuery: $($query -replace '`(e\[d+[a-z])','!ANSI ESCAPE SEQUENCE REMOVED($1)!')"
     }
     else {
         $query = ""
@@ -232,10 +232,10 @@ function Invoke-PSWebSQLiteNonQuery {
         Write-Error "Could not construct a valid query from the provided parameters."
         return
     }
-    if ($query -match '`(e\[\d+[a-z])') {
+    if ($query -match '`(e\[d+[a-z])') {
         $CallstaskItem = Get-PSCallStack|Select-Object -Skip 1 -First 1
-        $message = "ANSI escape characters in query.`n`t$($query -split '`(e\[\d+[a-z])')" +
-            "`n`tCommand: $($CallstaskItem.Command)`n`tLocation: $($CallstaskItem.Location)`n`tLineNumber: $($CallstaskItem.ScriptLineNumber)`n`tFunctionName: $($CallstaskItem.FunctionName)`n`tPosition: $($CallstaskItem.Position)`n`tQuery: $($query -replace '`(e\[\d+[a-z])','!ANSI ESCAPE SEQUENCE REMOVED($1)!')"
+        $message = "ANSI escape characters in query.`n`t$($query -split '`(e\[d+[a-z])')" +
+            "`n`tCommand: $($CallstaskItem.Command)`n`tLocation: $($CallstaskItem.Location)`n`tLineNumber: $($CallstaskItem.ScriptLineNumber)`n`tFunctionName: $($CallstaskItem.FunctionName)`n`tPosition: $($CallstaskItem.Position)`n`tQuery: $($query -replace '`(e\[d+[a-z])','!ANSI ESCAPE SEQUENCE REMOVED($1)!')"
         Write-Warning -Message $message
         Write-PSWebHostLog -message $message -level Warning -Severity Critical -Category 'Suspicious ANSI Escape Sequences'
         return 'aborted'
@@ -276,7 +276,6 @@ function Set-UserProvider {
 function Get-UserProvider {
     [cmdletbinding()]
     param([string]$UserName, [string]$provider)
-    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $query = "SELECT * FROM auth_user_provider WHERE UserName = '$UserName' AND provider = '$provider';"
     Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
 }
@@ -294,7 +293,6 @@ function Set-LastLoginAttempt {
 function Get-LastLoginAttempt {
     [cmdletbinding()]
     param([string]$IPAddress)
-    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $query = "SELECT * FROM LastLoginAttempt WHERE IPAddress = '$IPAddress';"
     Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
 }
@@ -302,7 +300,6 @@ function Get-LastLoginAttempt {
 function Get-PSWebGroup {
     [cmdletbinding()]
     param([string]$Name)
-    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $query = "SELECT * FROM User_Groups WHERE Name = '$Name';"
     Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
 }
@@ -338,22 +335,66 @@ function Remove-UserFromGroup {
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'DELETE' -TableName 'User_Groups_Map' -Where "UserID = '$UserID' AND GroupID = '$GroupID'"
 }
 
-function Set-RoleForPrincipal {
+function Add-PSWebRoleAssignment {
     [cmdletbinding()]
-    param([string]$PrincipalID, [string]$RoleName) # Principal can be a UserID or GroupID
-    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
-    $query = "INSERT OR IGNORE INTO PSWeb_Roles (PrincipalID, RoleName) VALUES ('$PrincipalID','$RoleName');"
-    sqlite3 $dbFile $query
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$PrincipalID,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet('user', 'group')] 
+        [string]$PrincipalType,
+        [Parameter(Mandatory=$true)]
+        [string]$RoleName
+    )
+    $data = @{
+        PrincipalID = $PrincipalID
+        PrincipalType = $PrincipalType
+        RoleName = $RoleName
+    }
+    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'INSERT OR REPLACE' -TableName 'PSWeb_Roles' -Data $data
 }
 
-function Remove-RoleForPrincipal {
+function Set-PSWebRoleAssignment {
+    [cmdletbinding()]
+    [Alias('Update-PSWebRoleAssignment')]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$PrincipalID,
+        [Parameter(Mandatory=$true)]
+        [ValidateSet('user', 'group')] 
+        [string]$PrincipalType,
+        [Parameter(Mandatory=$true)]
+        [string]$RoleName
+    )
+    Add-PSWebRoleAssignment -PrincipalID $PrincipalID -PrincipalType $PrincipalType -RoleName $RoleName
+}
+
+function Remove-PSWebRoleAssignment {
+    [cmdletbinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$PrincipalID,
+        [Parameter(Mandatory=$true)]
+        [string]$RoleName
+    )
+    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'DELETE' -TableName 'PSWeb_Roles' -Where "PrincipalID = '$PrincipalID' AND RoleName = '$RoleName'"
+}
+
+function Get-PSWebRoleAssignment {
     [cmdletbinding()]
     param(
         [string]$PrincipalID,
         [string]$RoleName
     )
-    $dbFile = "pswebhost.db"
-    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'DELETE' -TableName 'PSWeb_Roles' -Where "PrincipalID = '$PrincipalID' AND RoleName = '$RoleName'"
+    $whereClauses = @()
+    if ($PrincipalID) { $whereClauses += "PrincipalID = '$PrincipalID'" }
+    if ($RoleName) { $whereClauses += "RoleName = '$RoleName'" }
+    
+    $query = "SELECT * FROM PSWeb_Roles"
+    if ($whereClauses) {
+        $query += " WHERE $($whereClauses -join ' AND ')"
+    }
+    Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
 }
 
 function Get-PSWebRoles {
@@ -379,14 +420,14 @@ function Initialize-PSWebHostDatabase {
     $dbFile = "pswebhost.db"
 
     # Define table structures
-    $usersColumns = "UserID TEXT PRIMARY KEY", "UserName TEXT UNIQUE NOT NULL", "Email TEXT UNIQUE", "Phone TEXT", "Salt TEXT"
-    $userDataColumns = "GUID TEXT", "Name TEXT", "Data BLOB", "PRIMARY KEY (GUID, Name)"
+    $usersColumns = "ID TEXT PRIMARY KEY", "UserID TEXT UNIQUE NOT NULL", "UserName TEXT UNIQUE NOT NULL", "Email TEXT UNIQUE", "Phone TEXT", "Salt TEXT"
+    $userDataColumns = "ID TEXT", "Name TEXT", "Data BLOB", "PRIMARY KEY (ID, Name)"
     $cardSessionColumns = "CardGUID TEXT PRIMARY KEY", "SessionID TEXT", "UserID TEXT", "DataBackend TEXT", "CardDefinition TEXT"
     $authUserProviderColumns = "UserID TEXT", "UserName TEXT", "provider TEXT", "created TEXT", "locked_out INTEGER", "expires TEXT", "enabled INTEGER", "data TEXT", "PRIMARY KEY (UserID, provider)"
     $lastLoginAttemptColumns = "IPAddress TEXT PRIMARY KEY", "Username TEXT", "Time TEXT", "UserNameLockedUntil TEXT", "IPAddressLockedUntil TEXT", "UserViolationsCount INTEGER", "IPViolationCount INTEGER"
     $userGroupsColumns = "GroupID TEXT PRIMARY KEY", "Name TEXT UNIQUE", "Updated TEXT", "Created TEXT"
     $userGroupsMapColumns = "UserID TEXT", "GroupID TEXT", "PRIMARY KEY (UserID, GroupID)"
-    $rolesColumns = "PrincipalID TEXT", "RoleName TEXT", "PRIMARY KEY (PrincipalID, RoleName)" # PrincipalID can be a UserID or GroupID
+    $rolesColumns = "PrincipalID TEXT", "PrincipalType TEXT", "RoleName TEXT", "PRIMARY KEY (PrincipalID, RoleName)"
     $loginSessionsColumns = "SessionID TEXT PRIMARY KEY", "UserID TEXT", "AuthenticationTime TEXT", "Provider TEXT", "LogonExpires TEXT"
     $accountEmailConfirmationColumns = "email_request_guid TEXT PRIMARY KEY", "email TEXT", "request_date TEXT", "response_date TEXT", "request_ip TEXT", "response_ip TEXT", "request_session_id TEXT", "response_session_id TEXT"
     $cardSettingsColumns = "endpoint_guid TEXT", "user_id TEXT", "created_date TEXT", "last_updated TEXT", "data TEXT", "PRIMARY KEY (endpoint_guid, user_id)"
@@ -440,7 +481,6 @@ function Get-LoginSession {
     param(
         [Parameter(Mandatory=$true)] [string]$SessionID
     )
-    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $query = "SELECT * FROM LoginSessions WHERE SessionID = '$SessionID';"
     Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
 }
@@ -459,6 +499,7 @@ function Set-UserData {
         Data = $hexData
     }
     Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'INSERT OR REPLACE' -TableName 'User_Data' -Data $dataToSet
+    Write-Host "`t[Set-UserData] Invoke-PSWebSQLiteNonQuery -File 'pswebhost.db' -Verb 'INSERT OR REPLACE' -TableName 'User_Data' `n`t`t-Data $dataToSet"
 }
 
 function Get-UserData {
@@ -467,9 +508,10 @@ function Get-UserData {
         [Parameter(Mandatory=$true)] [string]$ID,
         [Parameter(Mandatory=$true)] [string]$Name
     )
-    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $query = "SELECT Data FROM User_Data WHERE ID = '$ID' AND Name LIKE '$Name';"
     $result = Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
+    Write-Host "`t[Get-userData]Get-PSWebSQLiteData -File "pswebhost.db" -Query $query"`n`t`tFound: $(($result|Inspect-Object|ConvertTo-Json -Depth 5) -split '
+' -join "`n`t`t")]
     if ($result) {
         return $result
     } else {
@@ -489,7 +531,8 @@ function Get-CardSettings {
 
     $query = "SELECT data FROM card_settings WHERE endpoint_guid = '$EndpointGuid' AND user_id = '$UserId';"
     $settings = Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
-    
+    Write-Host "`t[Get-CardSettings] Get-PSWebSQLiteData -File 'pswebhost.db' -Query '$query'`n`t`tFound: $(($settings|Inspect-Object|ConvertTo-Json -Depth 5) -split '
+' -join "`n`t`t")]"
     if ($settings) {
         return $settings.data
     } else {
@@ -514,6 +557,7 @@ function Set-CardSettings {
     # TODO: This query uses a sub-select and is too complex for the basic Invoke-PSWebSQLiteNonQuery builder.
     # It should be refactored or the builder function enhanced if this pattern is common.
     $query = "INSERT OR REPLACE INTO card_settings (endpoint_guid, user_id, created_date, last_updated, data) VALUES ('$EndpointGuid', '$UserId', COALESCE((SELECT created_date FROM card_settings WHERE endpoint_guid = '$EndpointGuid' AND user_id = '$UserId'), '$date'), '$date', '$Data');"
+    Write-Host "`t[Set-CardSettings] Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query '$query'"
     Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query $query
 }
 
@@ -553,6 +597,8 @@ function Get-PSWebUserIDFromDb {
     } else {
         return $null
     }
+    $data = Get-PSWebSQLiteData -File $dbFile -Query $query
+    Write-Host "`t[Get-PSWebUserIDFromDb] Get-PSWebSQLiteData -File '$dbFile' -Query '$query'`n`t`tFound: $($data)]"
     return (Get-PSWebSQLiteData -File $dbFile -Query $query).ID
 }
 
@@ -599,6 +645,7 @@ function Set-PSWebAuthProvider {
     $compressedData = ConvertTo-CompressedBase64 -InputString $json
 
     Set-UserData -ID $id -Name $name -Data $compressedData
+    Write-Host "`t[Set-PSWebAuthProvider] Set-UserData -ID $id -Name $name -Data $compressedData"
 }
 
 function Add-PSWebAuthProvider {
@@ -615,6 +662,7 @@ function Add-PSWebAuthProvider {
         Write-Error "Provider '$Provider' already exists for this user."
         return
     }
+    Write-Host "`t[Add-PSWebAuthProvider] Set-PSWebAuthProvider -UserID $UserID -Email $Email -Provider $Provider -Data $Data"
     Set-PSWebAuthProvider -UserID $UserID -Email $Email -Provider $Provider -Data $Data
 }
 
@@ -629,8 +677,7 @@ function Remove-PSWebAuthProvider {
     if (-not $id) { Write-Error "User not found."; return }
 
     $name = "Auth_${Provider}_Registration"
-    $dbFile = "pswebhost.db"
-    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'DELETE' -TableName 'User_Data' -Where "ID = '$id' AND Name = '$name'"
+    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'DELETE' -TableName 'User_Data' -Where "ID = '$id' AND Name = '$name'"
 }
 
 #endregion
@@ -654,7 +701,10 @@ function Invoke-TestToken {
         [string]$AuthenticationState,
 
         [Parameter(Mandatory=$false)]
-        [switch]$Completed
+        [switch]$Completed,
+
+        [Parameter(Mandatory=$false)]
+        [string]$UserAgent
     )
 
     if ($null -eq $global:PSWebServer) {
@@ -687,6 +737,8 @@ function Invoke-TestToken {
         $finalProvider = if ($Provider -ne '%') { $Provider } else { $existingSession.Provider }
         if (-not $finalProvider) { $finalProvider = 'PsWebHost' } # Default for new records
 
+        $finalUserAgent = if ($UserAgent) { $UserAgent } else { $existingSession.UserAgent }
+
         $authTime = [int64]((Get-Date) - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
         $expiresTime = if ($Completed) { (Get-Date).AddDays(7) } else { (Get-Date).AddMinutes(10) }
         $expiresUnix = [int64]($expiresTime - (Get-Date "1970-01-01 00:00:00Z")).TotalSeconds
@@ -698,6 +750,7 @@ function Invoke-TestToken {
             AuthenticationState = $newState
             AuthenticationTime = $authTime
             LogonExpires = $expiresUnix
+            UserAgent = $finalUserAgent
         }
         
         Write-Verbose "[TestToken.ps1] Executing upsert..."
@@ -729,160 +782,28 @@ function Invoke-TestToken {
     return $results
 }
 
-function Get-CardSettings {
+function Get-PSWebUser {
     [cmdletbinding()]
     param(
         [Parameter(Mandatory=$true)]
-        [string]$EndpointGuid,
-
-        [Parameter(Mandatory=$true)]
-        [string]$UserId
+        [string]$UserID
     )
 
-    $query = "SELECT data FROM card_settings WHERE endpoint_guid = '$EndpointGuid' AND user_id = '$UserId';"
-    $settings = Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
-    
-    if ($settings) {
-        return $settings.data
-    } else {
-        return $null
+    $user = Get-PSWebSQLiteData -File "pswebhost.db" -Query "SELECT * FROM Users WHERE UserID = '$UserID';"
+    if (-not $user) { return $null }
+
+    # Get direct roles
+    $directRoles = (Get-PSWebRoleAssignment -PrincipalID $user.ID -PrincipalType 'user').RoleName
+
+    # Get group roles
+    $groupRoles = @()
+    $userGroups = Get-PSWebSQLiteData -File "pswebhost.db" -Query "SELECT GroupID FROM User_Groups_Map WHERE UserID = '$($user.ID)';"
+    if ($userGroups) {
+        foreach ($group in $userGroups) {
+            $groupRoles += (Get-PSWebRoleAssignment -PrincipalID $group.GroupID -PrincipalType 'group').RoleName
+        }
     }
+
+    $user.Roles = ($directRoles + $groupRoles) | Select-Object -Unique
+    return $user
 }
-
-function Set-CardSettings {
-    [cmdletbinding()]
-    param(
-        [Parameter(Mandatory=$true)]
-        [string]$EndpointGuid,
-
-        [Parameter(Mandatory=$true)]
-        [string]$UserId,
-
-        [Parameter(Mandatory=$true)]
-        [string]$Data # Compressed JSON
-    )
-
-    $date = (Get-Date).ToString("s")
-    # Use INSERT OR REPLACE to handle both new and existing settings
-    $query = "INSERT OR REPLACE INTO card_settings (endpoint_guid, user_id, created_date, last_updated, data) VALUES ('$EndpointGuid', '$UserId', COALESCE((SELECT created_date FROM card_settings WHERE endpoint_guid = '$EndpointGuid' AND user_id = '$UserId'), '$date'), '$date', '$Data');"
-    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query $query
-}
-
-#region Provider Data Functions
-
-function ConvertFrom-CompressedBase64 {
-    param (
-        [string]$InputString
-    )
-    try {
-        $compressedBytes = [System.Convert]::FromBase64String($InputString)
-        $memStream = New-Object System.IO.MemoryStream
-        $memStream.Write($compressedBytes, 0, $compressedBytes.Length)
-        $memStream.Position = 0
-        $gzipStream = New-Object System.IO.Compression.GZipStream($memStream, [System.IO.Compression.CompressionMode]::Decompress)
-        $streamReader = New-Object System.IO.StreamReader($gzipStream)
-        $uncompressedString = $streamReader.ReadToEnd()
-        $gzipStream.Close()
-        $memStream.Close()
-        return $uncompressedString
-    } catch {
-        Write-Error "Failed to decompress or decode Base64 string. Error: $($_.Exception.Message)"
-        return $null
-    }
-}
-
-function Get-PSWebUserGuid {
-    param(
-        [string]$UserID,
-        [string]$Email
-    )
-    $dbFile = "pswebhost.db"
-    if ($UserID) {
-        $query = "SELECT GUID FROM Users WHERE UserID = '$UserID';"
-    } elseif ($Email) {
-        $query = "SELECT GUID FROM Users WHERE Email = '$Email';"
-    } else {
-        return $null
-    }
-    return (Get-PSWebSQLiteData -File $dbFile -Query $query).GUID
-}
-
-function Get-PSWebAuthProvider {
-    [cmdletbinding()]
-    param(
-        [string]$UserID,
-        [string]$Email,
-        [string]$Provider = '*'
-    )
-
-    $guid = Get-PSWebUserGuid -UserID $UserID -Email $Email
-    if (-not $guid) { return $null }
-
-    $providerName = if ($Provider -eq '*') { '%' } else { $Provider }
-    $nameQuery = "Auth_${providerName}_Registration"
-
-    $userData = Get-UserData -GUID $guid -Name $nameQuery
-    if (-not $userData) { return $null }
-
-    $results = @()
-    foreach($data in $userData) {
-        $decompressedJson = ConvertFrom-CompressedBase64 -InputString $data.Data
-        $psObject = $decompressedJson | ConvertFrom-Json
-        $results += $psObject
-    }
-    return $results
-}
-
-function Set-PSWebAuthProvider {
-    [cmdletbinding()]
-    param(
-        [string]$UserID,
-        [string]$Email,
-        [string]$Provider,
-        [hashtable]$Data
-    )
-
-    $guid = Get-PSWebUserGuid -UserID $UserID -Email $Email
-    if (-not $guid) { Write-Error "User not found."; return }
-
-    $name = "Auth_${Provider}_Registration"
-    $json = $Data | ConvertTo-Json -Compress
-    $compressedData = ConvertTo-CompressedBase64 -InputString $json
-
-    Set-UserData -GUID $guid -Name $name -Data $compressedData
-}
-
-function Add-PSWebAuthProvider {
-    [cmdletbinding()]
-    param(
-        [string]$UserID,
-        [string]$Email,
-        [string]$Provider,
-        [hashtable]$Data
-    )
-
-    $existing = Get-PSWebAuthProvider -UserID $UserID -Email $Email -Provider $Provider
-    if ($existing) {
-        Write-Error "Provider '$Provider' already exists for this user."
-        return
-    }
-    Set-PSWebAuthProvider -UserID $UserID -Email $Email -Provider $Provider -Data $Data
-}
-
-function Remove-PSWebAuthProvider {
-    [cmdletbinding()]
-    param(
-        [string]$UserID,
-        [string]$Email,
-        [string]$Provider
-    )
-    $guid = Get-PSWebUserGuid -UserID $UserID -Email $Email
-    if (-not $guid) { Write-Error "User not found."; return }
-
-    $name = "Auth_${Provider}_Registration"
-    $dbFile = "pswebhost.db"
-    $query = "DELETE FROM User_Data WHERE GUID = '$guid' AND Name = '$name';"
-    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
-}
-
-#endregion

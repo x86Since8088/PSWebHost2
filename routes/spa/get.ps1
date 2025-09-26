@@ -16,14 +16,14 @@ if (!$sessionID) {
 }
 $Session = Get-PSWebSessions -SessionID $sessionID
 if (-not $Session) {
-    Write-Host "SPA GET Session ID Present, but No session." -ForegroundColor Red
+    Write-Host "`t[routes\spa\get.ps1] Session ID Present, but No session." -ForegroundColor Red
     context_reponse -Response $Response -StatusCode 302 -RedirectLocation "/api/v1/auth/getauthtoken?RedirectTo=$($Request.Url.AbsoluteUri)"
     return
 }
 $Roles = $session.Roles
 
 if ('unauthenticated' -in $Roles) {
-    Write-Host "SPA GET Unauthenticated: $($Roles -join ', ') Session: $($Session|ConvertTo-Json -Depth 2 -Compress)" -ForegroundColor Magenta
+    Write-Host "`t[routes\spa\get.ps1] Unauthenticated: $($Roles -join ', ') `n`t`tSession: $(($Session|Inspect-Object -Depth 4| ConvertTo-YAML) -split '`n' -notmatch '^\s*Type:' -join "`n`t`t`t")" -ForegroundColor Magenta
     context_reponse -Response $Response -StatusCode 302 -RedirectLocation "/api/v1/auth/getauthtoken?RedirectTo=$($Request.Url.AbsoluteUri)"
     return 
 }

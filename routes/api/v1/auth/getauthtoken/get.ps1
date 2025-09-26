@@ -30,7 +30,15 @@ if ($ValidateUserSession) {
     return
 } else {
     # Initiate a record for this authentication attempt
-    Invoke-TestToken -SessionID $sessionCookie.Value -AuthenticationState 'initiated' -Provider 'GetAuthToken' -UserID 'pending'
+    Invoke-TestToken -SessionID $sessionCookie.Value -AuthenticationState 'initiated' -Provider 'GetAuthToken' -UserID 'pending' -UserAgent $Request.UserAgent -Verbose
+}
+
+$provider = $Request.QueryString["Provider"]
+if (-not [string]::IsNullOrEmpty($provider)) {
+    # A specific provider was requested, redirect to it.
+    $redirectUrl = "/api/v1/authprovider/$provider?state=$state&RedirectTo=$redirectTo"
+    context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
+    return
 }
 
 # Serve the getauthtoken.html file.

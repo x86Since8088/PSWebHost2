@@ -21,15 +21,14 @@
     {
       "name": "LoginSessions",
       "columns": [
-        { "name": "SessionID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "SessionID", "type": "TEXT", "constraint": "PRIMARY KEY" },
         { "name": "UserID", "type": "TEXT", "constraint": "NOT NULL" },
         { "name": "Provider", "type": "TEXT", "constraint": "" },
         { "name": "AuthenticationTime", "type": "INTEGER", "constraint": "NOT NULL" },
         { "name": "LogonExpires", "type": "INTEGER", "constraint": "NOT NULL" },
         { "name": "AuthenticationState", "type": "TEXT", "constraint": "" },
         { "name": "UserAgent", "type": "TEXT", "constraint": "" }
-      ],
-      "primary_key": ["SessionID", "UserID"]
+      ]
     },
     {
       "name": "LoginLockout",
@@ -40,6 +39,32 @@
         { "name": "LockedUntil", "type": "INTEGER", "constraint": "DEFAULT 0" }
       ],
       "primary_key": ["IPAddress", "Username"]
+    },
+    {
+      "name": "User_Groups",
+      "columns": [
+        { "name": "GroupID", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "Name", "type": "TEXT", "constraint": "UNIQUE" },
+        { "name": "Updated", "type": "TEXT", "constraint": "" },
+        { "name": "Created", "type": "TEXT", "constraint": "" }
+      ]
+    },
+    {
+      "name": "User_Groups_Map",
+      "columns": [
+        { "name": "UserID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "GroupID", "type": "TEXT", "constraint": "NOT NULL" }
+      ],
+      "primary_key": ["UserID", "GroupID"]
+    },
+    {
+      "name": "PSWeb_Roles",
+      "columns": [
+        { "name": "PrincipalID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "PrincipalType", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "RoleName", "type": "TEXT", "constraint": "NOT NULL" }
+      ],
+      "primary_key": ["PrincipalID", "RoleName"]
     }
   ]
 }

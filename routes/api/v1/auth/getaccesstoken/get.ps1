@@ -17,19 +17,26 @@ $redirectTo = $Request.QueryString["RedirectTo"]
 
 # This script is the final step. It validates that a login flow was completed and then issues the access token.
 Write-Verbose "[getaccesstoken/get.ps1] Validating for a completed session with SessionID $sessionID."
-$completedSession = Invoke-TestToken -SessionID $sessionID -State 'completed'
+$completedSession = Invoke-TestToken -SessionID $sessionID -State 'completed' -Verbose
 
 if ($completedSession) {
-    Write-Verbose "[getaccesstoken/get.ps1] Completed session found for UserID $($completedSession.UserID). Granting access token."
+    Write-Verbose "[getaccesstoken/get.ps1] Completed session found $($completedSession|ConvertTo-Json -Compress). Granting access token."
     # The user has successfully completed an auth flow.
-    # Update the main session with the correct UserID from the completed login session.
-    $SessionData.UserID = $completedSession.UserID
+    # Update the main session with the correct UserID and all aggregated roles.
+    $user = Get-PSWebUser -UserID $completedSession.UserID
+    if ($user) {
+        Set-PSWebSession -SessionID $sessionID -UserID $user.UserID -Roles $user.Roles -Provider $completedSession.Provider -Request $Request
+    } else {
+        # This case is unlikely if the auth flow is working correctly.
+        Write-PSWebHostLog -Severity 'Error' -Category 'Auth' -Message "Could not find user details for UserID '$($completedSession.UserID)' after a completed login flow."
+        $SessionData.UserID = $completedSession.UserID # Fallback to setting at least the UserID
+    }
 
     # Generate and store access token
-    $accessToken = "real-access-token-" + (-join ((65..90) + (97..122) + (48..57) | Get-Random -Count 64 | ForEach-Object { [char]$_ }))
+    $accessToken = "real-access-token-" + (-join (((65..90) + (97..122) + (48..57) * 8) | Get-Random -Count 64 | ForEach-Object { [char]$_ }))
     $SessionData.AccessToken = $accessToken
     $SessionData.AccessTokenExpiration = (Get-Date).AddHours(1)
-
+    
     # Redirect to the final destination
     if ($redirectTo) {
         [string[]]$redirectUrls = $redirectTo.Split(',') | ForEach-Object { [System.Web.HttpUtility]::UrlDecode($_) }

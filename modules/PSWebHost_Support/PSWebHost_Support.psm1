@@ -71,13 +71,24 @@ function Get-PSWebSessions {
         # Try to load from DB
         $loginSession = Get-LoginSession -SessionID $SessionID
         if ($loginSession) {
+            $roles = [System.Collections.ArrayList]@()
+            if ($loginSession.AuthenticationState -eq 'completed') {
+                $roles.Add('authenticated')
+                $userRoles = Get-UserRoles -UserID $loginSession.UserID
+                if ($userRoles) {
+                    $roles.AddRange($userRoles)
+                }
+            } else {
+                $roles.Add('unauthenticated')
+            }
+
             $global:PSWebSessions[$SessionID] = [hashtable]::Synchronized(@{
                 UserID = $loginSession.UserID
                 Provider = $loginSession.Provider
                 UserAgent = $loginSession.UserAgent
                 AuthTokenExpiration = [datetimeoffset]::FromUnixTimeSeconds([int64]$loginSession.LogonExpires).DateTime
                 LastUpdated = [datetimeoffset]::FromUnixTimeSeconds([int64]$loginSession.AuthenticationTime).DateTime
-                Roles = @("authenticated") # Default role, can be expanded later
+                Roles = $roles
             })
         } else {
             # Not in DB, create new
@@ -131,12 +142,12 @@ function Validate-UserSession {
     $SessionData = Get-PSWebSessions -SessionID $SessionID
 
     if (-not $SessionID) {
-        if ($Verbose.IsPresent){Write-Host -Message "`tValidate-UserSession No session ID provided."}
+        if ($Verbose.IsPresent){Write-Host -Message "`t[Validate-UserSession] No session ID provided."}
         return $false 
     }
 
     if (-not $SessionData -or -not $SessionData.Roles -or -not ($SessionData.Roles -contains "authenticated")) {
-        if ($Verbose.IsPresent){Write-Host -Message "`tValidate-UserSession User is not authenticated."}
+        if ($Verbose.IsPresent){Write-Host -Message "`t[Validate-UserSession] User is not authenticated.`n`t`tSessionID: $(($SessionID|Inspect-Object -Depth 4| ConvertTo-YAML) -split '\n' -notmatch '^\s*Type:' -join "`n`t`t`t")"}
         return $false
     }
 
@@ -148,7 +159,16 @@ function Validate-UserSession {
     # The UserAgent must have been set when the session was created.
     # If it's missing or doesn't match, the session is invalid.
     $requestUserAgent = $Context.Request.UserAgent
-    if ([string]::IsNullOrEmpty($SessionData.UserAgent) -or $SessionData.UserAgent -ne $requestUserAgent) {
+    if ([string]::IsNullOrEmpty($SessionData.UserAgent)) {
+        # If the stored UserAgent is blank, this is likely the first request establishing the session's identity.
+        # Save the current UserAgent to the session.
+        $SessionData.UserAgent = $requestUserAgent
+        # Also persist this to the database record for the session.
+        Set-LoginSession -SessionID $SessionID -UserID $SessionData.UserID -Provider $SessionData.Provider -AuthenticationTime $SessionData.LastUpdated -LogonExpires $SessionData.AuthTokenExpiration -UserAgent $requestUserAgent
+        Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "First User-Agent seen for SessionID '$SessionID'. Setting to: '$requestUserAgent'."
+    }
+    elseif ($SessionData.UserAgent -ne $requestUserAgent) {
+        # If it's not blank but doesn't match, then it's a mismatch.
         Write-PSWebHostLog -Severity 'Warning' -Category 'Session' -Message "User-Agent mismatch for SessionID '$SessionID'. Expected: '$($SessionData.UserAgent)', Got: '$requestUserAgent'." -WriteHost:$Verbose.ispresent
         return $false
     }
@@ -175,6 +195,9 @@ function Process-HttpRequest {
     $requestedPath = $request.Url.LocalPath
     $httpMethod = $request.HttpMethod.ToLower()
     $projectRoot = $Global:PSWebServer.Project_Root.Path
+    if ($requestedPath -match '/\.well-known/') {
+        return
+    }
 
     # Apply debug settings from config
     if ($global:PSWebServer.config.debug_url) {
@@ -187,7 +210,7 @@ function Process-HttpRequest {
         }
     }
 
-    Write-Host "Process-HttpRequest $httpMethod $requestedPath"
+    Write-Host "[Process-HttpRequest] $httpMethod $requestedPath"
 
     $sessionCookie = $request.Cookies["PSWebSessionID"]
     $sessionID = $null
@@ -196,7 +219,7 @@ function Process-HttpRequest {
             $request.IsSecureConnection -ne $sessionCookie.Secure -or
             -not $sessionCookie.HttpOnly
         ) {
-            Write-Host "Update PSWebSessionID cookie from secure $($sessionCookie.Secure) to $($request.IsSecureConnection) to match request and change httpOnly from $($sessionCookie.HttpOnly) to true."
+            Write-Host "`t[Process-HttpRequest] Update PSWebSessionID cookie from secure $($sessionCookie.Secure) to $($request.IsSecureConnection) to match request and change httpOnly from $($sessionCookie.HttpOnly) to true."
             $request.Cookies["PSWebSessionID"].Secure = $request.IsSecureConnection
             $request.Cookies["PSWebSessionID"].HttpOnly = $true
             $request.Cookies["PSWebSessionID"].Path = "/"
@@ -219,7 +242,7 @@ function Process-HttpRequest {
     }
 
     $session = Get-PSWebSessions -SessionID $sessionID
-    Write-Host "Session: $($sessionID) UserID: $($session.UserID)"
+    Write-Host "`t[Process-HttpRequest] Session: $($sessionID) UserID: $($session.UserID)"
 
     if ($requestedPath.StartsWith("/public", [System.StringComparison]::OrdinalIgnoreCase)) {
         $handled = $true
@@ -228,7 +251,7 @@ function Process-HttpRequest {
             context_reponse -Response $response -Path $sanitizedPath.Path
             return
         } else {
-            Write-PSWebHostLog -Message "Process-HttpRequest $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
+            Write-PSWebHostLog -Message "`t[Process-HttpRequest]  $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
             context_reponse -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
             return
         }
@@ -300,9 +323,12 @@ function Process-HttpRequest {
                                     $gzipStream = New-Object System.IO.Compression.GZipStream($memStream, [System.IO.Compression.CompressionMode]::Decompress)
                                     $streamReader = New-Object System.IO.StreamReader($gzipStream)
                                     $uncompressedJson = $streamReader.ReadToEnd()
-                                    $scriptParams.CardSettings = $uncompressedJson | ConvertFrom-Json -AsHashtable
+                                    $ht = @{}
+                                    ($uncompressedJson | ConvertFrom-Json).psobject.Properties|ForEach-Object{$ht[$_.Name -eq $_.value]}
+                                    $scriptParams.CardSettings = $ht
                                 } catch {
-                                    Write-PSWebHostLog -Severity 'Error' -Category 'Settings' -Message "Failed to decompress/deserialize card settings for GUID $guid"
+                                    Write-PSWebHostLog -Severity 'Error' -Category 'Settings' -Message "Failed to decompress/deserialize card settings for GUID $guid" 
+                                    $_
                                 }
                             }
                         }
@@ -312,18 +338,10 @@ function Process-HttpRequest {
                 if ($Async.ispresent) {
                     Invoke-ContextRunspace -Context $Context -ScriptPath $scriptPath -SessionID $sessionID
                 } else {
-                    Write-Host "$SessionID $httpMethod $scriptPath @scriptParams"
+                    Write-Host "$SessionID $httpMethod $scriptPath"
                     & $scriptPath @scriptParams
                 }
                 $handled = $true
-
-                # if ($response.StatusCode -eq 302 -and -not ([string]::IsNullOrEmpty($response.RedirectLocation))) {
-                #     try{
-                #         context_reponse -Response $response -StatusCode $response.StatusCode -RedirectLocation $response.RedirectLocation 
-                #     } 
-                #     catch {}
-                #     return
-                # }
             }
         }
     }
@@ -368,7 +386,7 @@ function Write-PSWebHostLog {
             $dataString = $json
         }
     }
-    $logEntry = "$date`t$Severity`t$Category`t$escapedMessage`t$SessionID`t$UserID`tdataString"
+    $logEntry = "$date`t$Severity`t$Category`t$escapedMessage`t$SessionID`t$UserID`t$dataString"
     $global:PSWebHostLogQueue.Enqueue($logEntry)
 
     $eventGuid = [Guid]::NewGuid().ToString()

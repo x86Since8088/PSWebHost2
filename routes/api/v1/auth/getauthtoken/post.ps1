@@ -25,7 +25,7 @@ $emailForm = @"
     <button type="button" class="btn" onclick="window.location.href='/spa'">Cancel</button>
 </form>
 "@
-write-host ($SessionData|ConvertTo-Yaml).trim("\s") -ForegroundColor Magenta
+Write-Host "`t[$($Psscriptroot -replace '^.*?([\\/]routes[\\/])','$1')] GET $((($SessionData|Inspect-Object | ConvertTo-YAML) -split "\n" -notmatch '^\s*Type:' -join "\n").trim("\s"))" -ForegroundColor Magenta
 # Read request body
 $reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
 $bodyContent = $reader.ReadToEnd()

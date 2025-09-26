@@ -47,7 +47,7 @@ $isValid = $expectedCode.Code -eq $code
 
 if ($isValid) {
     # 5. On success, complete the login flow
-    Invoke-TestToken -SessionID $sessionID -UserID $user.UserID -Completed
+    Invoke-TestToken -SessionID $sessionID -UserID $user.UserID -Completed -UserAgent $Request.UserAgent -Verbose
     
     # Redirect to get the final access token. RedirectTo should be handled by getaccesstoken.
     $redirectTo = $Request.QueryString["RedirectTo"] # Pass along if present
@@ -56,6 +56,6 @@ if ($isValid) {
 } else {
     # 6. On failure, return an error
     # We put the mfa_required state back so the user can try again.
-    Invoke-TestToken -SessionID $sessionID -UserID $user.UserID -AuthenticationState 'mfa_required'
+    Invoke-TestToken -SessionID $sessionID -UserID $user.UserID -AuthenticationState 'mfa_required' -UserAgent $Request.UserAgent -Verbose
     context_reponse -Response $Response -StatusCode 400 -String (@{message='Invalid code.'} | ConvertTo-Json) -ContentType "application/json"
 }
