@@ -20,7 +20,15 @@ if ($formData.Email) { $updateData.Email = $formData.Email }
 if ($formData.Phone) { $updateData.Phone = $formData.Phone }
 
 if ($updateData.Count -gt 0) {
-    New-PSWebSQLiteDataByID -File "pswebhost.db" -Table "Users" -ID $userID -Columns $updateData
+        $setClauses = $updateData.Keys | ForEach-Object {
+        $value = $updateData[$_]
+        $safeValue = Sanitize-SqlQueryString -String $value
+        "`"$_`" = '$safeValue'"
+    }
+    $setStatement = $setClauses -join ", "
+    $safeUserID = Sanitize-SqlQueryString -String $userID
+    $query = "UPDATE Users SET $setStatement WHERE UserID = '$safeUserID';"
+    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query $query
 }
 
 if ($files.profileImage) {

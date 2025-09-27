@@ -19,10 +19,10 @@ if (-not ($moduleDownloadDir -in ($env:PSModulePath -split ";"))) {
 
 # --- Bootstrap YAML module ---
 if (-not (Get-Module -ListAvailable -Name 'powershell-yaml')) {
-    Write-Host "'powershell-yaml' module not found. Attempting to install..."
+    Write-Verbose "'powershell-yaml' module not found. Attempting to install..."
     try {
         Install-Module -Name 'powershell-yaml' -Repository PSGallery -Force -Scope CurrentUser -ErrorAction Stop
-        Write-Host "Successfully installed 'powershell-yaml'."
+        Write-Verbose "Successfully installed 'powershell-yaml'."
     } catch {
         Write-Error "Failed to install 'powershell-yaml'. This script cannot continue without it. Please install it manually."
         return
@@ -47,12 +47,14 @@ foreach ($moduleSpec in $modulesToValidate) {
     [version[]]$requiredVersion = $moduleSpec.Version|Where-Object{$null -ne $_}|ForEach-Object{FixVersionLength -version $_}
     [version]$VersionMIN = FixVersionLength -version $moduleSpec.VersionMIN
     [version]$VersionMAX = FixVersionLength -version $moduleSpec.VersionMAX
-
+    if (!$requiredVersion -and !$VersionMIN -and !$VersionMAX) {
+        [version]$VersionMIN = '0.0.0.0'
+    }
     foreach ($ModuleFolder in $ModuleFolders){
         foreach($Versionfolder in (Get-ChildItem $ModuleFolder.FullName|Where-Object{$_.Name -match '^[\d\.]+(|\.disabled)$'})) {
             [version]$version = FixVersionLength -version ($Versionfolder.Name -replace '\.disabled$')
             $Disable = $false
-            Write-Host "Validating module: $moduleName version $version..."
+            Write-Verbose "Validating module: $moduleName version $version..."
             if (
                 ($requiredVersion -and ($Version -in $requiredVersion)) -or
                 (
@@ -66,24 +68,26 @@ foreach ($moduleSpec in $modulesToValidate) {
                     !$VersionMAX)
                 )
             ){
-                Write-Host "`tModule '$moduleName' is allowed to use version '$version' in versions '$($requiredVersion -join ', ')' VersionMin '$VersionMIN' VersionMax '$VersionMAX'."
+                Write-Verbose "	Module '$moduleName' is allowed to use version '$version' in versions '$($requiredVersion -join ', ')' VersionMin '$VersionMIN' VersionMax '$VersionMAX'."
             }
             ELSE {
-                Write-Host -ForegroundColor Red "`tVerion $version is not inside of the Module Specification:`n`t`t$(($moduleSpec|ConvertTo-Yaml).trim('\s').split('\n').join("`n`t`t"))"
+                Write-Warning "	Verion $version is not inside of the Module Specification:`n`t`t$(($moduleSpec|ConvertTo-Yaml).trim('
+').split('
+').join("`n`t`t"))"
                 $Disable = $true
             }
             if ($Disable -and $Versionfolder.name -notmatch '\.disabled$') {
-                Write-Host -ForegroundColor Yellow "`tDisableing '$(join-path $moduleDownloadDir ($ModuleFolder.Name)\$($Versionfolder.Name))'."
+                Write-Warning "	Disabling '$(join-path $moduleDownloadDir ($ModuleFolder.Name)\\$($Versionfolder.Name))'."
                 try {
                     Remove-Module $ModuleFolder.Name -Force
                 }
                 catch {
-                    Write-Error -Message "`tModule removal failed for $(join-path $moduleDownloadDir ($ModuleFolder.Name)\$($Versionfolder.Name))."
+                    Write-Error -Message "	Module removal failed for $(join-path $moduleDownloadDir ($ModuleFolder.Name)\\$($Versionfolder.Name))."
                 }
                 Rename-Item $Versionfolder.FullName ($Versionfolder.Name + '.disabled')
             }
             elseif (!$Disable -and $Versionfolder.name -match '\.disabled$') {
-                Write-Host -ForegroundColor Yellow "`tEnableing previously disabled module '$(join-path $moduleDownloadDir ($ModuleFolder.Name)\$($Versionfolder.Name))'."
+                Write-Warning "	Enabling previously disabled module '$(join-path $moduleDownloadDir ($ModuleFolder.Name)\\$($Versionfolder.Name))'."
                 Rename-Item $Versionfolder.FullName ($Versionfolder.Name -replace '\.disabled$')
                 Import-Module ($Versionfolder.FullName -replace '\.disabled$')
             }
@@ -106,7 +110,7 @@ foreach ($moduleSpec in $modulesToValidate) {
     }
     $needsDownload = $false
     if (-not $installedModule) {
-        Write-Warning "`tModule '$moduleName' not found. Scheduling for download."
+        Write-Warning "	Module '$moduleName' not found. Scheduling for download."
         $needsDownload = $true
     } else {
         # If multiple versions are somehow present, take the highest one
@@ -124,17 +128,17 @@ foreach ($moduleSpec in $modulesToValidate) {
                 !$VersionMAX)
             )
         ) {
-            Write-Host "`tModule '$moduleName' is allowed to use version $version in versions RequiredVersion '$($requiredVersion -join ', ')' VersionMin '$VersionMIN' VersionMax '$VersionMAX'."
+            Write-Verbose "	Module '$moduleName' is allowed to use version $version in versions RequiredVersion '$($requiredVersion -join ', ')' VersionMin '$VersionMIN' VersionMax '$VersionMAX'."
         }
         else {
-            Write-Warning "`tModule '$moduleName' version mismatch. Found $($InstalledVersion), require '$($requiredVersion -join ', ')'. Scheduling for download."
+            Write-Warning "	Module '$moduleName' version mismatch. Found $($InstalledVersion), require '$($requiredVersion -join ', ')'. Scheduling for download."
             $needsDownload = $true
         }
     }
 
     if ($needsDownload) {
-        $HighestViquiredVersion = $requiredVersion |Where-Object{$null -ne $_} | Sort-Object -Descending | Select-Object -First 1
-        Write-Host "`tDownloading '$moduleName' version '$($requiredVersion -join ', ')' from repository '$repository'..."
+        $HighestRequiredVersion = $requiredVersion |Where-Object{$null -ne $_} | Sort-Object -Descending | Select-Object -First 1
+        Write-Verbose "	Downloading '$moduleName' version '$($requiredVersion -join ', ')' from repository '$repository'..."
         try {
             $saveParams = @{
                 Name = $moduleName
@@ -143,8 +147,8 @@ foreach ($moduleSpec in $modulesToValidate) {
                 Force = $true
                 AcceptLicense = $true
             }
-            if ($HighestViquiredVersion) {
-                $saveParams.RequiredVersion = $HighestViquiredVersion
+            if ($HighestRequiredVersion) {
+                $saveParams.RequiredVersion = $HighestRequiredVersion
             }
             else {
                 if ($VersionMIN) {
@@ -155,17 +159,17 @@ foreach ($moduleSpec in $modulesToValidate) {
                 }
             }
             Save-Module @saveParams -ErrorAction Stop
-            Write-Host "`tSuccessfully downloaded '$moduleName'."
+            Write-Verbose "	Successfully downloaded '$moduleName'."
         } catch {
-            Write-Error "`tFailed to download module '$moduleName'. Error: $($_.Exception.Message)"
+            Write-Error "	Failed to download module '$moduleName'. Error: $($_.Exception.Message)"
             if ($moduleSpec.URL) {
-                Write-Warning "`tAttempting direct download from $($moduleSpec.URL)..."
+                Write-Warning "	Attempting direct download from $($moduleSpec.URL)..."
                 # Add logic for direct download and extraction here if needed
             }
         }
     } else {
-        Write-Host "`tModule '$moduleName' is already up to date."
+        Write-Verbose "	Module '$moduleName' is already up to date."
     }
 }
 
-Write-Host "Third-party module validation complete."
+Write-Verbose "Third-party module validation complete."

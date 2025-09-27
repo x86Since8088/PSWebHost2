@@ -6,7 +6,6 @@ param (
 # Import required modules
 Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
 Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Authentication/PSWebHost_Authentication.psm1") -DisableNameChecking
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "system/auth/TestToken.ps1") -DisableNameChecking
 
 # Helper function to create a JSON response
 function New-JsonResponse($status, $message) {
@@ -24,20 +23,15 @@ $bodyContent = ""
 $username = $null
 $password = $null
 
-    if ($Request.HasEntityBody) {
-        $reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
-        $bodyContent = $reader.ReadToEnd()
-        $reader.Close()
+try {
+    $bodyContent = Get-RequestBody -Request $Request
+    $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
+    $username = $parsedBody["username"]
+    $password = $parsedBody["password"]
 
-        $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
-        $username = $parsedBody["username"]
-        $password = $parsedBody["password"]
-
-        if ($username -like '*@localhost') {
-            $username = $username -replace '@localhost', ("@" + $Env:computername)
-        }
+    if ($username -like '*@localhost') {
+        $username = $username -replace '@localhost', ("@" + $Env:computername)
     }
-
 
     [string[]]$Fail = @()
     $IsUserNameValid = Test-IsValidEmailAddress -Email $username -AddCustomRegex '[a-zA-Z0-9._\+\-]+@[a-zA-Z0-9.\-]+'
@@ -83,25 +77,13 @@ $password = $null
     if ($isAuthenticated) {
         # --- On Success ---
         Write-Verbose "[windows/post.ps1] Authentication successful for $UserPrincipalName."
-        # Check if user has MFA enabled (conceptual query)
-        Write-Verbose "[windows/post.ps1] Checking for MFA status..."
-        $tokenProvider = Get-PSWebAuthProvider -UserID $UserPrincipalName -Provider 'tokenauthenticator'
-        Write-Verbose "[windows/post.ps1] Token provider query result: $($tokenProvider | ConvertTo-Json -Compress)"
+        
+        # MFA FLOW DISABLED - Completing login directly.
+        Write-Warning "MFA check has been temporarily disabled in this route."
+        Set-PSWebSession -SessionID $sessionID -UserID $UserPrincipalName -Provider 'Windows' -Request $Request
 
-        if ($tokenProvider.Enabled) {
-            # MFA is enabled. Set intermediate state and redirect to MFA challenge.
-            Write-Verbose "[windows/post.ps1] MFA enabled. Setting state to 'mfa_required' for SessionID $sessionID."
-            Invoke-TestToken -SessionID $sessionID -UserID $UserPrincipalName -AuthenticationState 'mfa_required' -UserAgent $Request.UserAgent -Verbose
-            $redirectUrl = "/api/v1/authprovider/tokenauthenticator/mfa.html?RedirectTo=$redirectTo"
-            context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
-        } else {
-            # MFA is not enabled. Complete the login directly.
-            Write-Verbose "[windows/post.ps1] MFA not enabled. Setting state to 'completed' for SessionID $sessionID."
-            Invoke-TestToken -SessionID $sessionID -UserID $UserPrincipalName -Completed -UserAgent $Request.UserAgent -Verbose
-            Write-Verbose "[windows/post.ps1] State set. Redirecting to getaccesstoken."
-            $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
-            context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
-        }
+        $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
+        context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
 
     } else {
         # --- On Failure ---
@@ -110,3 +92,10 @@ $password = $null
         $jsonResponse = New-JsonResponse -status 'fail' -message '<p class="error">Authentication failed. Please check your credentials.</p>'
         context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
     }
+} catch {
+    Write-PSWebHostLog -Severity 'Error' -Category 'Auth' -Message "Invalid request body for Windows auth POST: $($_.Exception.Message)" -Data @{ IPAddress = $ipAddress; Body = $bodyContent }
+    PSWebLogon -ProviderName "Windows" -Result "error" -Request $Request
+
+    $jsonResponse = New-JsonResponse -status 'fail' -message "An internal error occurred: $($_.Exception.Message)`n$($_.InvocationInfo.PositionMessage)"
+    context_reponse -Response $Response -StatusCode 500 -String $jsonResponse -ContentType "application/json"
+}

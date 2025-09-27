@@ -1,15 +1,13 @@
 function Send-SmtpEmail {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)]
         [string[]]$To,
-
-        [Parameter(Mandatory=$true)]
         [string]$Subject,
-
-        [Parameter(Mandatory=$true)]
         [string]$Body
     )
+    if (-not $To) { Write-Error "The -To parameter is required."; return }
+    if (-not $Subject) { Write-Error "The -Subject parameter is required."; return }
+    if (-not $Body) { Write-Error "The -Body parameter is required."; return }
 
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12 -bor [System.Net.SecurityProtocolType]::Tls13;
 

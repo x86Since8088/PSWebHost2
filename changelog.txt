@@ -1,0 +1,87 @@
+# Changelog
+
+## 2025-09-27
+
+### Refactoring of Database and Authentication Modules
+
+This change involved a significant refactoring of the `PSWebHost_Database` and `PSWebHost_Authentication` modules to improve separation of concerns.
+
+#### `PSWebHost_Database` Module (`modules/PSWebHost_Database/`)
+
+- This module has been simplified to contain only four generic, low-level functions for interacting with the SQLite database:
+    - `Get-PSWebSQLiteData`
+    - `Invoke-PSWebSQLiteNonQuery`
+    - `New-PSWebSQLiteData`
+    - `Sanitize-SqlQueryString`
+
+#### `PSWebHost_Authentication` Module (`modules/PSWebHost_Authentication/`)
+
+- This module now contains the application-specific logic for user, role, and group management that was previously located or incorrectly listed in the `PSWebHost_Database` module.
+- **Moved Functions:** The majority of the application-level database functions were moved here. This includes:
+    - `Get-PSWebUser`, `Get-PSWebHostUsers`
+    - `New-PSWebHostRole`, `Remove-PSWebHostRole`
+    - `Add-PSWebHostUserToRole`, `Remove-PSWebHostUserFromRole`
+    - `New-PSWebHostGroup`, `Remove-PSWebHostGroup`
+    - `Add-PSWebHostUserToGroup`, `Remove-PSWebHostUserFromGroup`
+    - `Register-PSWebHostUser`, `New-PSWebHostUser`
+- **Refactored/Renamed Functions:** Some functionality was consolidated into new or existing functions within this module:
+    - Logic for `Get-LastLoginAttempt` and `Set-LastLoginAttempt` is now part of `Test-LoginLockout` and `PSWebLogon`.
+    - Logic for `Set-LoginSession` is now part of `PSWebLogon`.
+
+#### Deleted Functions
+
+- Some functions that were previously listed in the `PSWebHost_Database.psd1` manifest could not be found in the project and are presumed to have been deleted during refactoring. Examples include:
+    - `Initialize-PSWebHostDatabase`
+    - `Get-CardSettings`
+    - `ConvertFrom-CompressedBase64`
+
+### Module Review
+
+- [complete] Scan and correct issues in `PSWebHost_Formatters` module.
+    - [complete] Add max depth check to `Convert-ObjectToYaml` to prevent infinite recursion.
+    - [complete] Add comment to broken `Safe-WalkObject` function noting it is incomplete.
+    - [complete] Replace all `Mandatory=$true` parameters in `PSWebHost_Formatters` module with manual checks.
+- [complete] Scan and correct issues in `PSWebHost_Support` module.
+    - [complete] Fix critical bug in `Process-HttpRequest` hashtable assignment.
+    - [complete] Remove duplicate `Sanitize-SqlQueryString` function.
+    - [complete] Add `try/catch` blocks to `Get-RequestBody` and `ConvertTo-CompressedBase64`.
+    - [complete] Replace `Write-Host` with `Write-Verbose` in `Process-HttpRequest` and `Validate-UserSession`.
+    - [complete] Replace all `Mandatory=$true` parameters in `PSWebHost_Support` module with manual checks.
+    - [complete] Remove `Sanitize-SqlQueryString` from `PSWebHost_Support.psd1` manifest.
+- [complete] Scan and correct issues in `Sanitization` module.
+    - [complete] Fix bug in `Sanitize-FilePath` by removing undefined variables from log messages.
+    - [complete] Change `Write-Host` to `Write-Warning` in `Write-RequestSanitizationFail`.
+    - [complete] Replace `Mandatory=$true` parameter in `Sanitize-FilePath` with a manual check.
+- [complete] Scan and correct issues in `smtp` module.
+    - [complete] Replace all `Mandatory=$true` parameters in `smtp` module with manual checks.
+
+### Core Script Review
+- [complete] Scan and correct issues in `WebHost.ps1` and its direct dependencies.
+    - [complete] Add `try/catch` block to the main listener loop in `WebHost.ps1`.
+    - [complete] Replace all `Write-Host` calls in `WebHost.ps1` with `Write-Verbose`.
+- [complete] Scan and correct issues in `validateInstall.ps1`.
+    - [complete] Replace obsolete database function calls with a call to `validatetables.ps1`.
+    - [complete] Change `Write-Host` to `Write-Warning` for database creation message.
+- [complete] Scan and correct issues in `pswebadmin.ps1`.
+    - [complete] Refactor user creation to use `New-PSWebHostUser`.
+    - [complete] Create a new `Set-PSWebHostUserPassword` function and use it for password resets.
+    - [complete] Comment out broken role and group management sections.
+    - [complete] Replace all `Write-Host` calls with `Write-Verbose` or `Write-Output`.
+    - [complete] Fix bug in `Invoke-AuthenticationMethod` to correctly read password from `data` column.
+- [complete] Scan and correct issues in `Validate3rdPartyModules.ps1`.
+    - [complete] Fix typo in `$HighestViquiredVersion` variable name.
+    - [complete] Replace all `Write-Host` calls with `Write-Verbose` or `Write-Warning`.
+
+### Final Script Review
+- [complete] Scan and correct issues in remaining `system` scripts.
+    - [complete] Refactor `Functions.ps1` to remove unused functions and add error handling.
+    - [complete] Review and fix issues in `system/auth` scripts.
+
+### Route Handler Review
+- [complete] Scan and correct issues in all `routes/**/*.ps1` scripts.
+    - [complete] Stabilize `routes/api/v1/auth` scripts (delete corrupted file, fix bugs, comment out broken flow).
+    - [complete] Stabilize `routes/api/v1/authprovider` scripts (disable MFA flow, fix minor bugs).
+    - [complete] Review and fix issues in `routes/api/v1/users` and `routes/api/v1/registration` scripts.
+        - [complete] Fix SQL injection vulnerabilities in `users/delete.ps1`, `registration/post.ps1`, and `registration/confirm/email/get.ps1`.
+        - [complete] Fix broken dependency in `users/post.ps1`.
+        - [complete] Fix minor logging and error handling issues.

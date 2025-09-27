@@ -24,7 +24,8 @@ function Write-RequestSanitizationFail {
         [string]$Message,
         $Context
     )
-    Write-Host -ForegroundColor Blue ("Message: $Message`n`tPath: $Path" +
+    # Changed to Write-Warning for better logging practices
+    Write-Warning ("Message: $Message`n`tPath: $Path" +
         (.{
             if ($Context) {
                 "`n`tUrl.AbsolutePath:$($Context.Request.Url.AbsolutePath)`n`t" 
@@ -36,9 +37,9 @@ function Write-RequestSanitizationFail {
 function Sanitize-FilePath {
     param (
         [string]$FilePath,
-        [Parameter(Mandatory=$true)]
         [string]$BaseDirectory
     )
+    if (-not $BaseDirectory) { Write-Error "The -BaseDirectory parameter is required."; return }
 
     if ([string]::IsNullOrEmpty($FilePath)) {
         # Empty file path -> return the base directory normalized
@@ -47,7 +48,8 @@ function Sanitize-FilePath {
 
     # Check for obvious path traversal sequences like '..'
     if ($FilePath -match '([\\/])\.\.' -or $FilePath.StartsWith('..', [System.StringComparison]::Ordinal)) {
-        Write-RequestSanitizationFail -Path $FilePath -Message "Failed check for obvious path traversal sequences, Authorized: $isAuthorized, UserRoles: $($session.Roles -join ', ')" 
+        # Removed undefined variables $isAuthorized and $session.Roles
+        Write-RequestSanitizationFail -Path $FilePath -Message "Failed check for obvious path traversal sequences." 
         return @{Score='fail'; Message = "Path traversal attempt detected: $FilePath"}
     }
 
@@ -59,7 +61,8 @@ function Sanitize-FilePath {
 
     # Final check to ensure the resolved path is still within the base directory
     if (-not $fullResolvedPath.StartsWith($fullBaseDirectory, [System.StringComparison]::OrdinalIgnoreCase)) {
-        Write-RequestSanitizationFail -Path $FilePath -Message "Failed check for path traversal attempt detected after resolution, `n`tAuthorized: $isAuthorized, `n`tUserRoles: $($session.Roles -join ', ')`n`tfullResolvedPath: $($fullResolvedPath)`n`tStarts With fullBaseDirectory: $fullBaseDirectory"
+        # Removed undefined variables
+        Write-RequestSanitizationFail -Path $FilePath -Message "Failed check for path traversal attempt detected after resolution. `n`tfullResolvedPath: $($fullResolvedPath)`n`tStarts With fullBaseDirectory: $fullBaseDirectory"
         return @{Score='fail'; Message = "Path traversal attempt detected after resolution: $FilePath"}
     }
 

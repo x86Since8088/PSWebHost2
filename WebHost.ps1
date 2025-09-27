@@ -25,7 +25,7 @@ begin {
 
     # Call validateInstall.ps1 if -ShowVariables is present
     if ($ShowVariables.IsPresent) {
-        Write-Verbose "Calling validateInstall.ps1 with -ShowVariables..." -Verbose
+        Write-Verbose "Calling validateInstall.ps1 with -ShowVariables..."
         . (Join-Path $Global:PSWebServer.Project_Root.Path "system\validateInstall.ps1") -ShowVariables
         return # Exit after showing variables
     }
@@ -51,7 +51,7 @@ begin {
                     }
                 }
         }.tostring()
-        Write-Host "Starting pwsh directly so that output is directly parsed.`n`tpwsh.exe $ArgumentList"
+        Write-Verbose "Starting pwsh directly so that output is directly parsed.`n`tpwsh.exe $ArgumentList"
             pwsh.exe $ArgumentList 
         }
         return
@@ -68,7 +68,7 @@ begin {
 
     try {
         $listener.Start()
-        Write-Host "Listening on $($prefix -replace '\+:','localhost:')"
+        Write-Verbose "Listening on $($prefix -replace '\+:', 'localhost:')"
     } catch {
         Write-Error "Failed to start listener: $($_.Exception.Message)"
         exit 1
@@ -103,14 +103,14 @@ end {
             $moduleData = $entry.Value
             $fileInfo = Get-Item -Path $moduleData.Path -ErrorAction SilentlyContinue
             if ($fileInfo -and $fileInfo.LastWriteTime -gt $moduleData.LastWriteTime) {
-                Write-Host "Module '$moduleName' has changed. Reloading..."
+                Write-Verbose "Module '$moduleName' has changed. Reloading..."
                 try {
                     Remove-Module -Name $moduleName -Force -ErrorAction Stop
                     $reloadedModuleInfo = Import-Module -Name $moduleData.Path -Force -PassThru -ErrorAction Continue -DisableNameChecking 2>&1
                     $newFileInfo = Get-Item -Path $moduleData.Path
                     $Global:PSWebServer.Modules[$moduleName].LastWriteTime = $newFileInfo.LastWriteTime
                     $Global:PSWebServer.Modules[$moduleName].Loaded = (Get-Date)
-                    Write-Host "Module '$moduleName' reloaded successfully."
+                    Write-Verbose "Module '$moduleName' reloaded successfully."
                 } catch {
                     Write-Error "Failed to reload module '$moduleName': $_"
                 }
@@ -118,52 +118,53 @@ end {
         }
     }
 
-    Write-Verbose "Entering listener loop." -Verbose
+    Write-Verbose "Entering listener loop."
     if ($Null -eq $Logpos) {$Logpos = 0}
     if ($Null -eq $UIQueuePos) {$UIQueuePos = 0}
     $Loop_Start = Get-Date
     $lastSettingsCheck = Get-Date
     $lastSessionSync = Get-Date
-    while ($script:ListenerInstance.IsListening) {
-        if ((Get-Date) - $lastSessionSync -gt [TimeSpan]::FromMinutes(1)) {
-            Sync-SessionStateToDatabase
-            $lastSessionSync = Get-Date
-        }
-
-        if ((Get-Date) - $lastSettingsCheck -gt [TimeSpan]::FromSeconds(30)) {
-            $settingsFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "config\settings.json"
-            $currentSettingsWriteTime = (Get-Item $settingsFilePath).LastWriteTime
-            if ($currentSettingsWriteTime -gt $global:PSWebServer.SettingsLastWriteTime) {
-                Write-Host "settings.json has changed. Reloading..."
-                $global:PSWebServer.SettingsLastWriteTime = $currentSettingsWriteTime
-                $Global:PSWebServer.Config = (Get-Content $settingsFilePath) | ConvertFrom-Json
+    
+    try {
+        while ($script:ListenerInstance.IsListening) {
+            if ((Get-Date) - $lastSessionSync -gt [TimeSpan]::FromMinutes(1)) {
+                Sync-SessionStateToDatabase
+                $lastSessionSync = Get-Date
             }
-            $lastSettingsCheck = Get-Date
-        }
-        
-        . Invoke-ModuleRefreshAsNeeded
 
-        $LogEnd = $PSWebHostLogQueue.count
-        if ($LogEnd -lt $Logpos) {
-            $Logpos = 0
-        }
-        if ([int]$Logpos -lt $LogEnd) {
-            $LogPos .. ($LogEnd -1)|ForEach-Object{$PSWebHostLogQueue[$_]}| Select-Object * | Format-Table -AutoSize -Wrap
-            $Logpos = $LogEnd
-        }
-
-        $UIQueueEnd = $PSHostUIQueue.count
-        if ($UIQueueEnd -lt $UIQueuePos) {
-            $UIQueuePos = 0
-        }
-        if ([int]$UIQueuePos -lt $UIQueueEnd) {
-            $UIQueuePos .. ($UIQueueEnd -1)|ForEach-Object{$PSHostUIQueue[$_]}| ForEach-Object {
-                $Host.UI.WriteLine($_)
+            if ((Get-Date) - $lastSettingsCheck -gt [TimeSpan]::FromSeconds(30)) {
+                $settingsFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "config\settings.json"
+                $currentSettingsWriteTime = (Get-Item $settingsFilePath).LastWriteTime
+                if ($currentSettingsWriteTime -gt $global:PSWebServer.SettingsLastWriteTime) {
+                    Write-Verbose "settings.json has changed. Reloading..."
+                    $global:PSWebServer.SettingsLastWriteTime = $currentSettingsWriteTime
+                    $Global:PSWebServer.Config = (Get-Content $settingsFilePath) | ConvertFrom-Json
+                }
+                $lastSettingsCheck = Get-Date
             }
-            $UIQueuePos = $UIQueueEnd
-        }
+            
+            . Invoke-ModuleRefreshAsNeeded
 
-        #try {
+            $LogEnd = $PSWebHostLogQueue.count
+            if ($LogEnd -lt $Logpos) {
+                $Logpos = 0
+            }
+            if ([int]$Logpos -lt $LogEnd) {
+                $LogPos .. ($LogEnd -1)|ForEach-Object{$PSWebHostLogQueue[$_]}| Select-Object * | Format-Table -AutoSize -Wrap
+                $Logpos = $LogEnd
+            }
+
+            $UIQueueEnd = $PSHostUIQueue.count
+            if ($UIQueueEnd -lt $UIQueuePos) {
+                $UIQueuePos = 0
+            }
+            if ([int]$UIQueuePos -lt $UIQueueEnd) {
+                $UIQueuePos .. ($UIQueueEnd -1)|ForEach-Object{$PSHostUIQueue[$_]}| ForEach-Object {
+                    $Host.UI.WriteLine($_)
+                }
+                $UIQueuePos = $UIQueueEnd
+            }
+
             if ($Async) {
                 # Check for and clean up completed runspace jobs every 5 seconds.
                 if (((get-date).Second % 5) -eq 0) {
@@ -235,50 +236,35 @@ end {
                 Start-Sleep -Milliseconds 100
             } else {
                 $Loop_End = Get-Date
-                Write-Host "Sync request loop completed: $(($Loop_End - $Loop_Start).TotalMilliseconds)ms $($Context.request.HttpMethod) $($Context.request.Url.AbsoluteUri)"
+                Write-Verbose "Sync request loop completed: $(($Loop_End - $Loop_Start).TotalMilliseconds)ms $($Context.request.HttpMethod) $($Context.request.Url.AbsoluteUri)"
                 $global:PSHostUIQueue.Enqueue("Sync request loop completed: $(($Loop_End - $Loop_Start).TotalMilliseconds)ms $($Context.request.HttpMethod) $($Context.request.Url.AbsoluteUri)")
                 $context = $script:ListenerInstance.GetContext()
                 $Loop_Start = Get-Date
                 Process-HttpRequest -Context $context -HostUIQueue $global:PSHostUIQueue
             }
-        if ($StopOnScriptUpdate.IsPresent) {
-            $FileDate = (get-item $MyInvocation.MyCommand.Path).LastWriteTime # This is the current script's last write time
-            if ($InitialFileDate -ne $FileDate) { # If the script file has been updated
-                # If the script has been updated, stop the listener and exit.
-                # This allows the parent script (if -ReloadOnScriptUpdate was used) to restart it.
-                # Stopping the listener will stop this loop after completion.
-                
-                # Stop pending async operations.
-                # This is important to prevent new requests from being processed while the script is
-                # preparing to exit or reload.
-                # This ensures a clean shutdown and avoids orphaned processes.
-                # This also allows the parent process to restart the script cleanly.
-                # This is crucial for maintaining application stability and resource management.
-                # This also ensures that any pending HTTP responses are sent before the script exits.
-                # This is especially important for long-running requests or streaming responses.
-                # This helps prevent client-side errors due to abrupt connection closures.
-                # This also ensures that any resources held by the script are properly released.
-
-                $script:ListenerInstance.Stop()
-                Write-PSWebHostLog -Message "Script file updated. Stopping listener for reload." -Severity 'Information' -Category 'ScriptUpdate'
+            if ($StopOnScriptUpdate.IsPresent) {
+                $FileDate = (get-item $MyInvocation.MyCommand.Path).LastWriteTime # This is the current script's last write time
+                if ($InitialFileDate -ne $FileDate) { # If the script file has been updated
+                    $script:ListenerInstance.Stop()
+                    Write-PSWebHostLog -Message "Script file updated. Stopping listener for reload." -Severity 'Information' -Category 'ScriptUpdate'
+                }
             }
         }
-
-        #} catch [System.Net.HttpListenerException] {
-        #    # This exception can be thrown if the listener is stopped while GetContextAsync is pending.
-        #    Write-Verbose "Listener was stopped. Exiting loop." -Verbose
-        #} catch {
-        #    $logData = @{ Error = $_.Exception.Message; StackTrace = $_.Exception.StackTrace }
-        #    Write-PSWebHostLog -Severity 'Error' -Category 'Listener' -Message "Error in listener loop" -Data $logData
-        #}
+    } catch [System.Net.HttpListenerException] {
+        # This exception can be thrown if the listener is stopped while GetContextAsync is pending.
+        Write-Verbose "Listener was stopped. Exiting loop."
+    } catch {
+        $logData = @{ Error = $_.Exception.Message; StackTrace = $_.Exception.StackTrace }
+        Write-PSWebHostLog -Severity 'Error' -Category 'Listener' -Message "Error in listener loop" -Data $logData
     }
-    Write-Verbose "Exiting listener loop." -Verbose
+
+    Write-Verbose "Exiting listener loop."
 
     # --- Cleanup ---
     if ($script:ListenerInstance -and $script:ListenerInstance.IsListening) {
         $script:ListenerInstance.Stop()
         $script:ListenerInstance.Close()
-        Write-Host "Listener stopped."
+        Write-Verbose "Listener stopped."
     }
 
     # Stop the logging job
@@ -288,10 +274,10 @@ end {
     }
     if ($loggingPowerShell) {
         $loggingPowerShell.Dispose()
-        Write-Verbose "Logging job stopped." -Verbose
+        Write-Verbose "Logging job stopped."
     }
     else {
-        Write-Verbose "Logging job was not started." -Verbose
+        Write-Verbose "Logging job was not started."
     }
 
     # Stop the output monitor job
@@ -301,7 +287,7 @@ end {
         $outputMonitorPowerShell.Dispose()
     }
     else{
-        Write-Host "script:OutputMonitorJob is null."
+        Write-Verbose "script:OutputMonitorJob is null."
     }
-    Write-Verbose "Runspace output monitor job stopped." -Verbose
+    Write-Verbose "Runspace output monitor job stopped."
 }

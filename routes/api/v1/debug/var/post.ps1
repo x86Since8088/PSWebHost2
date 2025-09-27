@@ -2,7 +2,7 @@ param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request = $Context.Request,
     [System.Net.HttpListenerResponse]$Response = $Context.Response,
-    [hashtable]$SessionData
+    $sessiondata
 )
 
 # Expect JSON body: { Name: "...", OriginalType: "System.String", NewText: "..." }

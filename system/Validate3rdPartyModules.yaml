@@ -13,3 +13,6 @@
   Repository: PSGallery
   # This module is used to generate QR codes for MFA setup.
   Version: 2.0.0
+
+- Name: PSScriptAnalyzer 
+  Repository: PSGallery

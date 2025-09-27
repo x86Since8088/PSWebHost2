@@ -4,7 +4,7 @@ param (
     [System.Net.HttpListenerRequest]$Request=$Context.Request,
     [System.Net.HttpListenerResponse]$Response=$Context.Response,
     [string]$sessionID = $Context.Request.Cookies["PSWebSessionID"].Value,
-    [hashtable]$SessionData = $global:PSWebSessions[$sessionID]
+    $sessiondata = $global:PSWebSessions[$sessionID]
 )
 
 # Import the database module to use Set-CardSession

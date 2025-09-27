@@ -3,7 +3,7 @@ param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request=$Context.Request,
     [System.Net.HttpListenerResponse]$Response=$Context.Response,
-    [hashtable]$SessionData
+    $sessiondata
 )
 #$VerbosePreference = 'Continue'
 # Get events using the new function. It handles permissions internally.

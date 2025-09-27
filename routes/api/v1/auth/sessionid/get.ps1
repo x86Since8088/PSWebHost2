@@ -3,11 +3,9 @@ param (
     [System.Net.HttpListenerRequest]$Request = $Context.Request,
     [System.Net.HttpListenerResponse]$Response = $Context.Response,
     [string]$sessionID = $Context.Request.Cookies["PSWebSessionID"].Value,
-    [hashtable]$SessionData = $global:PSWebSessions[$sessionID],
+    $sessiondata = $global:PSWebSessions[$sessionID],
     [hashtable]$CardSettings
 )
-
-
 
 # Import required modules
 Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
@@ -15,6 +13,3 @@ Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHos
 
 $jsonResponse = $SessionData | convertto-json -Depth 10
 context_reponse -Response $Response -String $jsonResponse -ContentType "application/json" -StatusCode 200 
-
-
-

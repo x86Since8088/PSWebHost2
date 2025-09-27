@@ -1,3 +1,6 @@
+param (
+    [switch]$Loadvariables
+)
 # Define project root
 if ($null -eq $ProjectRoot) {
     $ProjectRoot = Split-Path (Split-Path -Parent $MyInvocation.MyCommand.Definition)
@@ -92,7 +95,7 @@ function Import-TrackedModule {
     param (
         [string]$Path
     )
-    $moduleInfo = Import-Module $Path -Force -DisableNameChecking -PassThru
+    $moduleInfo = Import-Module $Path -Force -DisableNameChecking -PassThru 3>$null
     $fileInfo = Get-Item -Path $Path
     $Global:PSWebServer.Modules[$moduleInfo.Name] = @{
         Path = $Path
@@ -109,6 +112,25 @@ Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Database/PSW
 Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Authentication/PSWebHost_Authentication.psd1")
 Import-TrackedModule -Path (Join-Path $modulesFolderPath "smtp/smtp.psd1")
 
+try {
+    Import-Module PSSQLite 
+}
+catch {
+    Write-Error -Message "Error importing PSSQLite module: $($_.Exception.Message)"
+}
+if ($Loadvariables.IsPresent) {return}
 
 # Validate installation, dependencies, and database schema
 & (Join-Path $PSScriptRoot 'validateInstall.ps1')
+
+# Register roles from config if they don't exist
+if ($Global:PSWebServer.Config.roles) {
+    $configRoles = $Global:PSWebServer.Config.roles
+    $dbRoles = Get-PSWebRoles
+    foreach ($role in $configRoles) {
+        if ($role -notin $dbRoles) {
+            Write-Verbose "Registering role '$role' from config." -Verbose
+            New-PSWebHostRole -RoleName $role
+        }
+    }
+}

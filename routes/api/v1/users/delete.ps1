@@ -10,8 +10,10 @@ if (-not $userID) {
     return
 }
 
+$safeUserID = Sanitize-SqlQueryString -String $userID
+
 # First, get the user's unique ID (GUID) to ensure related data is deleted
-$userToDelete = Get-PSWebSQLiteData -File "pswebhost.db" -Query "SELECT ID FROM Users WHERE UserID = '$userID';"
+$userToDelete = Get-PSWebSQLiteData -File "pswebhost.db" -Query "SELECT ID FROM Users WHERE UserID = '$safeUserID';"
 if ($userToDelete) {
     $id = $userToDelete.ID
     # Delete associated data from User_Data table
@@ -19,6 +21,6 @@ if ($userToDelete) {
 }
 
 # Now delete the main user record
-Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'DELETE' -TableName 'Users' -Where "UserID = '$userID'"
+Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'DELETE' -TableName 'Users' -Where "UserID = '$safeUserID'"
 
 context_reponse -Response $Response -String "User deleted successfully."

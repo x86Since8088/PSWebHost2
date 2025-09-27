@@ -11,9 +11,9 @@ function Get-AuthenticationMethod {
 function Get-AuthenticationMethodForm {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)]
         [string]$Name
     )
+    if (-not $Name) { Write-Error "The -Name parameter is required."; return }
 
     # This function would return the form fields required for a specific
     # authentication method.
@@ -54,12 +54,31 @@ function Get-AuthenticationMethodForm {
 function Get-PSWebHostUser {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)]
-        [string]$Email
+        [parameter(ParameterSetName='Email')]
+        [Parameter(Mandatory=$false)]
+        [string]$Email,
+        [parameter(ParameterSetName='UserID')]
+        [Parameter(Mandatory=$false)]
+        [string]$UserID,
+        [parameter(ParameterSetName='Listall')]
+        [switch]$Listall
     )
-
-    $dbFile = "pswebhost.db"
-    $query = "SELECT * FROM Users WHERE Email = '$Email';"
+    if ($PSBoundParameters.ContainsKey('Email')) {
+        $safeEmail = Sanitize-SqlQueryString -String $Email
+        $query = "SELECT * FROM Users WHERE Email = '$safeEmail';"
+    }
+    elseif ($PSBoundParameters.ContainsKey('UserID')) {
+        $safeUserID = Sanitize-SqlQueryString -String $UserID
+        $query = "SELECT * FROM Users WHERE UserID = '$safeUserID';"
+    }
+    elseif ($Listall) {
+        $query = "SELECT * FROM Users;"
+    }
+    else {
+        Write-Error "[Get-PSWebHostUser] you must provide -Email, -UserID or -Listall"
+        return
+    }
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $user = Get-PSWebSQLiteData -File $dbFile -Query $query
     return $user
 }
@@ -67,7 +86,7 @@ function Get-PSWebHostUser {
 function Get-PSWebHostUsers {
     [cmdletbinding()]
     param()
-    $dbFile = "pswebhost.db"
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $query = "SELECT Email FROM Users;"
     $users = Get-PSWebSQLiteData -File $dbFile -Query $query
     if ($users) {
@@ -80,17 +99,18 @@ function Get-PSWebHostUsers {
 function Get-UserAuthenticationMethods {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)]
         [string]$Email
     )
+    if (-not $Email) { Write-Error "The -Email parameter is required."; return }
 
     $user = Get-PSWebHostUser -Email $Email
     if (-not $user) {
         return @()
     }
 
-    $dbFile = "pswebhost.db"
-    $query = "SELECT provider FROM auth_user_provider WHERE UserID = '$($user.UserID)';"
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeUserID = Sanitize-SqlQueryString -String $user.UserID
+    $query = "SELECT provider FROM auth_user_provider WHERE UserID = '$safeUserID';"
     $authMethods = Get-PSWebSQLiteData -File $dbFile -Query $query
     
     if ($authMethods) {
@@ -103,18 +123,19 @@ function Get-UserAuthenticationMethods {
 function Get-UserRoles {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)]
         [string]$UserID
     )
+    if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
 
-    $dbFile = "pswebhost.db"
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeUserID = Sanitize-SqlQueryString -String $UserID
 
     # Get roles assigned directly to the user
-    $queryDirectRoles = "SELECT RoleName FROM PSWeb_Roles WHERE PrincipalID = '$UserID';"
+    $queryDirectRoles = "SELECT RoleName FROM PSWeb_Roles WHERE PrincipalID = '$safeUserID';"
     $directRoles = Get-PSWebSQLiteData -File $dbFile -Query $queryDirectRoles
 
     # Get roles assigned to groups the user is in
-    $queryGroupRoles = "SELECT r.RoleName FROM PSWeb_Roles r JOIN User_Groups_Map ugm ON r.PrincipalID = ugm.GroupID WHERE ugm.UserID = '$UserID';"
+    $queryGroupRoles = "SELECT r.RoleName FROM PSWeb_Roles r JOIN User_Groups_Map ugm ON r.PrincipalID = ugm.GroupID WHERE ugm.UserID = '$safeUserID';"
     $groupRoles = Get-PSWebSQLiteData -File $dbFile -Query $queryGroupRoles
 
     $allRoles = @()
@@ -131,12 +152,11 @@ function Get-UserRoles {
 function Invoke-AuthenticationMethod {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)]
         [string]$Name,
-
-        [Parameter(Mandatory=$true)]
         [hashtable]$FormData
     )
+    if (-not $Name) { Write-Error "The -Name parameter is required."; return }
+    if (-not $FormData) { Write-Error "The -FormData parameter is required."; return }
 
     switch ($Name) {
         "Password" {
@@ -145,21 +165,25 @@ function Invoke-AuthenticationMethod {
             $password = $FormData.Password
 
             # 1. Get user from database
-            $user = Get-PSWebSQLiteData -File $dbFile -Query $query
+            $user = Get-PSWebHostUser -Email $email
             if (-not $user) {
                 Write-Warning "Authentication failed: User '$email' not found."
                 return $false
             }
 
             # 2. Get stored password hash for the user
-            $dbFile = "pswebhost.db"
-            $query = "SELECT Data FROM AuthenticationMethods WHERE UserID = ' $($user.UserID)' AND Authentication_Method = 'Password';"
+            $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+            $safeUserID = Sanitize-SqlQueryString -String $user.UserID
+            # The password hash is stored in the 'data' column as JSON
+            $query = "SELECT data FROM auth_user_provider WHERE UserID = '$safeUserID' AND provider = 'Password';"
             $authMethod = Get-PSWebSQLiteData -File $dbFile -Query $query
             if (-not $authMethod) {
                 Write-Warning "Authentication failed: No password set for user '$email'."
                 return $false
             }
-            $storedPasswordHash = $authMethod.Data
+            # Parse the JSON to get the password
+            $authData = $authMethod.data | ConvertFrom-Json
+            $storedPasswordHash = $authData.Password
 
             # 3. Hash the provided password with the user's salt
             $saltBytes = [System.Convert]::FromBase64String($user.Salt)
@@ -208,7 +232,7 @@ function Invoke-AuthenticationMethod {
 function Test-IsValidEmailAddress {
     param(
         [string]$Email,
-        [string]$Regex = '^[a-zA-Z0-9._\+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$',
+        [string]$Regex = '^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
         [string]$AddCustomRegex
     )
     # Basic email validation regex
@@ -328,7 +352,7 @@ function Test-StringForHighRiskUnicode {
     }
     [uint32[]]$StringCharIntegers = $String.ToCharArray()
     $FindingsHT = @{}
-    $Forbidden.Keys | 
+    $Forbidden.Keys |
         Where-Object { $StringCharIntegers -contains $_ }|
         ForEach-Object{
             $FindingsHT[$_] = $Forbidden[$_]
@@ -376,7 +400,7 @@ function Test-IsValidPassword {
     }
     # Check for minimum symbols
     if ($Symbols -gt 0) { # Only check if a minimum number of symbols is required
-        if (($Password.ToCharArray() -match $ValidSymbolCharacters).Count -lt $Symbols) {
+        if (($Password.ToCharArray() -match $ValidSymbolCharactersRegex).Count -lt $Symbols) {
             return @{ IsValid = $false; Message = "Password must contain at least $Symbols symbols." }
         }
     }
@@ -403,21 +427,21 @@ function Test-LoginLockout {
 
     if ($lastAttempt) {
         if ($lastAttempt.IPAddressLockedUntil -and ($lastAttempt.IPAddressLockedUntil -as [datetime]) -gt $now) {
-            return [PSCustomObject]@{
+            return [PSCustomObject]@{ 
                 LockedOut = $true
                 LockedUntil = ($lastAttempt.IPAddressLockedUntil -as [datetime])
                 Message = "Too many requests from this IP address. Please try again after $(($lastAttempt.IPAddressLockedUntil -as [datetime]).ToString('o'))."
             }
         }
         if ($lastAttempt.UserNameLockedUntil -and ($lastAttempt.UserNameLockedUntil -as [datetime]) -gt $now) {
-            return [PSCustomObject]@{
+            return [PSCustomObject]@{ 
                 LockedOut = $true
                 LockedUntil = ($lastAttempt.UserNameLockedUntil -as [datetime])
-                Message = "Too many requests for this user. Please try again after $((($lastAttempt.UserNameLockedUntil -as [datetime]::ToString) - (get-date)).TotalSeconds) seconds."
+                Message = "Too many requests for this user. Please try again after $([math]::Round((($lastAttempt.UserNameLockedUntil -as [datetime]) - (Get-Date)).TotalSeconds)) seconds."
             }
         }
     }
-    return [PSCustomObject]@{
+    return [PSCustomObject]@{ 
         LockedOut = $false
     }
 }
@@ -425,9 +449,9 @@ function Test-LoginLockout {
 function Protect-String {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)]
         [string]$PlainText
     )
+    if (-not $PlainText) { Write-Error "The -PlainText parameter is required."; return }
     $secureString = $PlainText | ConvertTo-SecureString -AsPlainText -Force
     # The encrypted string is tied to the current user context and machine
     return $secureString | ConvertFrom-SecureString
@@ -436,9 +460,9 @@ function Protect-String {
 function Unprotect-String {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)]
         [string]$EncryptedString
     )
+    if (-not $EncryptedString) { Write-Error "The -EncryptedString parameter is required."; return }
     $secureString = $EncryptedString | ConvertTo-SecureString
     $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureString)
     $plainText = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
@@ -446,94 +470,96 @@ function Unprotect-String {
     return $plainText
 }
 
+function Register-PSWebHostUser {
+    [cmdletbinding()]
+    param(
+        [string]$UserName,
+        [string]$Email,
+        [string]$Phone,
+        [string]$Provider,
+        [string]$Password,
+        [hashtable]$ProviderData
+    )
+    if (-not $UserName) { Write-Error "The -UserName parameter is required."; return }
+    if (-not $Provider) { Write-Error "The -Provider parameter is required."; return }
+
+    # 1. Generate UserID
+    $userID = [Guid]::NewGuid().ToString()
+
+    # 2. Store user in database
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $userData = @{
+        UserID = $userID
+        UserName = $UserName
+        Email = $Email
+        Phone = $Phone
+        Provider = $Provider
+    }
+
+    if ($Provider -eq "Password") {
+        # 3. Generate Salt and Hash Password
+        $saltBytes = New-Object byte[] 16
+        $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+        $rng.GetBytes($saltBytes)
+        $saltString = [System.Convert]::ToBase64String($saltBytes)
+        $userData.Salt = $saltString
+
+        $pbkdf2 = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($Password, $saltBytes, 10000)
+        $passwordHashBytes = $pbkdf2.GetBytes(20) # 20 bytes for a 160-bit hash
+        $passwordHash = [System.Convert]::ToBase64String($passwordHashBytes)
+        $ProviderData.Password = $passwordHash
+    }
+
+    New-PSWebSQLiteData -File $dbFile -Table "Users" -Data $userData
+
+    # 4. Store auth provider in database
+    $authProviderData = @{
+        UserID = $userID
+        UserName = $UserName
+        provider = $Provider
+        created = (Get-Date -UFormat %s)
+        locked_out = $false
+        enabled = $true
+    }
+    if ($ProviderData) {
+        $authProviderData.data = ($ProviderData | ConvertTo-Json -Compress)
+    }
+
+
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'INSERT' -TableName 'auth_user_provider' -Data $authProviderData
+
+    Write-Verbose "User '$UserName' created with UserID '$userID'." -Verbose
+    return Get-PSWebHostUser -UserID $userID
+}
+
 function New-PSWebHostUser {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)]
-        [string]$Email,
-
-        [Parameter(Mandatory=$true)]
-        [string]$Password,
-
-        [string]$Phone
-    )
-
-    # 1. Generate Salt
-    $saltBytes = New-Object byte[] 16
-    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-    $rng.GetBytes($saltBytes)
-    $saltString = [System.Convert]::ToBase64String($saltBytes)
-
-    # 2. Generate UserID
-    $epoch = [int64](((Get-Date).ToUniversalTime()) - (Get-Date "1970-01-01")).TotalSeconds
-    $toHash = "$epoch$saltString"
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    $hashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($toHash))
-    $userID = [System.BitConverter]::ToString($hashBytes).Replace('-', '').ToLowerInvariant()
-
-    # 3. Hash Password
-    $pbkdf2 = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($Password, $saltBytes, 10000)
-    $passwordHashBytes = $pbkdf2.GetBytes(20) # 20 bytes for a 160-bit hash
-    $passwordHash = [System.Convert]::ToBase64String($passwordHashBytes)
-
-    # 4. Store user in database
-    $dbFile = "pswebhost.db"
-    New-PSWebSQLiteData -File $dbFile -Table "Users" -Data @{
-        UserID = $userID
-        Email = $Email
-        Phone = $Phone
-        Salt = $saltString
-    }
-
-    # 5. Store auth method in database
-    New-PSWebSQLiteData -File $dbFile -Table "AuthenticationMethods" -Data @{
-        UserID = $userID
-        Authentication_Method = "Password"
-        Data = $passwordHash
-    }
-
-    Write-Verbose "User '$Email' created with UserID '$userID'." -Verbose
-    return $userID
-}
-
-function New-PSWebUser {
-    [cmdletbinding()]
-    param(
-        [Parameter(Mandatory=$true)]
         [string]$Email,
         [string]$UserName,
+        [string]$Password,
         [string]$Phone
     )
+    if (-not $Email) { Write-Error "The -Email parameter is required."; return }
 
-    # 1. Generate UserID
-    $epoch = [int64](((Get-Date).ToUniversalTime()) - (Get-Date "1970-01-01")).TotalSeconds
-    $random = -join ((65..90) + (97..122) + (48..57) | Get-Random -Count 16 | ForEach-Object { [char]$_ })
-    $toHash = "$epoch$random$Email"
-    $sha256 = [System.Security.Cryptography.SHA256]::Create()
-    $hashBytes = $sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($toHash))
-    $userID = [System.BitConverter]::ToString($hashBytes).Replace('-', '').ToLowerInvariant()
-
-    # 2. Store user in database
-    $dbFile = "pswebhost.db"
-    New-PSWebSQLiteData -File $dbFile -Table "Users" -Data @{
-        UserID = $userID
-        Email = $Email
-        UserName = if ($UserName) { $UserName } else { $Email }
-        Phone = $Phone
+    if (-not $UserName) {
+        $UserName = $Email
     }
 
-    Write-Verbose "User '$Email' created with UserID '$userID'." -Verbose
-    return Get-PSWebHostUser -Email $Email
+    Register-PSWebHostUser -UserName $UserName -Email $Email -Phone $Phone -Provider "Password" -Password $Password
 }
 
 function PSWebLogon {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)] [string]$ProviderName,
-        [Parameter(Mandatory=$true)] [ValidateSet('Success', 'Fail','Error')] [string]$Result,
-        [Parameter(Mandatory=$true)] [System.Net.HttpListenerRequest]$Request,
+        [string]$ProviderName,
+        [ValidateSet('Success', 'Fail','Error')] [string]$Result,
+        [System.Net.HttpListenerRequest]$Request,
         [string]$UserID = "anonymous" # Default to anonymous if not provided for success
     )
+    if (-not $ProviderName) { Write-Error "The -ProviderName parameter is required."; return }
+    if (-not $Result) { Write-Error "The -Result parameter is required."; return }
+    if (-not $Request) { Write-Error "The -Request parameter is required."; return }
 
     $ipAddress = $Request.RemoteEndPoint.Address.ToString()
     $sessionCookie = $Request.Cookies["PSWebSessionID"]
@@ -574,4 +600,114 @@ function PSWebLogon {
         }
         Write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Login successful for user '$UserID' from IP '$ipAddress' via '$ProviderName'." -Data @{ UserID = $UserID; IPAddress = $ipAddress; Provider = $ProviderName; Result = $Result }
     }
+}
+
+
+function New-PSWebHostRole {
+    [cmdletbinding()]
+    param(
+        [string]$RoleName
+    )
+    if (-not $RoleName) { Write-Error "The -RoleName parameter is required."; return }
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeRoleName = Sanitize-SqlQueryString -String $RoleName
+    $query = "INSERT INTO PSWeb_Roles (PrincipalID, PrincipalType, RoleName) VALUES ('$safeRoleName', 'role', '$safeRoleName');"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+}
+
+function Remove-PSWebHostRole {
+    [cmdletbinding()]
+    param(
+        [string]$RoleName
+    )
+    if (-not $RoleName) { Write-Error "The -RoleName parameter is required."; return }
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeRoleName = Sanitize-SqlQueryString -String $RoleName
+    $query = "DELETE FROM PSWeb_Roles WHERE RoleName = '$safeRoleName';"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+}
+
+function Add-PSWebHostUserToRole {
+    [cmdletbinding()]
+    param(
+        [string]$UserID,
+        [string]$RoleName
+    )
+    if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
+    if (-not $RoleName) { Write-Error "The -RoleName parameter is required."; return }
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeUserID = Sanitize-SqlQueryString -String $UserID
+    $safeRoleName = Sanitize-SqlQueryString -String $RoleName
+    $query = "INSERT INTO PSWeb_Roles (PrincipalID, PrincipalType, RoleName) VALUES ('$safeUserID', 'user', '$safeRoleName');"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+}
+
+function Remove-PSWebHostUserFromRole {
+    [cmdletbinding()]
+    param(
+        [string]$UserID,
+        [string]$RoleName
+    )
+    if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
+    if (-not $RoleName) { Write-Error "The -RoleName parameter is required."; return }
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeUserID = Sanitize-SqlQueryString -String $UserID
+    $safeRoleName = Sanitize-SqlQueryString -String $RoleName
+    $query = "DELETE FROM PSWeb_Roles WHERE PrincipalID = '$safeUserID' AND RoleName = '$safeRoleName';"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+}
+
+function New-PSWebHostGroup {
+    [cmdletbinding()]
+    param(
+        [string]$GroupName
+    )
+    if (-not $GroupName) { Write-Error "The -GroupName parameter is required."; return }
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeGroupName = Sanitize-SqlQueryString -String $GroupName
+    $groupID = [Guid]::NewGuid().ToString()
+    $query = "INSERT INTO User_Groups (GroupID, Name, Created, Updated) VALUES ('$groupID', '$safeGroupName', '$(Get-Date -UFormat %s)', '$(Get-Date -UFormat %s)');"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+}
+
+function Remove-PSWebHostGroup {
+    [cmdletbinding()]
+    param(
+        [string]$GroupID
+    )
+    if (-not $GroupID) { Write-Error "The -GroupID parameter is required."; return }
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeGroupID = Sanitize-SqlQueryString -String $GroupID
+    $query = "DELETE FROM User_Groups WHERE GroupID = '$safeGroupID';"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+}
+
+function Add-PSWebHostUserToGroup {
+    [cmdletbinding()]
+    param(
+        [string]$UserID,
+        [string]$GroupID
+    )
+    if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
+    if (-not $GroupID) { Write-Error "The -GroupID parameter is required."; return }
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeUserID = Sanitize-SqlQueryString -String $UserID
+    $safeGroupID = Sanitize-SqlQueryString -String $GroupID
+    $query = "INSERT INTO User_Groups_Map (UserID, GroupID) VALUES ('$safeUserID', '$safeGroupID');"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+}
+
+function Remove-PSWebHostUserFromGroup {
+    [cmdletbinding()]
+    param(
+        [string]$UserID,
+        [string]$GroupID
+    )
+    if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
+    if (-not $GroupID) { Write-Error "The -GroupID parameter is required."; return }
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeUserID = Sanitize-SqlQueryString -String $UserID
+    $safeGroupID = Sanitize-SqlQueryString -String $GroupID
+    $query = "DELETE FROM User_Groups_Map WHERE UserID = '$safeUserID' AND GroupID = '$safeGroupID';"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }

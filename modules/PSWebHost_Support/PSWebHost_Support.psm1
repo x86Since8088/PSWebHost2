@@ -14,27 +14,46 @@ function Get-RequestBody {
         [System.Net.HttpListenerRequest]$Request
     )
     if ($Request.HasEntityBody) {
-        $reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
-        $bodyContent = $reader.ReadToEnd()
-        $reader.Close()
-        return $bodyContent
+        $reader = $null
+        try {
+            $reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
+            return $reader.ReadToEnd()
+        } catch {
+            Write-Error "Failed to read request body. Error: $_ "
+            return $null
+        } finally {
+            if ($reader) {
+                $reader.Close()
+            }
+        }
     } else {
         return $null
     }
 }
 
+
+
 function ConvertTo-CompressedBase64 {
     param (
         [string]$InputString
     )
-    $inputBytes = [System.Text.Encoding]::UTF8.GetBytes($InputString)
-    $memStream = New-Object System.IO.MemoryStream
-    $gzipStream = New-Object System.IO.Compression.GZipStream($memStream, [System.IO.Compression.CompressionMode]::Compress)
-    $gzipStream.Write($inputBytes, 0, $inputBytes.Length)
-    $gzipStream.Close()
-    $compressedBytes = $memStream.ToArray()
-    $memStream.Close()
-    return [System.Convert]::ToBase64String($compressedBytes)
+    $memStream = $null
+    $gzipStream = $null
+    try {
+        $inputBytes = [System.Text.Encoding]::UTF8.GetBytes($InputString)
+        $memStream = New-Object System.IO.MemoryStream
+        $gzipStream = New-Object System.IO.Compression.GZipStream($memStream, [System.IO.Compression.CompressionMode]::Compress)
+        $gzipStream.Write($inputBytes, 0, $inputBytes.Length)
+        $gzipStream.Close() # Closing the GZipStream also flushes it.
+        $compressedBytes = $memStream.ToArray()
+        return [System.Convert]::ToBase64String($compressedBytes)
+    } catch {
+        Write-Error "Failed to compress string. Error: $_ "
+        return $null
+    } finally {
+        if ($gzipStream) { $gzipStream.Dispose() }
+        if ($memStream) { $memStream.Dispose() }
+    }
 }
 
 function Set-PSWebSession {
@@ -72,11 +91,11 @@ function Get-PSWebSessions {
         $loginSession = Get-LoginSession -SessionID $SessionID
         if ($loginSession) {
             $roles = [System.Collections.ArrayList]@()
-            if ($loginSession.AuthenticationState -eq 'completed') {
+            if ($loginSession.AuthenticationState -eq 'completed' -and $loginSession.UserID -ne 'pending') {
                 $roles.Add('authenticated')
-                $userRoles = Get-UserRoles -UserID $loginSession.UserID
-                if ($userRoles) {
-                    $roles.AddRange($userRoles)
+                $user = Get-PSWebUser -UserID $loginSession.UserID
+                if ($user -and $user.Roles) {
+                    $roles.AddRange($user.Roles)
                 }
             } else {
                 $roles.Add('unauthenticated')
@@ -89,8 +108,9 @@ function Get-PSWebSessions {
                 AuthTokenExpiration = [datetimeoffset]::FromUnixTimeSeconds([int64]$loginSession.LogonExpires).DateTime
                 LastUpdated = [datetimeoffset]::FromUnixTimeSeconds([int64]$loginSession.AuthenticationTime).DateTime
                 Roles = $roles
-            })
-        } else {
+            }) 
+        }
+        else {
             # Not in DB, create new
             $global:PSWebSessions[$SessionID] = [hashtable]::Synchronized(@{})
         }
@@ -147,7 +167,8 @@ function Validate-UserSession {
     }
 
     if (-not $SessionData -or -not $SessionData.Roles -or -not ($SessionData.Roles -contains "authenticated")) {
-        if ($Verbose.IsPresent){Write-Host -Message "`t[Validate-UserSession] User is not authenticated.`n`t`tSessionID: $(($SessionID|Inspect-Object -Depth 4| ConvertTo-YAML) -split '\n' -notmatch '^\s*Type:' -join "`n`t`t`t")"}
+        if ($Verbose.IsPresent){Write-Host -Message "`t[Validate-UserSession] User is not authenticated.`n`t`tSessionID: $(($SessionID|Inspect-Object -Depth 4| ConvertTo-YAML) -split '
+' -notmatch '^	*Type:' -join "`n`t`t`t")"}
         return $false
     }
 
@@ -211,25 +232,14 @@ function Process-HttpRequest {
     }
 
     Write-Host "[Process-HttpRequest] $httpMethod $requestedPath"
-
     $sessionCookie = $request.Cookies["PSWebSessionID"]
-    $sessionID = $null
-    if ($sessionCookie) {
-        if (
-            $request.IsSecureConnection -ne $sessionCookie.Secure -or
-            -not $sessionCookie.HttpOnly
-        ) {
-            Write-Host "`t[Process-HttpRequest] Update PSWebSessionID cookie from secure $($sessionCookie.Secure) to $($request.IsSecureConnection) to match request and change httpOnly from $($sessionCookie.HttpOnly) to true."
-            $request.Cookies["PSWebSessionID"].Secure = $request.IsSecureConnection
-            $request.Cookies["PSWebSessionID"].HttpOnly = $true
-            $request.Cookies["PSWebSessionID"].Path = "/"
-        }
-    }
     if ($sessionCookie) {
         $sessionID = $sessionCookie.Value
+    
     } else {
         $sessionID = [Guid]::NewGuid().ToString()
         $newCookie = New-Object System.Net.Cookie("PSWebSessionID", $sessionID)
+        $newCookie.Domain = $request.Url.HostName
         $newCookie.Expires = (Get-Date).AddDays(7)
         $newCookie.Path = "/"
         $newCookie.HttpOnly = $true
@@ -239,6 +249,18 @@ function Process-HttpRequest {
         $response.AppendCookie($newCookie)
         # Also add the cookie to the current request so it's available immediately
         $request.Cookies.Add($newCookie)
+        $sessionCookie = $newCookie
+
+    }
+    if ($sessionCookie) {
+        if (
+            $request.IsSecureConnection -ne $sessionCookie.Secure -or
+            -not $sessionCookie.HttpOnly
+        ) {
+            $sessionCookie.Secure = $request.IsSecureConnection
+            $sessionCookie.HttpOnly = $true
+            $sessionCookie.Path = "/"
+        }
     }
 
     $session = Get-PSWebSessions -SessionID $sessionID
@@ -324,7 +346,7 @@ function Process-HttpRequest {
                                     $streamReader = New-Object System.IO.StreamReader($gzipStream)
                                     $uncompressedJson = $streamReader.ReadToEnd()
                                     $ht = @{}
-                                    ($uncompressedJson | ConvertFrom-Json).psobject.Properties|ForEach-Object{$ht[$_.Name -eq $_.value]}
+                                    ($uncompressedJson | ConvertFrom-Json).psobject.Properties|ForEach-Object{$ht[$_.Name] = $_.value}
                                     $scriptParams.CardSettings = $ht
                                 } catch {
                                     Write-PSWebHostLog -Severity 'Error' -Category 'Settings' -Message "Failed to decompress/deserialize card settings for GUID $guid" 
@@ -360,7 +382,8 @@ function Write-PSWebHostLog {
     [cmdletbinding()]
     param (
         [Parameter(Mandatory=$true)] [string]$Message,
-        [Parameter(Mandatory=$true)] [ValidateSet('Critical', 'Error', 'Warning', 'Info', 'Verbose', 'Debug')][string]$Severity,
+        [Parameter(Mandatory=$true)] [ValidateSet('Critical', 'Error', 'Warning', 'Info', 'Verbose', 'Debug')]
+        [string]$Severity,
         [Parameter(Mandatory=$true)] [string]$Category,
         [hashtable]$Data,
         [string]$UserID = $Session.UserID,
@@ -378,7 +401,7 @@ function Write-PSWebHostLog {
             $ms = New-Object System.IO.MemoryStream
             $gs = New-Object System.IO.Compression.GZipStream($ms, [System.IO.Compression.CompressionMode]::Compress)
             $gs.Write($bytes, 0, $bytes.Length)
-            $gs.Close()
+            $gs.Close() # Closing the GZipStream also flushes it.
             $compressedBytes = $ms.ToArray()
             $ms.Close()
             $dataString = [System.Convert]::ToBase64String($compressedBytes)
@@ -414,7 +437,7 @@ function Write-PSWebHostLog {
         $Callstack = @()
         Get-PSCallStack | Select-Object -Skip 1 | ForEach-Object{
                 if (($_.Command[0] -match '\w') -or ($_.ScriptName -and $_.ScriptName -ne '')) {
-                    $Callstack += [pscustomobject]@{
+                    $Callstack += [pscustomobject]@{ 
                         Command = $_.Command
                         ScriptName = $_.ScriptName
                         FunctionName = $_.FunctionName
@@ -508,7 +531,7 @@ function context_reponse {
             $Response.ContentLength64 = 0
         }
     } catch {
-        Write-Error "Failed to build response. Error: $_"
+        Write-Error "Failed to build response. Error: $_ "
         if (-not $Response.HeadersSent) {
             $Response.StatusCode = 500
             $Response.StatusDescription = "Internal Server Error"

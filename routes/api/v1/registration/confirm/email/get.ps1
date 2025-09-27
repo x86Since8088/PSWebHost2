@@ -2,7 +2,7 @@ param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request = $Context.Request,
     [System.Net.HttpListenerResponse]$Response = $Context.Response,
-    [hashtable]$SessionData
+    $sessiondata
 )
 
 # Import required modules
@@ -17,7 +17,8 @@ if ([string]::IsNullOrEmpty($refGuid)) {
     return
 }
 
-$query = "SELECT * FROM account_email_confirmation WHERE email_request_guid = '$refGuid';"
+$safeRefGuid = Sanitize-SqlQueryString -String $refGuid
+$query = "SELECT * FROM account_email_confirmation WHERE email_request_guid = '$safeRefGuid';"
 $confirmationRequest = Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
 
 if (-not $confirmationRequest) {
@@ -44,7 +45,7 @@ $updateData = @{
     response_ip = $responseIp
     response_session_id = $responseSessionId
 }
-Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'UPDATE' -TableName 'account_email_confirmation' -Data $updateData -Where "email_request_guid = '$refGuid'"
+Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'UPDATE' -TableName 'account_email_confirmation' -Data $updateData -Where "email_request_guid = '$safeRefGuid'"
 
 $successMessage = "Email confirmed successfully! You can now close this page."
 context_reponse -Response $Response -String $successMessage

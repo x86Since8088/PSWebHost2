@@ -2,7 +2,7 @@ param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request = $Context.Request,
     [System.Net.HttpListenerResponse]$Response = $Context.Response,
-    [hashtable]$SessionData
+    $sessiondata
 )
 
 # Expect query parameter 'name' (variable name without leading $)

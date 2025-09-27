@@ -7,7 +7,7 @@ param (
 # Import required modules
 Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Support/PSWebHost_Support.psm1") -DisableNameChecking
 Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "system/auth/TestToken.ps1") -DisableNameChecking
+# Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "system/auth/TestToken.ps1") -DisableNameChecking
 
 
 $sessionCookie = $Request.Cookies["PSWebSessionID"]
@@ -24,14 +24,17 @@ if ([string]::IsNullOrEmpty($state)) {
 
 # If an existing logon has not expired for this session, redirect to getaccesstoken
 $ValidateUserSession = Validate-UserSession -Context $Context -Verbose
-Write-Host "`tValidateUserSession: $($ValidateUserSession)"
-if ($ValidateUserSession) {
-    context_reponse -Response $Response -StatusCode 302 -RedirectLocation "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
-    return
-} else {
-    # Initiate a record for this authentication attempt
-    Invoke-TestToken -SessionID $sessionCookie.Value -AuthenticationState 'initiated' -Provider 'GetAuthToken' -UserID 'pending' -UserAgent $Request.UserAgent -Verbose
-}
+Write-Verbose "`tValidateUserSession: $($ValidateUserSession)"
+
+# --- BROKEN TOKEN LOGIC DISABLED ---
+Write-Warning "The token-based authentication flow is currently disabled due to incomplete implementation."
+# if ($ValidateUserSession) {
+#     context_reponse -Response $Response -StatusCode 302 -RedirectLocation "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
+#     return
+# } else {
+#     # Initiate a record for this authentication attempt
+#     Invoke-TestToken -SessionID $sessionCookie.Value -AuthenticationState 'initiated' -Provider 'GetAuthToken' -UserID 'pending' -UserAgent $Request.UserAgent -Verbose
+# }
 
 $provider = $Request.QueryString["Provider"]
 if (-not [string]::IsNullOrEmpty($provider)) {

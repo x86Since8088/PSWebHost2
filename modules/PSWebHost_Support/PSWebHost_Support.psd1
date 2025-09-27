@@ -15,21 +15,14 @@
         'Get-PSWebHostEvents',
         'Get-PSWebSessions',
         'Get-RequestBody',
-        'Invoke-ContextRunspace',
-        'Invoke-RouteHandler',
-        'Launch_Application',
         'Process-HttpRequest',
-        'PSWebLogon',
         'Read-PSWebHostLog',
-        'Render-Html',
+        'Remove-PSWebSession',
         'Set-PSWebSession',
-        'Start-ContextRunspaces',
         'Start-PSWebHostEvent',
-        'Test-LoginLockout',
-        'Trim-ContextRunspaces',
+        'Sync-SessionStateToDatabase',
         'Validate-UserSession',
-        'Write-PSWebHostLog',
-        'Sync-SessionStateToDatabase'
+        'Write-PSWebHostLog'
     )
 
     # Root module file
