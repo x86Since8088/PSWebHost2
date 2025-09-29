@@ -6,9 +6,7 @@ param (
 )
 
 # Expect JSON body: { Name: "...", OriginalType: "System.String", NewText: "..." }
-$reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
-$body = $reader.ReadToEnd()
-$reader.Close()
+$body = Get-RequestBody -Request $Request
 if (-not $body) {
     context_reponse -Response $Response -StatusCode 400 -String "Empty body"
     return

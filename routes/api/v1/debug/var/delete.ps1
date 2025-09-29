@@ -12,7 +12,7 @@ if (-not $name) {
     return
 }
 $name = $name -replace '^\$',''
-Write-Host "Deleting variable: $name"
+Write-Verbose "Deleting variable: $name"
 try {
     $existing = Get-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue
     if ($null -ne $existing) {

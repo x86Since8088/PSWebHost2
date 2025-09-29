@@ -165,7 +165,7 @@ foreach ($table in $schema.tables) {
             $commonColumns = $oldColumns | Where-Object { $_ -in $newColumns }
             
             if ($commonColumns.Count -gt 0) {
-                $colList = '`"' + ($commonColumns -join '`, `') + '`"'
+                $colList = ($commonColumns | ForEach-Object { "`"$_`"" }) -join ', '
                 $copyQuery = "INSERT INTO `"$tableName`" ($colList) SELECT $colList FROM `"$tempTableName`";"
                 try {
                     Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $copyQuery

@@ -85,3 +85,10 @@ This change involved a significant refactoring of the `PSWebHost_Database` and `
         - [complete] Fix SQL injection vulnerabilities in `users/delete.ps1`, `registration/post.ps1`, and `registration/confirm/email/get.ps1`.
         - [complete] Fix broken dependency in `users/post.ps1`.
         - [complete] Fix minor logging and error handling issues.
+    - [complete] Review and fix issues in `routes/api/v1/config` scripts (no issues found).
+    - [complete] Review and fix issues in `routes/api/v1/db` scripts.
+        - [complete] Neutralize critical SQL injection vulnerability in `query/post.ps1` by disabling the endpoint.
+    - [complete] Review and fix issues in `routes/api/v1/debug`, `session`, and `status` scripts.
+        - [complete] Fix broken function call in `session/get.ps1`.
+        - [complete] Fix logging and error handling in `debug` scripts.
+    - [pending] Review and fix issues in `routes/api/v1/ui`, `spa`, and `api/ManageWindows` scripts.

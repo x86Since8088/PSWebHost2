@@ -29,11 +29,7 @@ param(
     [switch]$BackupDatabase
 )
 $ScriptRoot = $PSScriptRoot
-
-if ($null -eq $ProjectRoot) {
-    # Resolve the project root, which is one level up from this script's location
-    $ProjectRoot = (Resolve-Path (Join-Path $ScriptRoot '..')).Path
-}
+$ProjectRoot = (Resolve-Path (Join-Path $ScriptRoot '..')).Path
 if ($null -eq $Global:PSWebServer) {
     # Dot-source the main init script to load the environment
     $InitScript = $ProjectRoot
