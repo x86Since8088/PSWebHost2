@@ -29,28 +29,8 @@ if (!$ConfigFile) {
 # Import required modules
 Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking -Verbose:$False
 
-$TableData = Get-PSWebSQLiteData -File pswebhost.db -Query "SELECT * FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%';"
-
-Write-Host "Existing tables: $($TableNames -join ", ")"
-$EmptyTables = @()
-$UsedTables = @()
-foreach ($TableDataItem in $TableData) {
-    $FirstRecord = Get-PSWebSQLiteData -File pswebhost.db -Query "SELECT * FROM `"$($TableDataItem.Name)`" LIMIT 1"
-    if ($FirstRecord) {
-        $Columns = Get-PSWebSQLiteData -File pswebhost.db -Query "PRAGMA table_info(""$($TableDataItem.Name)"")"
-        $UsedTables += $TableDataItem | Select-Object *,@{N='FirstRecord'; E={$FirstRecord}}
-        #Write-Host "`tTable: $($TableDataItem)`n`t`tColumns: $($Columns -join ", ")"
-    } else {
-        #Write-Host "`tTable is empty:`n`t`t$(($TableDataItem|Select-Object * |Format-List|Out-String) -split '\s*\n\s*' -match '\w' -join "`n`t`t")"
-        $EmptyTables += $TableDataItem    
-    }
-}
- @{
-    EmptyTables = $EmptyTables
-    UsedTables = $UsedTables
-}|ConvertTo-Yaml
-
 if (-not (Test-Path $ConfigFile)) {
+
     Write-Error "Schema config file not found: $ConfigFile"
     return
 }
@@ -68,7 +48,7 @@ foreach ($table in $schema.tables) {
     $tableExists = Get-PSWebSQLiteData -File $DatabaseFile -Query $checkTableQuery
 
     if (-not $tableExists) {
-        # --- Create Table --- 
+        # --- Create Table ---
         Write-Host "Table '$tableName' not found. Creating it."
         $columnsDef = @()
         foreach ($col in $table.columns) {
@@ -171,7 +151,7 @@ foreach ($table in $schema.tables) {
                     Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $copyQuery
                     Write-Verbose "Copied data from '$tempTableName' to '$tableName'."
                 } catch {
-                    Write-Error "Failed to copy data during table rebuild. Error: $_"
+                    Write-Error "Failed to copy data during table rebuild. Error: $_ "
                     Write-Error "The original data is preserved in '$tempTableName'. Manual intervention may be required."
                     # Optionally, try to revert the rename.
                     # $revertQuery = "ALTER TABLE `"$tempTableName`" RENAME TO `"$tableName`";"

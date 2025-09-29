@@ -1,9 +1,5 @@
 # PSWebHost_Support.psm1
 
-# Explicitly import required modules with full path
-$BaseDirectory = Resolve-Path (Join-Path $PSScriptRoot '..\..')
-Import-Module (Join-Path $BaseDirectory "modules/Sanitization/Sanitization.psm1") -Force -DisableNameChecking -ErrorAction Continue
-
 # Global hashtable for session management
 if ($null -eq $global:PSWebSessions) {$global:PSWebSessions = [hashtable]::Synchronized(@{})}
 
@@ -94,8 +90,11 @@ function Get-PSWebSessions {
             if ($loginSession.AuthenticationState -eq 'completed' -and $loginSession.UserID -ne 'pending') {
                 $roles.Add('authenticated')
                 $user = Get-PSWebUser -UserID $loginSession.UserID
-                if ($user -and $user.Roles) {
-                    $roles.AddRange($user.Roles)
+                if ($user) {
+                    $userRoles = Get-PSWebHostRole -UserID $user.UserID
+                    if ($userRoles) {
+                        $roles.AddRange($userRoles)
+                    }
                 }
             } else {
                 $roles.Add('unauthenticated')
@@ -148,7 +147,7 @@ function Remove-PSWebSession {
     if ($global:PSWebSessions.ContainsKey($SessionID)) {
         $global:PSWebSessions.Remove($SessionID)
     }
-    Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'DELETE' -TableName 'LoginSessions' -Where "SessionID = '$SessionID'"
+    Remove-LoginSession -SessionID $SessionID
 }
 
 
@@ -162,12 +161,12 @@ function Validate-UserSession {
     $SessionData = Get-PSWebSessions -SessionID $SessionID
 
     if (-not $SessionID) {
-        if ($Verbose.IsPresent){Write-Host -Message "`t[Validate-UserSession] No session ID provided."}
+        if ($Verbose.IsPresent){Write-Verbose -Message "`t[Validate-UserSession] No session ID provided."}
         return $false 
     }
 
     if (-not $SessionData -or -not $SessionData.Roles -or -not ($SessionData.Roles -contains "authenticated")) {
-        if ($Verbose.IsPresent){Write-Host -Message "`t[Validate-UserSession] User is not authenticated.`n`t`tSessionID: $(($SessionID|Inspect-Object -Depth 4| ConvertTo-YAML) -split '
+        if ($Verbose.IsPresent){Write-Verbose -Message "`t[Validate-UserSession] User is not authenticated.`n`t`tSessionID: $(($SessionID|Inspect-Object -Depth 4| ConvertTo-YAML) -split '
 ' -notmatch '^	*Type:' -join "`n`t`t`t")"}
         return $false
     }
@@ -231,7 +230,7 @@ function Process-HttpRequest {
         }
     }
 
-    Write-Host "[Process-HttpRequest] $httpMethod $requestedPath"
+    Write-Verbose "[Process-HttpRequest] $httpMethod $requestedPath"
     $sessionCookie = $request.Cookies["PSWebSessionID"]
     if ($sessionCookie) {
         $sessionID = $sessionCookie.Value
@@ -264,7 +263,7 @@ function Process-HttpRequest {
     }
 
     $session = Get-PSWebSessions -SessionID $sessionID
-    Write-Host "`t[Process-HttpRequest] Session: $($sessionID) UserID: $($session.UserID)"
+    Write-Verbose "`t[Process-HttpRequest] Session: $($sessionID) UserID: $($session.UserID)"
 
     if ($requestedPath.StartsWith("/public", [System.StringComparison]::OrdinalIgnoreCase)) {
         $handled = $true
@@ -360,7 +359,7 @@ function Process-HttpRequest {
                 if ($Async.ispresent) {
                     Invoke-ContextRunspace -Context $Context -ScriptPath $scriptPath -SessionID $sessionID
                 } else {
-                    Write-Host "$SessionID $httpMethod $scriptPath"
+                    Write-Verbose "$SessionID $httpMethod $scriptPath"
                     & $scriptPath @scriptParams
                 }
                 $handled = $true
@@ -489,7 +488,7 @@ function context_reponse {
         if ($PSBoundParameters.ContainsKey('Headers')) { foreach ($key in $Headers.Keys) { $Response.AddHeader($key, $Headers[$key]) } }
         if ($PSBoundParameters.ContainsKey('Cookies')) { $Response.Cookies.Add($Cookies) }
         if ($PSBoundParameters.ContainsKey('RedirectLocation')) {
-            Write-Host "Redirecting to: $($RedirectLocation) with status code $($StatusCode)"
+            Write-Verbose "Redirecting to: $($RedirectLocation) with status code $($StatusCode)"
             $Response.Redirect($RedirectLocation)
         }
 

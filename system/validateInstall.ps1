@@ -44,7 +44,7 @@ begin{
     Write-Verbose -Message 'Validating required modules - complete.' -Verbose
 
     Write-Verbose -Message 'Validating third-party modules...' -Verbose
-    $thirdPartyValidatorScript = Join-Path $ScriptRoot "Validate3rdPartyModules.ps1"
+    $thirdPartyValidatorScript = Join-Path $ScriptFolder "Validate3rdPartyModules.ps1"
     if(!(Test-Path $thirdPartyValidatorScript)) {
         Write-Warning -Message "thirdPartyValidatorScript not found. '$thirdPartyValidatorScript' will not be executed"
     }

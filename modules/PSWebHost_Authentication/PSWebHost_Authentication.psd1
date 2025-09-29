@@ -6,30 +6,38 @@
     Copyright = '(c) 2025 Edward Skarke III. All rights reserved.'
     Description = 'Functions for handling authentication for PsWebHost.'
     FunctionsToExport = @(
-        'Add-PSWebHostUserToGroup',
-        'Add-PSWebHostUserToRole',
+        'Add-PSWebHostGroup',
+        'Add-PSWebHostGroupMember',
+        'Add-PSWebHostRole',
+        'Add-PSWebHostRoleAssignment',
         'Get-AuthenticationMethod',
         'Get-AuthenticationMethodForm',
+        'Get-CardSettings',
+        'Get-LastLoginAttempt',
+        'Get-LoginSession',
+        'Get-PSWebHostRole',
+        'Get-PSWebHostGroup',
         'Get-PSWebHostUser',
         'Get-PSWebHostUsers',
         'Get-UserAuthenticationMethods',
-        'Get-UserRoles',
         'Invoke-AuthenticationMethod',
-        'New-PSWebHostGroup',
-        'New-PSWebHostRole',
         'New-PSWebHostUser',
         'Protect-String',
         'PSWebLogon',
+        'Register-PSWebHostUser',
+        'Remove-LoginSession',
         'Remove-PSWebHostGroup',
+        'Remove-PSWebHostGroupMember',
         'Remove-PSWebHostRole',
-        'Remove-PSWebHostUserFromGroup',
-        'Remove-PSWebHostUserFromRole',
+        'Remove-PSWebHostRoleAssignment',
+        'Set-CardSession',
+        'Set-LastLoginAttempt',
+        'Set-LoginSession',
         'Test-IsValidEmailAddress',
         'Test-IsValidPassword',
         'Test-LoginLockout',
         'Test-StringForHighRiskUnicode',
-        'Unprotect-String',
-        'Register-PSWebHostUser'
+        'Unprotect-String'
     )
     RootModule = 'PSWebHost_Authentication.psm1'
     RequiredModules = @(

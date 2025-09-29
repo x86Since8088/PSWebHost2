@@ -120,14 +120,29 @@ function Get-UserAuthenticationMethods {
     }
 }
 
-function Get-UserRoles {
+function Get-PSWebHostRole {
     [cmdletbinding()]
     param(
-        [string]$UserID
-    )
-    if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
+        [parameter(ParameterSetName='ByUser')]
+        [string]$UserID,
 
+        [parameter(ParameterSetName='ListAll')]
+        [switch]$ListAll
+    )
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+
+    if ($ListAll) {
+        $query = "SELECT DISTINCT RoleName FROM PSWeb_Roles;"
+        $roles = Get-PSWebSQLiteData -File $dbFile -Query $query
+        if ($roles) {
+            return $roles.RoleName
+        } else {
+            return @()
+        }
+    }
+    
+    if (-not $UserID) { Write-Error "The -UserID parameter is required for this parameter set."; return }
+
     $safeUserID = Sanitize-SqlQueryString -String $UserID
 
     # Get roles assigned directly to the user
@@ -232,7 +247,7 @@ function Invoke-AuthenticationMethod {
 function Test-IsValidEmailAddress {
     param(
         [string]$Email,
-        [string]$Regex = '^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+        [string]$Regex = '^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
         [string]$AddCustomRegex
     )
     # Basic email validation regex
@@ -603,7 +618,7 @@ function PSWebLogon {
 }
 
 
-function New-PSWebHostRole {
+function Add-PSWebHostRole {
     [cmdletbinding()]
     param(
         [string]$RoleName
@@ -627,7 +642,7 @@ function Remove-PSWebHostRole {
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }
 
-function Add-PSWebHostUserToRole {
+function Add-PSWebHostRoleAssignment {
     [cmdletbinding()]
     param(
         [string]$UserID,
@@ -642,7 +657,7 @@ function Add-PSWebHostUserToRole {
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }
 
-function Remove-PSWebHostUserFromRole {
+function Remove-PSWebHostRoleAssignment {
     [cmdletbinding()]
     param(
         [string]$UserID,
@@ -657,7 +672,7 @@ function Remove-PSWebHostUserFromRole {
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }
 
-function New-PSWebHostGroup {
+function Add-PSWebHostGroup {
     [cmdletbinding()]
     param(
         [string]$GroupName
@@ -682,7 +697,7 @@ function Remove-PSWebHostGroup {
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }
 
-function Add-PSWebHostUserToGroup {
+function Add-PSWebHostGroupMember {
     [cmdletbinding()]
     param(
         [string]$UserID,
@@ -697,7 +712,7 @@ function Add-PSWebHostUserToGroup {
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }
 
-function Remove-PSWebHostUserFromGroup {
+function Remove-PSWebHostGroupMember {
     [cmdletbinding()]
     param(
         [string]$UserID,
@@ -709,5 +724,137 @@ function Remove-PSWebHostUserFromGroup {
     $safeUserID = Sanitize-SqlQueryString -String $UserID
     $safeGroupID = Sanitize-SqlQueryString -String $GroupID
     $query = "DELETE FROM User_Groups_Map WHERE UserID = '$safeUserID' AND GroupID = '$safeGroupID';"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+}
+
+function Get-PSWebHostGroup {
+    [cmdletbinding()]
+    param(
+        [string]$Name
+    )
+    if (-not $Name) { Write-Error "The -Name parameter is required."; return }
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeName = Sanitize-SqlQueryString -String $Name
+    $query = "SELECT * FROM User_Groups WHERE Name = '$safeName';"
+    Get-PSWebSQLiteData -File $dbFile -Query $query
+}
+
+# --- Re-implemented Session and Settings Functions ---
+
+function Get-LoginSession {
+    param([string]$SessionID)
+    $safeSessionID = Sanitize-SqlQueryString -String $SessionID
+    $query = "SELECT * FROM LoginSessions WHERE SessionID = '$safeSessionID';"
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    Get-PSWebSQLiteData -File $dbFile -Query $query
+}
+
+function Set-LoginSession {
+    param(
+        [string]$SessionID,
+        [string]$UserID,
+        [string]$Provider,
+        [datetime]$AuthenticationTime,
+        [datetime]$LogonExpires,
+        [string]$UserAgent
+    )
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeSessionID = Sanitize-SqlQueryString -String $SessionID
+
+    # Check if session exists
+    $existing = Get-LoginSession -SessionID $safeSessionID
+    
+    $data = @{
+        SessionID = $safeSessionID
+        UserID = Sanitize-SqlQueryString -String $UserID
+        Provider = Sanitize-SqlQueryString -String $Provider
+        AuthenticationTime = ($AuthenticationTime | Get-Date -UFormat %s)
+        LogonExpires = ($LogonExpires | Get-Date -UFormat %s)
+        UserAgent = Sanitize-SqlQueryString -String $UserAgent
+    }
+
+    if ($existing) {
+        # Update
+        $updatePairs = $data.Keys | ForEach-Object { "$_ = '$($data[$_])'" } | Join-String -Separator ', '
+        $query = "UPDATE LoginSessions SET $updatePairs WHERE SessionID = '$safeSessionID';"
+        Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    } else {
+        # Insert
+        Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'INSERT' -TableName 'LoginSessions' -Data $data
+    }
+}
+
+function Get-LastLoginAttempt {
+    param([string]$IPAddress)
+    $safeIP = Sanitize-SqlQueryString -String $IPAddress
+    $query = "SELECT * FROM LastLoginAttempt WHERE IPAddress = '$safeIP' ORDER BY Time DESC LIMIT 1;"
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    Get-PSWebSQLiteData -File $dbFile -Query $query
+}
+
+function Set-LastLoginAttempt {
+    param(
+        [string]$IPAddress,
+        [string]$Username,
+        [datetime]$Time,
+        [datetime]$UserNameLockedUntil,
+        [datetime]$IPAddressLockedUntil,
+        [int]$UserViolationsCount,
+        [int]$IPViolationCount
+    )
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $data = @{
+        IPAddress = Sanitize-SqlQueryString -String $IPAddress
+        Username = Sanitize-SqlQueryString -String $Username
+        Time = ($Time | Get-Date -UFormat %s)
+        UserNameLockedUntil = if($UserNameLockedUntil) { ($UserNameLockedUntil | Get-Date -UFormat %s) } else { $null }
+        IPAddressLockedUntil = if($IPAddressLockedUntil) { ($IPAddressLockedUntil | Get-Date -UFormat %s) } else { $null }
+        UserViolationsCount = $UserViolationsCount
+        IPViolationCount = $IPViolationCount
+    }
+    # Use INSERT OR REPLACE to simplify logic
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'INSERT OR REPLACE' -TableName 'LastLoginAttempt' -Data $data
+}
+
+function Get-CardSettings {
+    param([string]$EndpointGuid, [string]$UserId)
+    $safeGuid = Sanitize-SqlQueryString -String $EndpointGuid
+    $safeUser = Sanitize-SqlQueryString -String $UserId
+    # This table/logic is a guess based on the function name
+    $query = "SELECT SettingsJson FROM card_settings WHERE UserID = '$safeUser' AND EndpointGuid = '$safeGuid';"
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $result = Get-PSWebSQLiteData -File $dbFile -Query $query
+    if ($result) {
+        return $result.SettingsJson
+    }
+    return $null
+}
+
+function Set-CardSession {
+    param(
+        [string]$SessionID,
+        [string]$UserID,
+        [string]$CardGUID,
+        [string]$DataBackend,
+        [string]$CardDefinition
+    )
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $data = @{
+        SessionID = Sanitize-SqlQueryString -String $SessionID
+        UserID = Sanitize-SqlQueryString -String $UserID
+        CardGUID = Sanitize-SqlQueryString -String $CardGUID
+        DataBackend = Sanitize-SqlQueryString -String $DataBackend
+        CardDefinition = Sanitize-SqlQueryString -String $CardDefinition # Assuming this is already compressed/encoded
+        Timestamp = (Get-Date -UFormat %s)
+    }
+    # This table name is a guess
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'INSERT' -TableName 'CardSessions' -Data $data
+}
+
+function Remove-LoginSession {
+    param([string]$SessionID)
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    $safeSessionID = Sanitize-SqlQueryString -String $SessionID
+    $query = "DELETE FROM LoginSessions WHERE SessionID = '$safeSessionID';"
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }

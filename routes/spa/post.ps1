@@ -6,9 +6,6 @@ param (
     $sessiondata
 )
 
-# Import the database module
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
-
 # Read request body
 $reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
 $bodyContent = $reader.ReadToEnd()

@@ -7,9 +7,6 @@ param (
     $sessiondata = $global:PSWebSessions[$sessionID]
 )
 
-# Import the database module to use Set-CardSession
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
-
 # 1. Read the JSON body from the POST request
 $bodyContent = Get-RequestBody -Request $Request
 if ([string]::IsNullOrEmpty($bodyContent)) {

@@ -41,10 +41,6 @@ else {
     $ProjectRoot = $global:PSWebServer.Project_Root.Path
 }
 
-# Now that the environment is loaded, we can safely import modules
-Import-Module "PSWebHost_Database"
-Import-Module "PSWebHost_Authentication"
-
 
 # --- Argument Completers ---
 try {
@@ -142,42 +138,34 @@ if ($PSBoundParameters.ContainsKey('User')) {
         # Write-Verbose "MFA has been reset. The user can re-register on their next login."
     }
     if ($AssignRole) {
-        Write-Warning "The -AssignRole feature is not implemented yet."
-        # TODO: Implement role assignment logic. Requires Set-RoleForPrincipal function.
-        # Write-Verbose "Assigning role '$AssignRole' to user '$User'..."
-        # Set-RoleForPrincipal -PrincipalID $userObj.ID -RoleName $AssignRole
-        # Write-Verbose "Role assigned."
+        Write-Verbose "Assigning role '$AssignRole' to user '$User'..."
+        Add-PSWebHostRoleAssignment -UserID $userObj.UserID -RoleName $AssignRole
+        Write-Verbose "Role assigned."
     }
     if ($RemoveRole) {
-        Write-Warning "The -RemoveRole feature is not implemented yet."
-        # TODO: Implement role removal logic. Requires Remove-RoleForPrincipal function.
-        # Write-Verbose "Removing role '$RemoveRole' from user '$User'..."
-        # Remove-RoleForPrincipal -PrincipalID $userObj.ID -RoleName $RemoveRole
-        # Write-Verbose "Role removed."
+        Write-Verbose "Removing role '$RemoveRole' from user '$User'..."
+        Remove-PSWebHostRoleAssignment -UserID $userObj.UserID -RoleName $RemoveRole
+        Write-Verbose "Role removed."
     }
     if ($AddToGroup) {
-        Write-Warning "The -AddToGroup feature is not implemented yet."
-        # TODO: Implement group logic.
-        # Write-Verbose "Adding user '$User' to group '$AddToGroup'..."
-        # $group = Get-PSWebGroup -Name $AddToGroup
-        # if ($group) {
-        #     Add-UserToGroup -UserID $userObj.ID -GroupID $group.GroupID
-        #     Write-Verbose "User added to group."
-        # } else {
-        #     Write-Error "Group '$AddToGroup' not found."
-        # }
+        Write-Verbose "Adding user '$User' to group '$AddToGroup'..."
+        $group = Get-PSWebHostGroup -Name $AddToGroup
+        if ($group) {
+            Add-PSWebHostGroupMember -UserID $userObj.UserID -GroupID $group.GroupID
+            Write-Verbose "User added to group."
+        } else {
+            Write-Error "Group '$AddToGroup' not found."
+        }
     }
     if ($RemoveFromGroup) {
-        Write-Warning "The -RemoveFromGroup feature is not implemented yet."
-        # TODO: Implement group logic.
-        # Write-Verbose "Removing user '$User' from group '$RemoveFromGroup'..."
-        # $group = Get-PSWebGroup -Name $RemoveFromGroup
-        # if ($group) {
-        #     Remove-UserFromGroup -UserID $userObj.ID -GroupID $group.GroupID
-        #     Write-Verbose "User removed from group."
-        # } else {
-        #     Write-Error "Group '$RemoveFromGroup' not found."
-        # }
+        Write-Verbose "Removing user '$User' from group '$RemoveFromGroup'..."
+        $group = Get-PSWebHostGroup -Name $RemoveFromGroup
+        if ($group) {
+            Remove-PSWebHostGroupMember -UserID $userObj.UserID -GroupID $group.GroupID
+            Write-Verbose "User removed from group."
+        } else {
+            Write-Error "Group '$RemoveFromGroup' not found."
+        }
     }
 
     return
@@ -197,8 +185,7 @@ if ($ListSessions) {
 }
 if ($DropSession) {
     Write-Verbose "Dropping session '$DropSession'..."
-    $dbPath = Join-Path ($PSScriptRoot | Split-Path -Parent) "PsWebHost_Data/pswebhost.db"
-    Invoke-PSWebSQLiteNonQuery -File $dbPath -Query "DELETE FROM LoginSessions WHERE SessionID = '$DropSession'"
+    Remove-LoginSession -SessionID $DropSession
     Write-Verbose "Session dropped."
 }
 

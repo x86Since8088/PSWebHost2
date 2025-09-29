@@ -44,6 +44,7 @@ foreach ($moduleSpec in $modulesToValidate) {
     $ModuleFolders = Join-Path $moduleDownloadDir $moduleSpec.Name
     # Get Version folders that are out of spec
     $moduleName = $moduleSpec.Name
+    $repository = $moduleSpec.Repository
     [version[]]$requiredVersion = $moduleSpec.Version|Where-Object{$null -ne $_}|ForEach-Object{FixVersionLength -version $_}
     [version]$VersionMIN = FixVersionLength -version $moduleSpec.VersionMIN
     [version]$VersionMAX = FixVersionLength -version $moduleSpec.VersionMAX
@@ -94,7 +95,6 @@ foreach ($moduleSpec in $modulesToValidate) {
         }
     }
 
-    $repository = $moduleSpec.Repository
     try {Remove-Module -Name $moduleName -Force -ErrorAction Ignore}
     catch {}
     # This command is more likeley to favor detecting the local module copy
@@ -152,19 +152,26 @@ foreach ($moduleSpec in $modulesToValidate) {
             }
             else {
                 if ($VersionMIN) {
-                    $saveParams.MinimumVersion = $moduleSpec.VersionMIN
+                    $saveParams.MinimumVersion = $VersionMIN
                 }
-                if ($moduleSpec.VersionMAX) {
-                    $saveParams.MaximumVersion = $moduleSpec.VersionMAX
+                if ($VersionMAX) {
+                    $saveParams.MaximumVersion = $VersionMAX
                 }
             }
             Save-Module @saveParams -ErrorAction Stop
             Write-Verbose "	Successfully downloaded '$moduleName'."
         } catch {
+            $ThisError = $_
+            if ($ThisError.Exception.Message -match "A parameter cannot be found that matches parameter name 'AcceptLicense'") {
+                $saveParams.Remove('AcceptLicense') 
+                Save-Module @saveParams -ErrorAction Continue                
+            }
+            else {
             Write-Error "	Failed to download module '$moduleName'. Error: $($_.Exception.Message)"
-            if ($moduleSpec.URL) {
-                Write-Warning "	Attempting direct download from $($moduleSpec.URL)..."
-                # Add logic for direct download and extraction here if needed
+                if ($moduleSpec.URL) {
+                    Write-Warning "	Attempting direct download from $($moduleSpec.URL)..."
+                    # Add logic for direct download and extraction here if needed
+                }
             }
         }
     } else {

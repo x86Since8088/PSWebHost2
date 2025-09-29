@@ -126,7 +126,7 @@ if ($Loadvariables.IsPresent) {return}
 # Register roles from config if they don't exist
 if ($Global:PSWebServer.Config.roles) {
     $configRoles = $Global:PSWebServer.Config.roles
-    $dbRoles = Get-PSWebRoles
+    $dbRoles = Get-PSWebHostRole -ListAll
     foreach ($role in $configRoles) {
         if ($role -notin $dbRoles) {
             Write-Verbose "Registering role '$role' from config." -Verbose

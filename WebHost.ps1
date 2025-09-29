@@ -58,19 +58,28 @@ begin {
     }
 
     # Listener setup
+    Write-Verbose "Creating HttpListener object..."
     $listener = New-Object System.Net.HttpListener
+    Write-Verbose "HttpListener object created."
     if ($Port -notmatch '\d') {
         $port = $Global:PSWebServer.Config.WebServer.Port
+        Write-Verbose "Using port from config: $port"
     }
     $prefix = "http://+:$port/"
+    Write-Verbose "Adding prefix: $prefix"
     $listener.Prefixes.Add($prefix)
+    Write-Verbose "Prefix '$prefix' added."
+    Write-Verbose "Setting AuthenticationSchemes to: $AuthenticationSchemes"
     $listener.AuthenticationSchemes = [System.Net.AuthenticationSchemes]::$AuthenticationSchemes
+    Write-Verbose "AuthenticationSchemes set."
 
     try {
+        Write-Verbose "Starting listener..."
         $listener.Start()
+        Write-Verbose "Listener started successfully."
         Write-Verbose "Listening on $($prefix -replace '\+:', 'localhost:')"
     } catch {
-        Write-Error "Failed to start listener: $($_.Exception.Message)"
+        Write-Error "Failed to start listener. Error: $($_.Exception.ToString())"
         exit 1
     }
 
@@ -235,12 +244,13 @@ end {
                 # Pause briefly to prevent a tight loop.
                 Start-Sleep -Milliseconds 100
             } else {
-                $Loop_End = Get-Date
-                Write-Verbose "Sync request loop completed: $(($Loop_End - $Loop_Start).TotalMilliseconds)ms $($Context.request.HttpMethod) $($Context.request.Url.AbsoluteUri)"
-                $global:PSHostUIQueue.Enqueue("Sync request loop completed: $(($Loop_End - $Loop_Start).TotalMilliseconds)ms $($Context.request.HttpMethod) $($Context.request.Url.AbsoluteUri)")
-                $context = $script:ListenerInstance.GetContext()
-                $Loop_Start = Get-Date
-                Process-HttpRequest -Context $context -HostUIQueue $global:PSHostUIQueue
+                try {
+                    $context = $script:ListenerInstance.GetContext()
+                    $Loop_Start = Get-Date
+                    Process-HttpRequest -Context $context -HostUIQueue $global:PSHostUIQueue
+                } catch {
+                    Write-PSWebHostLog -Severity 'Error' -Category 'RequestHandler' -Message "A terminating error occurred while processing a synchronous request: $($_.Exception.Message)" -Data @{ Error = $_.ToString() }
+                }
             }
             if ($StopOnScriptUpdate.IsPresent) {
                 $FileDate = (get-item $MyInvocation.MyCommand.Path).LastWriteTime # This is the current script's last write time

@@ -1,3 +1,5 @@
+Add-Type -AssemblyName System.DirectoryServices.AccountManagement
+
 [cmdletbinding()]
 param (
     [string]$Username,

@@ -31,16 +31,6 @@
       ]
     },
     {
-      "name": "LoginLockout",
-      "columns": [
-        { "name": "IPAddress", "type": "TEXT", "constraint": "NOT NULL" },
-        { "name": "Username", "type": "TEXT", "constraint": "NOT NULL" },
-        { "name": "FailedAttempts", "type": "INTEGER", "constraint": "DEFAULT 0" },
-        { "name": "LockedUntil", "type": "INTEGER", "constraint": "DEFAULT 0" }
-      ],
-      "primary_key": ["IPAddress", "Username"]
-    },
-    {
       "name": "User_Groups",
       "columns": [
         { "name": "GroupID", "type": "TEXT", "constraint": "PRIMARY KEY" },
@@ -65,6 +55,75 @@
         { "name": "RoleName", "type": "TEXT", "constraint": "NOT NULL" }
       ],
       "primary_key": ["PrincipalID", "RoleName"]
+    },
+    {
+        "name": "AuthenticationMethods",
+        "columns": [
+            {"name": "ID", "type": "INTEGER", "constraint": "PRIMARY KEY AUTOINCREMENT"},
+            {"name": "UserID", "type": "TEXT", "constraint": "NOT NULL"},
+            {"name": "Authentication_Method", "type": "TEXT", "constraint": "NOT NULL"},
+            {"name": "Data", "type": "TEXT", "constraint": ""}
+        ]
+    },
+    {
+        "name": "CardSessions",
+        "columns": [
+            {"name": "CardGUID", "type": "TEXT", "constraint": "PRIMARY KEY"},
+            {"name": "SessionID", "type": "TEXT", "constraint": ""},
+            {"name": "UserID", "type": "TEXT", "constraint": ""},
+            {"name": "DataBackend", "type": "TEXT", "constraint": ""},
+            {"name": "CardDefinition", "type": "TEXT", "constraint": ""}
+        ]
+    },
+    {
+        "name": "auth_user_provider",
+        "columns": [
+            {"name": "UserID", "type": "TEXT", "constraint": ""},
+            {"name": "UserName", "type": "TEXT", "constraint": ""},
+            {"name": "provider", "type": "TEXT", "constraint": ""},
+            {"name": "created", "type": "TEXT", "constraint": ""},
+            {"name": "locked_out", "type": "INTEGER", "constraint": ""},
+            {"name": "expires", "type": "TEXT", "constraint": ""},
+            {"name": "enabled", "type": "INTEGER", "constraint": ""},
+            {"name": "data", "type": "TEXT", "constraint": ""}
+        ],
+        "primary_key": ["UserID", "provider"]
+    },
+    {
+        "name": "LastLoginAttempt",
+        "columns": [
+            {"name": "IPAddress", "type": "TEXT", "constraint": "PRIMARY KEY"},
+            {"name": "Username", "type": "TEXT", "constraint": ""},
+            {"name": "Time", "type": "TEXT", "constraint": ""},
+            {"name": "UserNameLockedUntil", "type": "TEXT", "constraint": ""},
+            {"name": "IPAddressLockedUntil", "type": "TEXT", "constraint": ""},
+            {"name": "UserViolationsCount", "type": "INTEGER", "constraint": ""},
+            {"name": "IPViolationCount", "type": "INTEGER", "constraint": ""}
+        ]
+    },
+    {
+        "name": "account_email_confirmation",
+        "columns": [
+            {"name": "email_request_guid", "type": "TEXT", "constraint": "PRIMARY KEY"},
+            {"name": "email", "type": "TEXT", "constraint": ""},
+            {"name": "request_date", "type": "TEXT", "constraint": ""},
+            {"name": "response_date", "type": "TEXT", "constraint": ""},
+            {"name": "request_ip", "type": "TEXT", "constraint": ""},
+            {"name": "response_ip", "type": "TEXT", "constraint": ""},
+            {"name": "request_session_id", "type": "TEXT", "constraint": ""},
+            {"name": "response_session_id", "type": "TEXT", "constraint": ""}
+        ]
+    },
+    {
+        "name": "card_settings",
+        "columns": [
+            {"name": "endpoint_guid", "type": "TEXT", "constraint": ""},
+            {"name": "user_id", "type": "TEXT", "constraint": ""},
+            {"name": "created_date", "type": "TEXT", "constraint": ""},
+            {"name": "last_updated", "type": "TEXT", "constraint": ""},
+            {"name": "data", "type": "TEXT", "constraint": ""}
+        ],
+        "primary_key": ["endpoint_guid", "user_id"]
     }
   ]
 }
