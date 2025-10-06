@@ -34,7 +34,7 @@ param(
     [scriptblock]$Script,
     [string]$Path,
     [string]$OutRoot = (Join-Path $PSScriptRoot 'output')
-param(
+)
 
 function New-OutputFolder {
     param([string]$base, [string]$name)
