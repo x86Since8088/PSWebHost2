@@ -797,23 +797,24 @@ function Set-LastLoginAttempt {
         [string]$IPAddress,
         [string]$Username,
         [datetime]$Time,
-        [datetime]$UserNameLockedUntil,
-        [datetime]$IPAddressLockedUntil,
+        [datetime]$UserNameLockedUntil = $null,
+        [datetime]$IPAddressLockedUntil = $null,
         [int]$UserViolationsCount,
         [int]$IPViolationCount
     )
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
-    $data = @{
-        IPAddress = Sanitize-SqlQueryString -String $IPAddress
-        Username = Sanitize-SqlQueryString -String $Username
-        Time = ($Time | Get-Date -UFormat %s)
-        UserNameLockedUntil = if($UserNameLockedUntil) { ($UserNameLockedUntil | Get-Date -UFormat %s) } else { $null }
-        IPAddressLockedUntil = if($IPAddressLockedUntil) { ($IPAddressLockedUntil | Get-Date -UFormat %s) } else { $null }
-        UserViolationsCount = $UserViolationsCount
-        IPViolationCount = $IPViolationCount
-    }
-    # Use INSERT OR REPLACE to simplify logic
-    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'INSERT OR REPLACE' -TableName 'LastLoginAttempt' -Data $data
+    
+    # Sanitize inputs
+    $safeIPAddress = Sanitize-SqlQueryString -String $IPAddress
+    $safeUsername = Sanitize-SqlQueryString -String $Username
+    $unixTime = ($Time | Get-Date -UFormat %s)
+    $unixUserLock = if($UserNameLockedUntil) { ($UserNameLockedUntil | Get-Date -UFormat %s) } else { 'NULL' }
+    $unixIPLock = if($IPAddressLockedUntil) { ($IPAddressLockedUntil | Get-Date -UFormat %s) } else { 'NULL' }
+
+    # Construct the INSERT OR REPLACE query manually
+    $query = "INSERT OR REPLACE INTO LastLoginAttempt (IPAddress, Username, Time, UserNameLockedUntil, IPAddressLockedUntil, UserViolationsCount, IPViolationCount) VALUES ('$safeIPAddress', '$safeUsername', '$unixTime', $unixUserLock, $unixIPLock, $UserViolationsCount, $IPViolationCount);"
+    
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }
 
 function Get-CardSettings {

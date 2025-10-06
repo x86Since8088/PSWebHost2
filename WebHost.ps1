@@ -1,3 +1,4 @@
+[cmdletbinding()]
 param (
     [switch]$RunInProcess,
     [switch]$ShowVariables, # For validateInstall.ps1
@@ -7,9 +8,11 @@ param (
     [switch]$ReloadOnScriptUpdate,
     [switch]$StopOnScriptUpdate
 )
-
 begin {
+    Write-Verbose 'Starting init.ps1...'
+    $Start = Get-Date
     . (Join-Path $PSScriptRoot 'system/init.ps1')
+    Write-Host "Init.ps1 completed after $(((Get-date) - $start).TotalMilliseconds) milliseconds"
     $InitialFileDate = (get-item $MyInvocation.MyCommand.Path).LastWriteTime # This is the initial script's last write time
 
     # Replace API key placeholder in spa-shell.html

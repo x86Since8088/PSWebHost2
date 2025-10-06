@@ -11,7 +11,7 @@ try {
     Import-Module powershell-yaml -DisableNameChecking
 
     # Get and process variables, excluding some known problematic ones
-    $excludeVars = @('PSWebServer', 'Host', 'ExecutionContext', 'true', 'false', 'null', 'Context', 'Request', 'Response', 'SessionData')
+    $excludeVars = @('PSWebServer', 'Host', 'ExecutionContext', 'true', 'false', 'null', 'Context', 'Request', 'Response', 'SessionData', 'PSBoundParameters')
     $vars = Get-Variable -Scope Global -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin $excludeVars } | ForEach-Object {
         $V = $_;
         if ($null -ne $V.Value) {

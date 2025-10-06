@@ -92,6 +92,10 @@ This change involved a significant refactoring of the `PSWebHost_Database` and `
         - [complete] Fix broken function call in `session/get.ps1`.
         - [complete] Fix logging and error handling in `debug` scripts.
 ## 2025-09-29
+- [complete] Fix multiple runtime errors.
+    - [complete] Allowed null values for datetime parameters in `Set-LastLoginAttempt` to prevent conversion errors on successful login.
+    - [complete] Refactored `Set-LastLoginAttempt` to construct its own SQL query, fixing a call to the generic `Invoke-PSWebSQLiteNonQuery` which no longer accepts a `-TableName` parameter.
+    - [complete] Corrected JSON serialization in the `/api/v1/debug/vars` route to handle complex dictionary types.
 - [complete] Fix Windows authentication error and improve server stability.
     - [complete] Added `Add-Type` for `System.DirectoryServices.AccountManagement` to `Test-PSWebWindowsAuth.ps1` to prevent type not found errors.
     - [complete] Added a `try/catch` block around the synchronous request handler in `WebHost.ps1` to prevent single request failures from crashing the server.

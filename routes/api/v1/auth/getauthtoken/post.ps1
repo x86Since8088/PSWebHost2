@@ -50,7 +50,7 @@ if ([string]::IsNullOrEmpty($email)) {
     # Validate email format
     $isEmailValid = Test-IsValidEmailAddress -Email $email
     if (-not $isEmailValid.isValid) {
-        $errorMessage = "<p class=\"error\">$($isEmailValid.Message)</p>" + $emailForm
+        $errorMessage = "<p class=""error"">$($isEmailValid.Message)</p>" + $emailForm
         $jsonResponse = New-JsonResponse -status 'fail' -message $errorMessage
         Write-Verbose "Post"
         context_reponse -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
@@ -74,7 +74,7 @@ if ([string]::IsNullOrEmpty($email)) {
         foreach ($method in $authMethods) {
             $encodedEmail = [System.Web.HttpUtility]::UrlEncode($email)
             $onClickUrl = "/api/v1/authprovider/$method?email=$encodedEmail"
-            $buttonsHtml += "<button class='btn' onclick=\"window.location.href='$onClickUrl'\">$method</button>"
+            $buttonsHtml += "<button class='btn' onclick=`"window.location.href='$onClickUrl'`">$method</button>"
         }
         $buttonsHtml += "<button type='button' class='btn' onclick='window.location.reload()'>Cancel</button>"
         $buttonsHtml += "</div>"
