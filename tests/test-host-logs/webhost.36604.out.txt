@@ -1,0 +1,110 @@
+[33;1mVERBOSE: Added 'E:\sc\git\PsWebHost\modules' to PSModulePath.[0m
+[33;1mVERBOSE: Started background logging job.[0m
+[33;1mVERBOSE: Tracked module Sanitization from E:\sc\git\PsWebHost\modules\Sanitization\Sanitization.psm1[0m
+[33;1mVERBOSE: Tracked module PSWebHost_Support from E:\sc\git\PsWebHost\modules\PSWebHost_Support\PSWebHost_Support.psd1[0m
+[33;1mVERBOSE: Tracked module PSWebHost_Database from E:\sc\git\PsWebHost\modules\PSWebHost_Database\PSWebHost_Database.psd1[0m
+[33;1mVERBOSE: Tracked module PSWebHost_Authentication from E:\sc\git\PsWebHost\modules\PSWebHost_Authentication\PSWebHost_Authentication.psd1[0m
+[33;1mVERBOSE: Tracked module smtp from E:\sc\git\PsWebHost\modules\smtp\smtp.psd1[0m
+[33;1mVERBOSE: Initializing variables.[0m
+[33;1mVERBOSE: Validating required modules - complete.[0m
+[33;1mVERBOSE: Validating third-party modules...[0m
+[33;1mVERBOSE: Validating third-party modules - complete.[0m
+[33;1mVERBOSE: Validating SQLite installation.[0m
+[33;1mVERBOSE: SQLite found at: C:\Users\eskar\AppData\Local\Microsoft\WinGet\Links\sqlite3.exe[0m
+[33;1mVERBOSE: Validating SQLite installation - complete.[0m
+[33;1mVERBOSE: Validating table: Users[0m
+[33;1mVERBOSE: Table 'Users' exists. Verifying schema.[0m
+[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
+Schema mismatch for table 'Users'. Rebuilding table.
+-1
+[33;1mVERBOSE: Renamed table 'Users' to 'Users_old_20251006170802'[0m
+0
+[33;1mVERBOSE: Created new table 'Users' with updated schema.[0m
+0
+[33;1mVERBOSE: Copied data from 'Users_old_20251006170802' to 'Users'.[0m
+0
+[33;1mVERBOSE: Dropped old table 'Users_old_20251006170802'.[0m
+[33;1mVERBOSE: Validating table: User_Data[0m
+[33;1mVERBOSE: Table 'User_Data' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: LoginSessions[0m
+[33;1mVERBOSE: Table 'LoginSessions' exists. Verifying schema.[0m
+[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
+Schema mismatch for table 'LoginSessions'. Rebuilding table.
+-1
+[33;1mVERBOSE: Renamed table 'LoginSessions' to 'LoginSessions_old_20251006170802'[0m
+0
+[33;1mVERBOSE: Created new table 'LoginSessions' with updated schema.[0m
+0
+[33;1mVERBOSE: Copied data from 'LoginSessions_old_20251006170802' to 'LoginSessions'.[0m
+0
+[33;1mVERBOSE: Dropped old table 'LoginSessions_old_20251006170802'.[0m
+[33;1mVERBOSE: Validating table: User_Groups[0m
+[33;1mVERBOSE: Table 'User_Groups' exists. Verifying schema.[0m
+[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
+Schema mismatch for table 'User_Groups'. Rebuilding table.
+-1
+[33;1mVERBOSE: Renamed table 'User_Groups' to 'User_Groups_old_20251006170802'[0m
+0
+[33;1mVERBOSE: Created new table 'User_Groups' with updated schema.[0m
+0
+[33;1mVERBOSE: Copied data from 'User_Groups_old_20251006170802' to 'User_Groups'.[0m
+0
+[33;1mVERBOSE: Dropped old table 'User_Groups_old_20251006170802'.[0m
+[33;1mVERBOSE: Validating table: User_Groups_Map[0m
+[33;1mVERBOSE: Table 'User_Groups_Map' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: PSWeb_Roles[0m
+[33;1mVERBOSE: Table 'PSWeb_Roles' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: AuthenticationMethods[0m
+[33;1mVERBOSE: Table 'AuthenticationMethods' exists. Verifying schema.[0m
+[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
+Schema mismatch for table 'AuthenticationMethods'. Rebuilding table.
+-1
+[33;1mVERBOSE: Renamed table 'AuthenticationMethods' to 'AuthenticationMethods_old_20251006170802'[0m
+0
+[33;1mVERBOSE: Created new table 'AuthenticationMethods' with updated schema.[0m
+7
+[33;1mVERBOSE: Copied data from 'AuthenticationMethods_old_20251006170802' to 'AuthenticationMethods'.[0m
+0
+[33;1mVERBOSE: Dropped old table 'AuthenticationMethods_old_20251006170802'.[0m
+[33;1mVERBOSE: Validating table: CardSessions[0m
+[33;1mVERBOSE: Table 'CardSessions' exists. Verifying schema.[0m
+[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
+Schema mismatch for table 'CardSessions'. Rebuilding table.
+-1
+[33;1mVERBOSE: Renamed table 'CardSessions' to 'CardSessions_old_20251006170802'[0m
+0
+[33;1mVERBOSE: Created new table 'CardSessions' with updated schema.[0m
+0
+[33;1mVERBOSE: Copied data from 'CardSessions_old_20251006170802' to 'CardSessions'.[0m
+0
+[33;1mVERBOSE: Dropped old table 'CardSessions_old_20251006170802'.[0m
+[33;1mVERBOSE: Validating table: auth_user_provider[0m
+[33;1mVERBOSE: Table 'auth_user_provider' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: LastLoginAttempt[0m
+[33;1mVERBOSE: Table 'LastLoginAttempt' exists. Verifying schema.[0m
+[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
+Schema mismatch for table 'LastLoginAttempt'. Rebuilding table.
+-1
+[33;1mVERBOSE: Renamed table 'LastLoginAttempt' to 'LastLoginAttempt_old_20251006170802'[0m
+0
+[33;1mVERBOSE: Created new table 'LastLoginAttempt' with updated schema.[0m
+2
+[33;1mVERBOSE: Copied data from 'LastLoginAttempt_old_20251006170802' to 'LastLoginAttempt'.[0m
+0
+[33;1mVERBOSE: Dropped old table 'LastLoginAttempt_old_20251006170802'.[0m
+[33;1mVERBOSE: Validating table: account_email_confirmation[0m
+[33;1mVERBOSE: Table 'account_email_confirmation' exists. Verifying schema.[0m
+[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
+Schema mismatch for table 'account_email_confirmation'. Rebuilding table.
+-1
+[33;1mVERBOSE: Renamed table 'account_email_confirmation' to 'account_email_confirmation_old_20251006170802'[0m
+0
+[33;1mVERBOSE: Created new table 'account_email_confirmation' with updated schema.[0m
+5
+[33;1mVERBOSE: Copied data from 'account_email_confirmation_old_20251006170802' to 'account_email_confirmation'.[0m
+0
+[33;1mVERBOSE: Dropped old table 'account_email_confirmation_old_20251006170802'.[0m
+[33;1mVERBOSE: Validating table: card_settings[0m
+[33;1mVERBOSE: Table 'card_settings' exists. Verifying schema.[0m
+[33;1mVERBOSE: Database schema validation complete.[0m
+Init.ps1 completed after 1624.6683 milliseconds
