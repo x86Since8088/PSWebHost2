@@ -5,8 +5,8 @@ param (
 )
 
 # Import required modules
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Support/PSWebHost_Support.psm1") -DisableNameChecking
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
+Import-Module PSWebHost_Support -DisableNameChecking
+Import-Module PSWebHost_Database -DisableNameChecking
 # Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "system/auth/TestToken.ps1") -DisableNameChecking
 
 

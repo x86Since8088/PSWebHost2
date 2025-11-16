@@ -56,7 +56,8 @@ function Invoke-PSWebSQLiteNonQuery {
         [string]$File,
         [string]$Query
     )
-
+    $MyTag = "[Invoke-PSWebSQLiteNonQuery]"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Started`n`tFile: $File`n`tQuery: $Query"
     if (-not $File) { Write-Error "The -File parameter is required."; return }
     if (-not $Query) { Write-Error "The -Query parameter is required."; return }
 
@@ -70,6 +71,7 @@ function Invoke-PSWebSQLiteNonQuery {
     # Ensure the directory exists
     $dbDir = Split-Path -Path $dbFilePath -Parent
     if (-not (Test-Path -Path $dbDir)) {
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Creating directory: '$dbDir'"
         New-Item -Path $dbDir -ItemType Directory -Force | Out-Null
     }
 
@@ -78,15 +80,20 @@ function Invoke-PSWebSQLiteNonQuery {
     $command = $null
 
     try {
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Opening database connection: $dbFilePath"
         $connection.Open()
         $command = $connection.CreateCommand()
         $command.CommandText = $Query
-        $command.ExecuteNonQuery()
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing query: $Query"
+        $null = $command.ExecuteNonQuery()
     } catch {
         Write-Error "Error executing SQLite non-query. Query: $Query. Error: $_"
     } finally {
         if ($command) { $command.Dispose() }
-        if ($connection) { $connection.Close() }
+        if ($connection) { 
+        
+            $connection.Close() 
+        }
     }
 }
 

@@ -1,5 +1,38 @@
 # Changelog
 
+## 2025-11-15
+- [complete] Fix authentication hang by correcting database calls.
+    - [complete] Refactored `Set-LoginSession` in `PSWebHost_Authentication.psm1` to construct a valid SQL INSERT query, fixing a call to `Invoke-PSWebSQLiteNonQuery` which was causing the process to hang.
+    - [complete] Similarly refactored `Register-PSWebHostUser` and `Set-CardSession` in the same module to use correct SQL query construction.
+
+## 2025-09-29
+- [complete] Fix multiple runtime errors.
+    - [complete] Allowed null values for datetime parameters in `Set-LastLoginAttempt` to prevent conversion errors on successful login.
+    - [complete] Refactored `Set-LastLoginAttempt` to construct its own SQL query, fixing a call to the generic `Invoke-PSWebSQLiteNonQuery` which no longer accepts a `-TableName` parameter.
+    - [complete] Corrected JSON serialization in the `/api/v1/debug/vars` route to handle complex dictionary types.
+- [complete] Fix Windows authentication error and improve server stability.
+    - [complete] Added `Add-Type` for `System.DirectoryServices.AccountManagement` to `Test-PSWebWindowsAuth.ps1` to prevent type not found errors.
+    - [complete] Added a `try/catch` block around the synchronous request handler in `WebHost.ps1` to prevent single request failures from crashing the server.
+- [complete] Add verbose logging to HttpListener startup.
+    - [complete] Added detailed `Write-Verbose` statements to `WebHost.ps1` to trace the listener initialization and start process.
+- [complete] Fix database query error for login attempts.
+    - [complete] Corrected table name from `LoginAttempts` to `LastLoginAttempt` in `Get-LastLoginAttempt` and `Set-LastLoginAttempt` functions to match database schema.
+- [complete] Fix syntax error in `PSWebHost_Authentication.psm1` that prevented module from loading.
+    - [complete] Corrected an unterminated string in the `Test-IsValidEmailAddress` function's parameter block.
+- [complete] Continue route handler review.
+    - [complete] Reviewed `routes/api/v1/ui`, `spa`, and `api/ManageWindows` script directories; no `.ps1` files were found to analyze.
+- [complete] Investigate and fix module and database inconsistencies.
+    - [complete] Re-implemented missing session and card-setting functions (`Get-LoginSession`, `Set-LoginSession`, `Get-CardSettings`, etc.) in the `PSWebHost_Authentication` module.
+    - [complete] Updated the `PSWebHost_Authentication.psd1` manifest to export the new functions.
+    - [complete] Refactored `PSWebHost_Support.psm1` to use the new functions and remove incorrect imports and direct database calls.
+    - [complete] Removed incorrect `Import-Module` statements from route handlers.
+    - [complete] Synchronized `system/db/sqlite/sqliteconfig.json` with the live database schema, adding missing tables and correcting definitions.
+    - [complete] Repaired and ran the `system/db/sqlite/validatetables.ps1` script to confirm database consistency.
+- [complete] Standardize authentication function names to `[Verb]-PSWebHost[Object]` format and fix related errors.
+    - [complete] Renamed role, group, and user management functions in `PSWebHost_Authentication` module.
+    - [complete] Updated `PSWebHost_Authentication.psd1` to export new function names.
+    - [complete] Updated `init.ps1`, `pswebadmin.ps1`, and `PSWebHost_Support.psm1` to use the new standardized functions, fixing bugs in the process.
+
 ## 2025-09-27
 
 ### Refactoring of Database and Authentication Modules
@@ -91,30 +124,3 @@ This change involved a significant refactoring of the `PSWebHost_Database` and `
     - [complete] Review and fix issues in `routes/api/v1/debug`, `session`, and `status` scripts.
         - [complete] Fix broken function call in `session/get.ps1`.
         - [complete] Fix logging and error handling in `debug` scripts.
-## 2025-09-29
-- [complete] Fix multiple runtime errors.
-    - [complete] Allowed null values for datetime parameters in `Set-LastLoginAttempt` to prevent conversion errors on successful login.
-    - [complete] Refactored `Set-LastLoginAttempt` to construct its own SQL query, fixing a call to the generic `Invoke-PSWebSQLiteNonQuery` which no longer accepts a `-TableName` parameter.
-    - [complete] Corrected JSON serialization in the `/api/v1/debug/vars` route to handle complex dictionary types.
-- [complete] Fix Windows authentication error and improve server stability.
-    - [complete] Added `Add-Type` for `System.DirectoryServices.AccountManagement` to `Test-PSWebWindowsAuth.ps1` to prevent type not found errors.
-    - [complete] Added a `try/catch` block around the synchronous request handler in `WebHost.ps1` to prevent single request failures from crashing the server.
-- [complete] Add verbose logging to HttpListener startup.
-    - [complete] Added detailed `Write-Verbose` statements to `WebHost.ps1` to trace the listener initialization and start process.
-- [complete] Fix database query error for login attempts.
-    - [complete] Corrected table name from `LoginAttempts` to `LastLoginAttempt` in `Get-LastLoginAttempt` and `Set-LastLoginAttempt` functions to match database schema.
-- [complete] Fix syntax error in `PSWebHost_Authentication.psm1` that prevented module from loading.
-    - [complete] Corrected an unterminated string in the `Test-IsValidEmailAddress` function's parameter block.
-- [complete] Continue route handler review.
-    - [complete] Reviewed `routes/api/v1/ui`, `spa`, and `api/ManageWindows` script directories; no `.ps1` files were found to analyze.
-- [complete] Investigate and fix module and database inconsistencies.
-    - [complete] Re-implemented missing session and card-setting functions (`Get-LoginSession`, `Set-LoginSession`, `Get-CardSettings`, etc.) in the `PSWebHost_Authentication` module.
-    - [complete] Updated the `PSWebHost_Authentication.psd1` manifest to export the new functions.
-    - [complete] Refactored `PSWebHost_Support.psm1` to use the new functions and remove incorrect imports and direct database calls.
-    - [complete] Removed incorrect `Import-Module` statements from route handlers.
-    - [complete] Synchronized `system/db/sqlite/sqliteconfig.json` with the live database schema, adding missing tables and correcting definitions.
-    - [complete] Repaired and ran the `system/db/sqlite/validatetables.ps1` script to confirm database consistency.
-- [complete] Standardize authentication function names to `[Verb]-PSWebHost[Object]` format and fix related errors.
-    - [complete] Renamed role, group, and user management functions in `PSWebHost_Authentication` module.
-    - [complete] Updated `PSWebHost_Authentication.psd1` to export new function names.
-    - [complete] Updated `init.ps1`, `pswebadmin.ps1`, and `PSWebHost_Support.psm1` to use the new standardized functions, fixing bugs in the process.

@@ -13,7 +13,8 @@ function Get-AuthenticationMethodForm {
     param(
         [string]$Name
     )
-    if (-not $Name) { Write-Error "The -Name parameter is required."; return }
+    $myTag = '[Get-AuthenticationMethodForm]'
+    if (-not $Name) { Write-Error "$myTag The -Name parameter is required."; return }
 
     # This function would return the form fields required for a specific
     # authentication method.
@@ -63,6 +64,7 @@ function Get-PSWebHostUser {
         [parameter(ParameterSetName='Listall')]
         [switch]$Listall
     )
+    $MyTag = "[Get-PSWebHostUser]"
     if ($PSBoundParameters.ContainsKey('Email')) {
         $safeEmail = Sanitize-SqlQueryString -String $Email
         $query = "SELECT * FROM Users WHERE Email = '$safeEmail';"
@@ -75,20 +77,25 @@ function Get-PSWebHostUser {
         $query = "SELECT * FROM Users;"
     }
     else {
-        Write-Error "[Get-PSWebHostUser] you must provide -Email, -UserID or -Listall"
+        Write-Error "$MyTag you must provide -Email, -UserID or -Listall"
         return
     }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
     $user = Get-PSWebSQLiteData -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved user data: $(($user | Out-String).trim('\s') -split '\n' -join "`n`t")"
     return $user
 }
 
 function Get-PSWebHostUsers {
     [cmdletbinding()]
     param()
+    $MyTag = "[Get-PSWebHostUsers]"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $query = "SELECT Email FROM Users;"
+    writre-verbose "$MyTag Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
     $users = Get-PSWebSQLiteData -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved users: $(($users | Out-String).trim('\s') -split '\n' -join "`n`t")"
     if ($users) {
         return $users.Email
     } else {
@@ -101,9 +108,11 @@ function Get-UserAuthenticationMethods {
     param(
         [string]$Email
     )
+    $MyTag = "[Get-UserAuthenticationMethods]"
     if (-not $Email) { Write-Error "The -Email parameter is required."; return }
-
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebHostUser -Email '$Email'"
     $user = Get-PSWebHostUser -Email $Email
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved user: $(($user | Out-String).trim('\s') -split '\n' -join "`n`t")"
     if (-not $user) {
         return @()
     }
@@ -111,8 +120,9 @@ function Get-UserAuthenticationMethods {
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeUserID = Sanitize-SqlQueryString -String $user.UserID
     $query = "SELECT provider FROM auth_user_provider WHERE UserID = '$safeUserID';"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
     $authMethods = Get-PSWebSQLiteData -File $dbFile -Query $query
-    
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved authentication methods: $(($authMethods | Out-String).trim('\s') -split '\n' -join "`n`t")"
     if ($authMethods) {
         return $authMethods.provider
     } else {
@@ -129,11 +139,14 @@ function Get-PSWebHostRole {
         [parameter(ParameterSetName='ListAll')]
         [switch]$ListAll
     )
+    $MyTag = "[Get-PSWebHostRole]"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
 
     if ($ListAll) {
         $query = "SELECT DISTINCT RoleName FROM PSWeb_Roles;"
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
         $roles = Get-PSWebSQLiteData -File $dbFile -Query $query
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved roles: $(($roles | Out-String).trim('\s') -split '\n' -join "`n`t")"
         if ($roles) {
             return $roles.RoleName
         } else {
@@ -147,11 +160,15 @@ function Get-PSWebHostRole {
 
     # Get roles assigned directly to the user
     $queryDirectRoles = "SELECT RoleName FROM PSWeb_Roles WHERE PrincipalID = '$safeUserID';"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$queryDirectRoles"
     $directRoles = Get-PSWebSQLiteData -File $dbFile -Query $queryDirectRoles
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved direct roles: $(($directRoles | Out-String).trim('\s') -split '\n' -join "`n`t")"
 
     # Get roles assigned to groups the user is in
     $queryGroupRoles = "SELECT r.RoleName FROM PSWeb_Roles r JOIN User_Groups_Map ugm ON r.PrincipalID = ugm.GroupID WHERE ugm.UserID = '$safeUserID';"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$queryGroupRoles"
     $groupRoles = Get-PSWebSQLiteData -File $dbFile -Query $queryGroupRoles
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved group roles: $(($groupRoles | Out-String).trim('\s') -split '\n' -join "`n`t")"
 
     $allRoles = @()
     if ($directRoles) {
@@ -170,6 +187,7 @@ function Invoke-AuthenticationMethod {
         [string]$Name,
         [hashtable]$FormData
     )
+    $MyTag = "[Invoke-AuthenticationMethod]"
     if (-not $Name) { Write-Error "The -Name parameter is required."; return }
     if (-not $FormData) { Write-Error "The -FormData parameter is required."; return }
 
@@ -191,7 +209,9 @@ function Invoke-AuthenticationMethod {
             $safeUserID = Sanitize-SqlQueryString -String $user.UserID
             # The password hash is stored in the 'data' column as JSON
             $query = "SELECT data FROM auth_user_provider WHERE UserID = '$safeUserID' AND provider = 'Password';"
+            Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
             $authMethod = Get-PSWebSQLiteData -File $dbFile -Query $query
+            Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved authentication method data: $(($authMethod | Out-String).trim('\s') -split '\n' -join "`n`t")"
             if (-not $authMethod) {
                 Write-Warning "Authentication failed: No password set for user '$email'."
                 return $false
@@ -227,7 +247,9 @@ function Invoke-AuthenticationMethod {
             }
 
             # Execute the external script
+            Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: $scriptPath -Username $username -Password `$password -ContextType "LocalMachine""
             $isAuthenticated = & $scriptPath -Username $username -Password $password -ContextType "LocalMachine" # Assuming LocalMachine for now
+            Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Windows authentication result: $isAuthenticated"
 
             if ($isAuthenticated) {
                 Write-Verbose "Windows authentication successful for user '$username'."
@@ -250,8 +272,10 @@ function Test-IsValidEmailAddress {
         [string]$Regex = '^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
         [string]$AddCustomRegex
     )
+    $MyTag = "[Test-IsValidEmailAddress]"
     # Basic email validation regex
     if ($AddCustomRegex) {$Regex+="|$AddCustomRegex"}
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing high-risk unicode check for email: $Email"
     $InvalidCharacters = Test-StringForHighRiskUnicode -String $Email
     if ($InvalidCharacters.IsValid -eq $false) {
         return $InvalidCharacters
@@ -267,6 +291,7 @@ function Test-StringForHighRiskUnicode {
     param(
         [string]$String
     )
+    $MyTag = "[Test-StringForHighRiskUnicode]"
     # Define a hashtable of forbidden character codes to enhance security.
     # This list includes non-printable control characters, ambiguous symbols, and characters
     # that can be used to obscure or manipulate text in potentially malicious ways.
@@ -374,6 +399,7 @@ function Test-StringForHighRiskUnicode {
         }
     
     if ($FindingsHT.Count -gt 0) {
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Found high-risk characters: $(($FindingsHT.Keys | ForEach-Object { "0x{0:X4}" -f $_ }) -join ', ')"
         return @{
             Findings = $FindingsHT; 
             IsValid = $false; 
@@ -398,37 +424,45 @@ function Test-IsValidPassword {
         $Numbers = 2,
         $ValidSymbolCharactersRegex = '[!@#$%^&*()_+\-=\[\]{};'':"\\|,.<>/?`~]'
     )
+    $MyTag = "[Test-IsValidPassword]"
     if ($Password.Length -lt 8) {
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Password length is less than minimum required length of 8."
         return @{ IsValid = $false; Message = "Password must be at least 8 characters long." }
     }
     # Check for minimum uppercase characters
     if (($Password.ToCharArray() -match '[A-Z]').Count -lt $Uppercase) {
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Not enough uppercase characters regex: '[A-Z]'"
         return @{ IsValid = $false; Message = "Password must contain at least $Uppercase uppercase letters." }
     }
     # Check for minimum lowercase characters
     if (($Password.ToCharArray() -match '[a-z]').Count -lt $LowerCase) {
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Not enough lowercase characters regex: '[a-z]'"
         return @{ IsValid = $false; Message = "Password must contain at least $LowerCase lowercase letters." }
     }
     # Check for minimum numbers
     if (($Password.ToCharArray() -match '[0-9]').Count -lt $Numbers) {
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Not enough number characters regex: '[0-9]'"
         return @{ IsValid = $false; Message = "Password must contain at least $Numbers numbers." }
     }
     # Check for minimum symbols
     if ($Symbols -gt 0) { # Only check if a minimum number of symbols is required
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Valid symbol characters regex: $ValidSymbolCharactersRegex '$($Password.ToCharArray() -match $ValidSymbolCharactersRegex |ForEach-Object{[uint32]$_})'"
         if (($Password.ToCharArray() -match $ValidSymbolCharactersRegex).Count -lt $Symbols) {
             return @{ IsValid = $false; Message = "Password must contain at least $Symbols symbols." }
         }
     }
     # Check for unapproved characters
     if (($Password.ToCharArray() -match "[^a-zA-Z0-9$($ValidSymbolCharactersRegex)]").Count -gt 0) {
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Password contains unapproved characters."
         return @{ IsValid = $false; Message = "Password contains unapproved characters." }
     }
 
     $InvalidCharacters = Test-StringForHighRiskUnicode -String $Password
     if ($InvalidCharacters.IsValid -eq $false) {
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Password failed high-risk unicode check."
         return $InvalidCharacters
     }    
-
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Password passed high-risk unicode check."
     return @{ IsValid = $true; Message = "Password is valid." }
 }
 
@@ -437,26 +471,34 @@ function Test-LoginLockout {
         [string]$IPAddress,
         [string]$Username
     )
+    $MyTag = "[Test-LoginLockout]"
+    if (-not $IPAddress) { Write-Host -ForegroundColor Red "$MyTag The -IPAddress parameter is required."; return $false}
+    if (-not $Username) { Write-Host  -ForegroundColor Red "$MyTag The -Username parameter is required."; return $false}
     $lastAttempt = Get-LastLoginAttempt -IPAddress $IPAddress
     $now = Get-Date
 
     if ($lastAttempt) {
         if ($lastAttempt.IPAddressLockedUntil -and ($lastAttempt.IPAddressLockedUntil -as [datetime]) -gt $now) {
-            return [PSCustomObject]@{ 
+            $result =  [PSCustomObject]@{ 
                 LockedOut = $true
                 LockedUntil = ($lastAttempt.IPAddressLockedUntil -as [datetime])
                 Message = "Too many requests from this IP address. Please try again after $(($lastAttempt.IPAddressLockedUntil -as [datetime]).ToString('o'))."
             }
+            Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) IP Address lockout detected: $(($result | Out-String).trim('\s') -split '\n' -join "`n`t")"
+            return $result
         }
         if ($lastAttempt.UserNameLockedUntil -and ($lastAttempt.UserNameLockedUntil -as [datetime]) -gt $now) {
-            return [PSCustomObject]@{ 
+            $result = [PSCustomObject]@{ 
                 LockedOut = $true
                 LockedUntil = ($lastAttempt.UserNameLockedUntil -as [datetime])
                 Message = "Too many requests for this user. Please try again after $([math]::Round((($lastAttempt.UserNameLockedUntil -as [datetime]) - (Get-Date)).TotalSeconds)) seconds."
             }
+            Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Username lockout detected: $(($result | Out-String).trim('\s') -split '\n' -join "`n`t")"
+            return $result
         }
     }
-    return [PSCustomObject]@{ 
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) No lockout detected for IP '$IPAddress' and Username '$Username'." 
+    return [PSCustomObject]@{
         LockedOut = $false
     }
 }
@@ -466,7 +508,8 @@ function Protect-String {
     param(
         [string]$PlainText
     )
-    if (-not $PlainText) { Write-Error "The -PlainText parameter is required."; return }
+    $MyTag = "[Protect-String]"
+    if (-not $PlainText) { Write-Error "$MyTag The -PlainText parameter is required."; return }
     $secureString = $PlainText | ConvertTo-SecureString -AsPlainText -Force
     # The encrypted string is tied to the current user context and machine
     return $secureString | ConvertFrom-SecureString
@@ -477,11 +520,13 @@ function Unprotect-String {
     param(
         [string]$EncryptedString
     )
-    if (-not $EncryptedString) { Write-Error "The -EncryptedString parameter is required."; return }
+    $MyTag = "[Unprotect-String]"
+    if (-not $EncryptedString) { Write-Error "$MyTag The -EncryptedString parameter is required."; return }
     $secureString = $EncryptedString | ConvertTo-SecureString
     $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureString)
     $plainText = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
     [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Successfully decrypted string."
     return $plainText
 }
 
@@ -495,8 +540,9 @@ function Register-PSWebHostUser {
         [string]$Password,
         [hashtable]$ProviderData
     )
-    if (-not $UserName) { Write-Error "The -UserName parameter is required."; return }
-    if (-not $Provider) { Write-Error "The -Provider parameter is required."; return }
+    $MyTag = "[Register-PSWebHostUser]"
+    if (-not $UserName) { Write-Error "$MyTag The -UserName parameter is required."; return }
+    if (-not $Provider) { Write-Error "$MyTag The -Provider parameter is required."; return }
 
     # 1. Generate UserID
     $userID = [Guid]::NewGuid().ToString()
@@ -524,8 +570,9 @@ function Register-PSWebHostUser {
         $passwordHash = [System.Convert]::ToBase64String($passwordHashBytes)
         $ProviderData.Password = $passwordHash
     }
-
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) New-PSWebSQLiteData -File $dbFile -Table "Users" -Data `n`t$(($userData | Out-String).trim('\s') -split '\n' -join "`n`t")"
     New-PSWebSQLiteData -File $dbFile -Table "Users" -Data $userData
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: New-PSWebSQLiteData"
 
     # 4. Store auth provider in database
     $authProviderData = @{
@@ -541,9 +588,25 @@ function Register-PSWebHostUser {
     }
 
 
-    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'INSERT' -TableName 'auth_user_provider' -Data $authProviderData
-
-    Write-Verbose "User '$UserName' created with UserID '$userID'." -Verbose
+    $columns = ($authProviderData.Keys | ForEach-Object { "`"$_`"" }) -join ", "
+    $values = $authProviderData.Values | ForEach-Object {
+        if ($_ -is [string]) {
+            "'$(Sanitize-SqlQueryString -String $_)'"
+        } elseif ($_ -is [bool]) {
+            if ($_) { 1 } else { 0 }
+        } elseif ($_ -eq $null) {
+            "NULL"
+        } else {
+            $_
+        }
+    }
+    $valuesString = $values -join ", "
+    $query = "INSERT INTO auth_user_provider ($columns) VALUES ($valuesString);"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: New-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: New-PSWebSQLiteNonQuery"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) User '$UserName' created with UserID '$userID'." -Verbose
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieving newly created user with UserID '$userID'."
     return Get-PSWebHostUser -UserID $userID
 }
 
@@ -555,13 +618,20 @@ function New-PSWebHostUser {
         [string]$Password,
         [string]$Phone
     )
+    $MyTag = "[New-PSWebHostUser]"
     if (-not $Email) { Write-Error "The -Email parameter is required."; return }
 
     if (-not $UserName) {
         $UserName = $Email
     }
-
+    if (-not $Password) {
+        # Generate a random password if not provided
+        $Password = [System.Web.Security.Membership]::GeneratePassword(12,2)
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) No password provided. Generated random password."
+    }
+    write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing Register-PSWebHostUser -UserName '$UserName' -Email '$Email' -Phone '$Phone' -Provider 'Password' -Password `$Password"
     Register-PSWebHostUser -UserName $UserName -Email $Email -Phone $Phone -Provider "Password" -Password $Password
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Register-PSWebHostUser"
 }
 
 function PSWebLogon {
@@ -572,6 +642,8 @@ function PSWebLogon {
         [System.Net.HttpListenerRequest]$Request,
         [string]$UserID = "anonymous" # Default to anonymous if not provided for success
     )
+    $MyTag = "[PSWebLogon]"
+    if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
     if (-not $ProviderName) { Write-Error "The -ProviderName parameter is required."; return }
     if (-not $Result) { Write-Error "The -Result parameter is required."; return }
     if (-not $Request) { Write-Error "The -Request parameter is required."; return }
@@ -603,11 +675,15 @@ function PSWebLogon {
         if ($ipViolations -gt 10) {
             $ipAddressLockedUntil = $now.AddHours(1)
         }
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Login failed. User violations: $userViolations, IP violations: $ipViolations. User lockout until: $lockoutUntil, IP lockout until: $ipAddressLockedUntil"
         Set-LastLoginAttempt -IPAddress $ipAddress -Username $UserID -Time $now -UserNameLockedUntil $lockoutUntil -IPAddressLockedUntil $ipAddressLockedUntil -UserViolationsCount $userViolations -IPViolationCount $ipViolations
         Write-PSWebHostLog -Severity 'Warning' -Category 'Auth' -Message "Login failed for user '$UserID' from IP '$ipAddress' via '$ProviderName'. Violations: User=$userViolations, IP=$ipViolations." -Data @{ UserID = $UserID; IPAddress = $ipAddress; Provider = $ProviderName; Result = $Result }
     } else { # Success
         # Reset violation counts on success
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Login successful. Resetting violation counts for user '$UserID' and IP '$ipAddress'."
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing Set-LastLoginAttempt -IPAddress $ipAddress -Username $UserID -Time $now -UserViolationsCount 0 -IPViolationCount 0 -UserNameLockedUntil `$null -IPAddressLockedUntil `$null"
         Set-LastLoginAttempt -IPAddress $ipAddress -Username $UserID -Time $now -UserViolationsCount 0 -IPViolationCount 0 -UserNameLockedUntil $null -IPAddressLockedUntil $null
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Set-LastLoginAttempt"
         # Record successful login session
         if ($sessionID) {
             $logonExpires = $now.AddHours(8) # Example: Session expires in 8 hours
@@ -623,11 +699,15 @@ function Add-PSWebHostRole {
     param(
         [string]$RoleName
     )
+    $MyTag = "[Add-PSWebHostRole]"
     if (-not $RoleName) { Write-Error "The -RoleName parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeRoleName = Sanitize-SqlQueryString -String $RoleName
     $query = "INSERT INTO PSWeb_Roles (PrincipalID, PrincipalType, RoleName) VALUES ('$safeRoleName', 'role', '$safeRoleName');"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Invoke-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
+    Write-PSWebHostLog -Severity 'Info' -Category 'RoleManagement' -Message "Adding role '$RoleName' to PSWebHost." -Data @{ RoleName = $RoleName }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Invoke-PSWebSQLiteNonQuery"
 }
 
 function Remove-PSWebHostRole {
@@ -635,11 +715,15 @@ function Remove-PSWebHostRole {
     param(
         [string]$RoleName
     )
+    $MyTag = "[Remove-PSWebHostRole]"
     if (-not $RoleName) { Write-Error "The -RoleName parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeRoleName = Sanitize-SqlQueryString -String $RoleName
     $query = "DELETE FROM PSWeb_Roles WHERE RoleName = '$safeRoleName';"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Invoke-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
+    Write-PSWebHostLog -Severity 'Info' -Category 'RoleManagement' -Message "Removing role '$RoleName' from PSWebHost." -Data @{ RoleName = $RoleName }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Invoke-PSWebSQLiteNonQuery"
 }
 
 function Add-PSWebHostRoleAssignment {
@@ -648,13 +732,17 @@ function Add-PSWebHostRoleAssignment {
         [string]$UserID,
         [string]$RoleName
     )
+    $MyTag = "[Add-PSWebHostRoleAssignment]"
     if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
     if (-not $RoleName) { Write-Error "The -RoleName parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeUserID = Sanitize-SqlQueryString -String $UserID
     $safeRoleName = Sanitize-SqlQueryString -String $RoleName
     $query = "INSERT INTO PSWeb_Roles (PrincipalID, PrincipalType, RoleName) VALUES ('$safeUserID', 'user', '$safeRoleName');"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Invoke-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
+    Write-PSWebHostLog -Severity 'Info' -Category 'RoleManagement' -Message "Assigning role '$RoleName' to user '$UserID'." -Data @{ RoleName = $RoleName; UserID = $UserID }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Invoke-PSWebSQLiteNonQuery"
 }
 
 function Remove-PSWebHostRoleAssignment {
@@ -663,12 +751,15 @@ function Remove-PSWebHostRoleAssignment {
         [string]$UserID,
         [string]$RoleName
     )
+    $MyTag = "[Remove-PSWebHostRoleAssignment]"
     if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
     if (-not $RoleName) { Write-Error "The -RoleName parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeUserID = Sanitize-SqlQueryString -String $UserID
     $safeRoleName = Sanitize-SqlQueryString -String $RoleName
     $query = "DELETE FROM PSWeb_Roles WHERE PrincipalID = '$safeUserID' AND RoleName = '$safeRoleName';"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Invoke-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
+    Write-PSWebHostLog -Severity 'Info' -Category 'RoleManagement' -Message "Removing role '$RoleName' from user '$UserID'." -Data @{ RoleName = $RoleName; UserID = $UserID }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }
 
@@ -677,12 +768,16 @@ function Add-PSWebHostGroup {
     param(
         [string]$GroupName
     )
+    $MyTag = "[Add-PSWebHostGroup]"
     if (-not $GroupName) { Write-Error "The -GroupName parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeGroupName = Sanitize-SqlQueryString -String $GroupName
     $groupID = [Guid]::NewGuid().ToString()
     $query = "INSERT INTO User_Groups (GroupID, Name, Created, Updated) VALUES ('$groupID', '$safeGroupName', '$(Get-Date -UFormat %s)', '$(Get-Date -UFormat %s)');"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Invoke-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
+    Write-PSWebHostLog -Severity 'Info' -Category 'GroupManagement' -Message "Adding group '$GroupName' to PSWebHost." -Data @{ GroupName = $GroupName }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Invoke-PSWebSQLiteNonQuery"
 }
 
 function Remove-PSWebHostGroup {
@@ -690,11 +785,15 @@ function Remove-PSWebHostGroup {
     param(
         [string]$GroupID
     )
+    $MyTag = "[Remove-PSWebHostGroup]"
     if (-not $GroupID) { Write-Error "The -GroupID parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeGroupID = Sanitize-SqlQueryString -String $GroupID
     $query = "DELETE FROM User_Groups WHERE GroupID = '$safeGroupID';"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Invoke-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
+    Write-PSWebHostLog -Severity 'Info' -Category 'GroupManagement' -Message "Removing group with ID '$GroupID' from PSWebHost." -Data @{ GroupID = $GroupID }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Invoke-PSWebSQLiteNonQuery"
 }
 
 function Add-PSWebHostGroupMember {
@@ -703,13 +802,17 @@ function Add-PSWebHostGroupMember {
         [string]$UserID,
         [string]$GroupID
     )
+    $MyTag = "[Add-PSWebHostGroupMember]"
     if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
     if (-not $GroupID) { Write-Error "The -GroupID parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeUserID = Sanitize-SqlQueryString -String $UserID
     $safeGroupID = Sanitize-SqlQueryString -String $GroupID
     $query = "INSERT INTO User_Groups_Map (UserID, GroupID) VALUES ('$safeUserID', '$safeGroupID');"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Invoke-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
+    Write-PSWebHostLog -Severity 'Info' -Category 'GroupManagement' -Message "Adding user '$UserID' to group '$GroupID'." -Data @{ UserID = $UserID; GroupID = $GroupID }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Invoke-PSWebSQLiteNonQuery"
 }
 
 function Remove-PSWebHostGroupMember {
@@ -718,12 +821,15 @@ function Remove-PSWebHostGroupMember {
         [string]$UserID,
         [string]$GroupID
     )
+    $MyTag = "[Remove-PSWebHostGroupMember]"
     if (-not $UserID) { Write-Error "The -UserID parameter is required."; return }
     if (-not $GroupID) { Write-Error "The -GroupID parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeUserID = Sanitize-SqlQueryString -String $UserID
     $safeGroupID = Sanitize-SqlQueryString -String $GroupID
     $query = "DELETE FROM User_Groups_Map WHERE UserID = '$safeUserID' AND GroupID = '$safeGroupID';"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Invoke-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
+    Write-PSWebHostLog -Severity 'Info' -Category 'GroupManagement' -Message "Removing user '$UserID' from group '$GroupID'." -Data @{ UserID = $UserID; GroupID = $GroupID }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }
 
@@ -732,10 +838,13 @@ function Get-PSWebHostGroup {
     param(
         [string]$Name
     )
+    $MyTag = "[Get-PSWebHostGroup]"
     if (-not $Name) { Write-Error "The -Name parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeName = Sanitize-SqlQueryString -String $Name
     $query = "SELECT * FROM User_Groups WHERE Name = '$safeName';"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
+    write-PSWebHostLog -Severity 'Info' -Category 'GroupManagement' -Message "Retrieving group with name '$Name'." -Data @{ GroupName = $Name }
     Get-PSWebSQLiteData -File $dbFile -Query $query
 }
 
@@ -743,13 +852,19 @@ function Get-PSWebHostGroup {
 
 function Get-LoginSession {
     param([string]$SessionID)
+    $MyTag = "[Get-LoginSession]"
+    if (-not $SessionID) { Write-Error "$MyTag The -SessionID parameter is required."; return }
     $safeSessionID = Sanitize-SqlQueryString -String $SessionID
     $query = "SELECT * FROM LoginSessions WHERE SessionID = '$safeSessionID';"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
-    Get-PSWebSQLiteData -File $dbFile -Query $query
+    Write-logfile "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
+    $Session = Get-PSWebSQLiteData -File $dbFile -Query $query
+    Write-logfile "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Get-PSWebSQLiteData"
+    return $Session
 }
 
 function Set-LoginSession {
+    [cmdletbinding()]
     param(
         [string]$SessionID,
         [string]$UserID,
@@ -758,12 +873,23 @@ function Set-LoginSession {
         [datetime]$LogonExpires,
         [string]$UserAgent
     )
+    $MyTag = '[Set-LoginSession]'
+    if (-not $SessionID) { Write-Error "$MyTag The -SessionID parameter is required."; return }
+    if (-not $UserID) { Write-Error "$MyTag The -UserID parameter is required."; return }
+    if (-not $Provider) { Write-Error "$MyTag The -Provider parameter is required."; return }
+    if (-not $AuthenticationTime) { Write-Error "The -AuthenticationTime parameter is required."; return }
+    if (-not $LogonExpires) { Write-Error "$MyTag The -LogonExpires parameter is required."; return }
+    if (-not $UserAgent) { Write-Error "$MyTag The -UserAgent parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Sanitize-SqlQueryString -String $SessionID"
     $safeSessionID = Sanitize-SqlQueryString -String $SessionID
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Sanitize-SqlQueryString"
 
     # Check if session exists
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Get-LoginSession -SessionID $safeSessionID"
     $existing = Get-LoginSession -SessionID $safeSessionID
-    
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Get-LoginSession"
+
     $data = @{
         SessionID = $safeSessionID
         UserID = Sanitize-SqlQueryString -String $UserID
@@ -777,19 +903,32 @@ function Set-LoginSession {
         # Update
         $updatePairs = $data.Keys | ForEach-Object { "$_ = '$($data[$_])'" } | Join-String -Separator ', '
         $query = "UPDATE LoginSessions SET $updatePairs WHERE SessionID = '$safeSessionID';"
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Invoke-PSWebSQLiteNonQuery -File '$dbFile' -Query `n`t$query"
+        write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Updating login session for SessionID '$SessionID'." -Data @{ SessionID = $SessionID; UserID = $UserID }
         Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Invoke-PSWebSQLiteNonQuery"
     } else {
         # Insert
-        Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'INSERT' -TableName 'LoginSessions' -Data $data
+        $columns = ($data.Keys | ForEach-Object { "`"$_`"" }) -join ", "
+        $values = $data.Keys | ForEach-Object { "'$($data[$_])'" } | Join-String -Separator ', '
+        $query = "INSERT INTO LoginSessions ($columns) VALUES ($values);"
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Invoke-PSWebSQLiteNonQuery -File '$dbFile' -Query `n`t$query"
+        write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Creating new login session for SessionID '$SessionID'." -Data @{ SessionID = $SessionID; UserID = $UserID }
+        Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Invoke-PSWebSQLiteNonQuery"
     }
 }
 
 function Get-LastLoginAttempt {
     param([string]$IPAddress)
+    $MyTag = "[Get-LastLoginAttempt]"
+    if (-not $IPAddress) { Write-Error "$MyTag The -IPAddress parameter is required."; return }
     $safeIP = Sanitize-SqlQueryString -String $IPAddress
     $query = "SELECT * FROM LastLoginAttempt WHERE IPAddress = '$safeIP' ORDER BY Time DESC LIMIT 1;"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
     Get-PSWebSQLiteData -File $dbFile -Query $query
+    write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Get-PSWebSQLiteData"
 }
 
 function Set-LastLoginAttempt {
@@ -802,6 +941,7 @@ function Set-LastLoginAttempt {
         [int]$UserViolationsCount,
         [int]$IPViolationCount
     )
+    $MyTag = "[Set-LastLoginAttempt]"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     
     # Sanitize inputs
@@ -813,18 +953,28 @@ function Set-LastLoginAttempt {
 
     # Construct the INSERT OR REPLACE query manually
     $query = "INSERT OR REPLACE INTO LastLoginAttempt (IPAddress, Username, Time, UserNameLockedUntil, IPAddressLockedUntil, UserViolationsCount, IPViolationCount) VALUES ('$safeIPAddress', '$safeUsername', '$unixTime', $unixUserLock, $unixIPLock, $UserViolationsCount, $IPViolationCount);"
-    
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Callling: Invoke-PSWebSQLiteNonQuery -File '$dbFile' -Query `n`t$query"
+    write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Setting last login attempt for IP '$IPAddress' and Username '$Username'." -Data @{ IPAddress = $IPAddress; Username = $Username; Time = $Time; UserNameLockedUntil = $UserNameLockedUntil; IPAddressLockedUntil = $IPAddressLockedUntil; UserViolationsCount = $UserViolationsCount; IPViolationCount = $IPViolationCount }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Invoke-PSWebSQLiteNonQuery"
 }
 
 function Get-CardSettings {
-    param([string]$EndpointGuid, [string]$UserId)
+    param(
+        [string]$EndpointGuid, 
+        [string]$UserId
+    )
+    $MyTag = "[Get-CardSettings]"
+    if (-not $EndpointGuid) { Write-Error "$MyTag The -EndpointGuid parameter is required."; return }
+    if (-not $UserId) { Write-Error "$MyTag The -UserId parameter is required."; return }
     $safeGuid = Sanitize-SqlQueryString -String $EndpointGuid
     $safeUser = Sanitize-SqlQueryString -String $UserId
     # This table/logic is a guess based on the function name
     $query = "SELECT SettingsJson FROM card_settings WHERE UserID = '$safeUser' AND EndpointGuid = '$safeGuid';"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+    write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
     $result = Get-PSWebSQLiteData -File $dbFile -Query $query
+    write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Get-PSWebSQLiteData"
     if ($result) {
         return $result.SettingsJson
     }
@@ -839,6 +989,11 @@ function Set-CardSession {
         [string]$DataBackend,
         [string]$CardDefinition
     )
+    $MyTag = "[Set-CardSession]"
+    if (-not $SessionID) { Write-Error "$MyTag The -SessionID parameter is required."; return }
+    if (-not $UserID) { Write-Error "$MyTag The -UserID parameter is required."; return }
+    if (-not $CardGUID) { Write-Error "$MyTag The -CardGUID parameter is required."; return }
+    if (-not $DataBackend) { Write-Error "$MyTag The -DataBackend parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $data = @{
         SessionID = Sanitize-SqlQueryString -String $SessionID
@@ -846,16 +1001,33 @@ function Set-CardSession {
         CardGUID = Sanitize-SqlQueryString -String $CardGUID
         DataBackend = Sanitize-SqlQueryString -String $DataBackend
         CardDefinition = Sanitize-SqlQueryString -String $CardDefinition # Assuming this is already compressed/encoded
-        Timestamp = (Get-Date -UFormat %s)
     }
     # This table name is a guess
-    Invoke-PSWebSQLiteNonQuery -File $dbFile -Verb 'INSERT' -TableName 'CardSessions' -Data $data
+    $columns = ($data.Keys | ForEach-Object { "`"$_`"" }) -join ", "
+    $values = $data.Values | ForEach-Object {
+        if ($_ -is [string]) {
+            "'$_'" # Already sanitized
+        } else {
+            $_
+        }
+    }
+    $valuesString = $values -join ", "
+    $query = "INSERT OR REPLACE INTO CardSessions ($columns) VALUES ($valuesString);"
+    write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Invoke-PSWebSQLiteNonQuery -File '$dbFile' -Query `n`t$query"
+    write-PSWebHostLog -Severity 'Info' -Category 'CardSession' -Message "Setting card session for SessionID '$SessionID', UserID '$UserID', CardGUID '$CardGUID'." -Data @{ SessionID = $SessionID; UserID = $UserID; CardGUID = $CardGUID }
+    Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Invoke-PSWebSQLiteNonQuery" 
 }
 
 function Remove-LoginSession {
     param([string]$SessionID)
+    $MyTag = "[Remove-LoginSession]"
+    if (-not $SessionID) { Write-Error "$MyTag The -SessionID parameter is required."; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeSessionID = Sanitize-SqlQueryString -String $SessionID
     $query = "DELETE FROM LoginSessions WHERE SessionID = '$safeSessionID';"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Invoke-PSWebSQLiteNonQuery -File '$dbFile' -Query `n`t$query"
+    write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Removing login session for SessionID '$SessionID'." -Data @{ SessionID = $SessionID }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Invoke-PSWebSQLiteNonQuery"
 }

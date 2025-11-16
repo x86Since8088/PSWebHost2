@@ -37,9 +37,19 @@ begin {
         while($true) {
             $splat = @{}
             $PSBoundParameters.Keys|Where-Object{$_ -ne 'ReloadOnScriptUpdate'}|ForEach-Object{$splat[$_]=$PSBoundParameters[$_]}
-            [string[]]$ArgumentList = @("-ExecutionPolicy","RemoteSigned","-Command", "$PSScriptRoot\WebHost.ps1", "-StopOnScriptUpdate") +  ($splat.keys|ForEach-Object{$_,$splat[$_]}) +
+            [string[]]$ArgumentList = @("-ExecutionPolicy","RemoteSigned","-Command", "$PSScriptRoot\WebHost.ps1", "-StopOnScriptUpdate") +  
+                (
+                    $splat.keys|ForEach-Object{
+                        if ($PSBoundParameters[$_] -is [switch]) {
+                            "-$_`:([bool]$([int]$splat[$_].ispresent))"
+                        }
+                        else {
+                            "-$_",$splat[$_]
+                        }
+                    }
+                ) + '2>&1 |' +
             {
-                2>&1 |Where-Object{$_}|ForEach-Object{
+                Where-Object{$_}|ForEach-Object{
                     .{
                         $OutputItem = $_ 
                         if ($OutputItem -is [System.Management.Automation.ErrorRecord]) {
@@ -162,7 +172,7 @@ end {
                 $Logpos = 0
             }
             if ([int]$Logpos -lt $LogEnd) {
-                $LogPos .. ($LogEnd -1)|ForEach-Object{$PSWebHostLogQueue[$_]}| Select-Object * | Format-Table -AutoSize -Wrap
+                $LogPos .. ($LogEnd -1)|ForEach-Object{$PSWebHostLogQueue[$_]}| Select-Object * | Format-Table -AutoSize -Wrap | Out-String
                 $Logpos = $LogEnd
             }
 

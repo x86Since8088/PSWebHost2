@@ -9,13 +9,14 @@ function Get-RequestBody {
     param (
         [System.Net.HttpListenerRequest]$Request
     )
+    $MyTag = "[Get-RequestBody]"
     if ($Request.HasEntityBody) {
         $reader = $null
         try {
             $reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
             return $reader.ReadToEnd()
         } catch {
-            Write-Error "Failed to read request body. Error: $_ "
+            Write-Error "$MyTag Failed to read request body. Error: $_ "
             return $null
         } finally {
             if ($reader) {
@@ -33,6 +34,8 @@ function ConvertTo-CompressedBase64 {
     param (
         [string]$InputString
     )
+    $MyTag = "[ConvertTo-CompressedBase64]"
+    $compressedBytes = $null
     $memStream = $null
     $gzipStream = $null
     try {
@@ -42,10 +45,10 @@ function ConvertTo-CompressedBase64 {
         $gzipStream.Write($inputBytes, 0, $inputBytes.Length)
         $gzipStream.Close() # Closing the GZipStream also flushes it.
         $compressedBytes = $memStream.ToArray()
-        return [System.Convert]::ToBase64String($compressedBytes)
+        [System.Convert]::ToBase64String($compressedBytes)
     } catch {
-        Write-Error "Failed to compress string. Error: $_ "
-        return $null
+        Write-Error "$MyTag Failed to compress string. Error: $_ "
+        $null
     } finally {
         if ($gzipStream) { $gzipStream.Dispose() }
         if ($memStream) { $memStream.Dispose() }
@@ -53,6 +56,7 @@ function ConvertTo-CompressedBase64 {
 }
 
 function Set-PSWebSession {
+    [cmdletbinding()]
     param (
         [string]$SessionID,
         [string]$UserID,
@@ -61,7 +65,7 @@ function Set-PSWebSession {
         [string]$Provider,
         [System.Net.HttpListenerRequest]$Request
     )
-
+    $MyTag = '[Set-PSWebSession]'
     $sessionData = Get-PSWebSessions -SessionID $SessionID
 
     if ($UserID) { $sessionData.UserID = $UserID }
@@ -73,15 +77,17 @@ function Set-PSWebSession {
     $sessionData.AuthTokenExpiration = (Get-Date).AddDays(7)
     $sessionData.LastUpdated = Get-Date
 
-    Set-LoginSession -SessionID $SessionID -UserID $sessionData.UserID -Provider $sessionData.Provider -AuthenticationTime $sessionData.LastUpdated -LogonExpires $sessionData.AuthTokenExpiration -UserAgent $sessionData.UserAgent
-
-    Write-Verbose "Updated session data for UserID: $UserID" -Verbose
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Set-LoginSession -SessionID '$SessionID' -UserID '$($sessionData.UserID)' -Provider '$($sessionData.Provider)' -AuthenticationTime '$($sessionData.LastUpdated)' -LogonExpires '$($sessionData.AuthTokenExpiration)' -UserAgent '$($sessionData.UserAgent)' | Out-Null"
+    Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "Setting PSWeb session for SessionID '$SessionID', UserID '$($sessionData.UserID)'." -Data @{ SessionID = $SessionID; UserID = $sessionData.UserID; Provider = $sessionData.Provider; UserAgent = $sessionData.UserAgent; AuthTokenExpiration = $sessionData.AuthTokenExpiration } -WriteHost:$Verbose.ispresent
+    Set-LoginSession -SessionID $SessionID -UserID $sessionData.UserID -Provider $sessionData.Provider -AuthenticationTime $sessionData.LastUpdated -LogonExpires $sessionData.AuthTokenExpiration -UserAgent $sessionData.UserAgent | Out-Null
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Set-LoginSession" -Verbose
 }
 
 function Get-PSWebSessions {
     param (
         [string]$SessionID
     )
+    $MyTag = '[Get-PSWebSessions]'
     if ($null -eq $global:PSWebSessions[$SessionID]) {
         # Try to load from DB
         $loginSession = Get-LoginSession -SessionID $SessionID
@@ -110,7 +116,7 @@ function Get-PSWebSessions {
             }) 
         }
         else {
-            # Not in DB, create new
+            # Not in DB, create new session
             $global:PSWebSessions[$SessionID] = [hashtable]::Synchronized(@{})
         }
     }
@@ -144,10 +150,14 @@ function Remove-PSWebSession {
     param (
         [string]$SessionID
     )
+    $MyTag = '[Remove-PSWebSession]'
     if ($global:PSWebSessions.ContainsKey($SessionID)) {
         $global:PSWebSessions.Remove($SessionID)
     }
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Remove-LoginSession -SessionID '$SessionID'" -Verbose
+    Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "Removing PSWeb session for SessionID '$SessionID'." -Data @{ SessionID = $SessionID }
     Remove-LoginSession -SessionID $SessionID
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Remove-LoginSession" -Verbose
 }
 
 
@@ -157,22 +167,27 @@ function Validate-UserSession {
         [System.Net.HttpListenerContext]$Context,
         [string]$SessionID = $Context.Request.Cookies["PSWebSessionID"].Value
     )
+    $MyTag = '[Validate-UserSession]'
     [switch]$Verbose = $PSBoundParameters['Verbose']
     $SessionData = Get-PSWebSessions -SessionID $SessionID
 
     if (-not $SessionID) {
-        if ($Verbose.IsPresent){Write-Verbose -Message "`t[Validate-UserSession] No session ID provided."}
+        if ($Verbose.IsPresent){
+            Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "$MyTag No session ID provided."
+        }
         return $false 
     }
 
     if (-not $SessionData -or -not $SessionData.Roles -or -not ($SessionData.Roles -contains "authenticated")) {
-        if ($Verbose.IsPresent){Write-Verbose -Message "`t[Validate-UserSession] User is not authenticated.`n`t`tSessionID: $(($SessionID|Inspect-Object -Depth 4| ConvertTo-YAML) -split '
-' -notmatch '^	*Type:' -join "`n`t`t`t")"}
+        if ($Verbose.IsPresent){
+            Write-Verbose -Message "`t$MyTag $(Get-Date -f 'yyyMMdd HH:mm:ss') User is not authenticated.`n`t`tSessionID: $(($SessionID|Inspect-Object -Depth 4| ConvertTo-YAML) -split '\n' -notmatch '^	*Type:' -join "`n`t`t`t")"
+            Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "$MyTag User is not authenticated. SessionID: '$SessionID'." -WriteHost:$Verbose.ispresent
+        }
         return $false
     }
 
     if ($SessionData.AuthTokenExpiration -lt (Get-Date)) {
-        Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "Expired auth token for SessionID '$SessionID'." -WriteHost:$Verbose.ispresent
+        Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "$MyTag Expired auth token for SessionID '$SessionID'." -WriteHost:$Verbose.ispresent
         return $false
     }
 
@@ -204,7 +219,7 @@ function Process-HttpRequest {
         [switch]$Async = $Async.ispresent,
         $HostUIQueue = $HostUIQueue
     )
-
+    $MyTag = '[Process-HttpRequest]'
     try{$global:PSWebHostLogQueue = $using:global:PSWebHostLogQueue}catch{}
     try{$global:PSWebServer       = $using:global:PSWebServer      }catch{}
     try{$global:PSWebSessions     = $using:global:PSWebSessions    }catch{}
@@ -230,7 +245,7 @@ function Process-HttpRequest {
         }
     }
 
-    Write-Verbose "[Process-HttpRequest] $httpMethod $requestedPath"
+    Write-Verbose "$MyTag $(Get-Date -f 'yyyMMdd HH:mm:ss') $httpMethod $requestedPath"
     $sessionCookie = $request.Cookies["PSWebSessionID"]
     if ($sessionCookie) {
         $sessionID = $sessionCookie.Value
@@ -263,7 +278,7 @@ function Process-HttpRequest {
     }
 
     $session = Get-PSWebSessions -SessionID $sessionID
-    Write-Verbose "`t[Process-HttpRequest] Session: $($sessionID) UserID: $($session.UserID)"
+    Write-Verbose "`t$MyTag $(Get-Date -f 'yyyMMdd HH:mm:ss') Session: $($sessionID) UserID: $($session.UserID)"
 
     if ($requestedPath.StartsWith("/public", [System.StringComparison]::OrdinalIgnoreCase)) {
         $handled = $true
@@ -272,13 +287,14 @@ function Process-HttpRequest {
             context_reponse -Response $response -Path $sanitizedPath.Path
             return
         } else {
-            Write-PSWebHostLog -Message "`t[Process-HttpRequest]  $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
+            Write-PSWebHostLog -Message "`t$MyTag $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
             context_reponse -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
             return
         }
     }
 
     if (-not $handled -and $requestedPath -eq "/" -and $httpMethod -eq "get") {
+        Write-PSWebHostLog -Severity 'Info' -Category 'Routing' -Message "$MyTag Redirecting '/' to '/spa'" -WriteHost:$Verbose.ispresent
         context_reponse -Response $response -StatusCode 302 -RedirectLocation "/spa"
         $handled = $true
     }

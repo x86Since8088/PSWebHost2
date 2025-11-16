@@ -1,11 +1,14 @@
+[cmdletbinding()]
 param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request=$Context.Request,
     [System.Net.HttpListenerResponse]$Response=$Context.Response
 )
+$MyTag = '[routes\api\v1\authprovider\windows\post.ps1]'
 # Import required modules
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Authentication/PSWebHost_Authentication.psm1") -DisableNameChecking
+
+Import-Module PSWebHost_Authentication -DisableNameChecking
+Import-Module PSWebHost_Database -DisableNameChecking
 
 # Helper function to create a JSON response
 function New-JsonResponse($status, $message) {
@@ -72,22 +75,28 @@ try {
     # 3. Attempt Authentication
     $credential = New-Object System.Management.Automation.PSCredential($username, (ConvertTo-SecureString $password -AsPlainText -Force))
     $AuthTestScript = Join-Path $global:PSWebServer.Project_Root.Path "\system\auth\Test-PSWebWindowsAuth.ps1"
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Running '\system\auth\Test-PSWebWindowsAuth.ps1'" 
     $isAuthenticated = & $AuthTestScript -credential $credential
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed '\system\auth\Test-PSWebWindowsAuth.ps1'" 
 
     if ($isAuthenticated) {
         # --- On Success ---
-        Write-Verbose "[windows/post.ps1] Authentication successful for $UserPrincipalName."
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Authentication successful for $UserPrincipalName."
         
         # MFA FLOW DISABLED - Completing login directly.
-        Write-Warning "MFA check has been temporarily disabled in this route."
+        Write-Warning "$MyTag MFA check has been temporarily disabled in this route."
+
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Set-PSWebSession -SessionID `$sessionID -UserID $UserPrincipalName -Provider 'Windows' -Request `$Request"
         Set-PSWebSession -SessionID $sessionID -UserID $UserPrincipalName -Provider 'Windows' -Request $Request
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Set-PSWebSession"
 
         $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
         context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
-
     } else {
         # --- On Failure ---
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: PSWebLogon -ProviderName "Windows" -Result "Fail" -Request `$Request -UserID $username"
         PSWebLogon -ProviderName "Windows" -Result "Fail" -Request $Request -UserID $username
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: PSWebLogon"
         
         $jsonResponse = New-JsonResponse -status 'fail' -message '<p class="error">Authentication failed. Please check your credentials.</p>'
         context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
