@@ -761,7 +761,7 @@ function PSWebLogon {
         # Record successful login session
         if ($sessionID) {
             $logonExpires = $now.AddHours(8) # Example: Session expires in 8 hours
-            Set-LoginSession -SessionID $sessionID -UserID $UserID -Provider $ProviderName -AuthenticationTime $now -LogonExpires $logonExpires -UserAgent $Request.UserAgent 
+            Set-LoginSession -SessionID $sessionID -UserID $UserID -Provider $ProviderName -AuthenticationTime -AuthenticationState 'Authenticated' $now -LogonExpires $logonExpires -UserAgent $Request.UserAgent 
         }
         Write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Login successful for user '$UserID' from IP '$ipAddress' via '$ProviderName'." -Data @{ UserID = $UserID; IPAddress = $ipAddress; Provider = $ProviderName; Result = $Result }
     }
@@ -944,16 +944,18 @@ function Set-LoginSession {
         [string]$UserID,
         [string]$Provider,
         [datetime]$AuthenticationTime,
+        [string]$AuthenticationState,
         [datetime]$LogonExpires,
         [string]$UserAgent
     )
     $MyTag = '[Set-LoginSession]'
-    if (-not $SessionID) { Write-Error "$MyTag The -SessionID parameter is required."; return }
-    if (-not $UserID) { Write-Error "$MyTag The -UserID parameter is required."; return }
-    if (-not $Provider) { Write-Error "$MyTag The -Provider parameter is required."; return }
-    if (-not $AuthenticationTime) { Write-Error "The -AuthenticationTime parameter is required."; return }
-    if (-not $LogonExpires) { Write-Error "$MyTag The -LogonExpires parameter is required."; return }
-    if (-not $UserAgent) { Write-Error "$MyTag The -UserAgent parameter is required."; return }
+    if (-not $SessionID) { Write-PSWebHostLog -Severity Error -Category 'Set-LoginSession_Parameter' -message "$MyTag The -SessionID parameter is required." -WriteHost -ForegroundColor Red; return }
+    if (-not $UserID) { Write-PSWebHostLog -Severity Error -Category 'Set-LoginSession_Parameter' -message "$MyTag The -UserID parameter is required." -WriteHost -ForegroundColor Red  ; return }
+    if (-not $Provider) { Write-PSWebHostLog -Severity Error -Category 'Set-LoginSession_Parameter' -message "$MyTag The -Provider parameter is required." -WriteHost -ForegroundColor Red; return }
+    if (-not $AuthenticationTime) { Write-PSWebHostLog -Severity Error -Category 'Set-LoginSession_Parameter' -message "The -AuthenticationTime parameter is required." -WriteHost -ForegroundColor Red; return }
+    # AuthenticationState may be omitted by callers; if so, preserve existing state or default to 'completed' when a UserID is provided.
+    if (-not $LogonExpires) { Write-PSWebHostLog -Severity Error -Category 'Set-LoginSession_Parameter' -message "$MyTag The -LogonExpires parameter is required." -WriteHost -ForegroundColor Red; return }
+    if (-not $UserAgent) { Write-PSWebHostLog -Severity Error -Category 'Set-LoginSession_Parameter' -message "$MyTag The -UserAgent parameter is required." -WriteHost -ForegroundColor Red; return }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Sanitize-SqlQueryString -String $SessionID"
     $safeSessionID = Sanitize-SqlQueryString -String $SessionID
@@ -964,11 +966,23 @@ function Set-LoginSession {
     $existing = Get-LoginSession -SessionID $safeSessionID
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Get-LoginSession"
 
+    if (-not $AuthenticationState -or $AuthenticationState -eq '') {
+        if ($existing -and $existing.AuthenticationState) {
+            $AuthenticationState = $existing.AuthenticationState
+        } elseif ($UserID -and $UserID.Trim() -ne '') {
+            # If a UserID is being set but no state provided, assume completed
+            $AuthenticationState = 'completed'
+        } else {
+            $AuthenticationState = ''
+        }
+    }
+
     $data = @{
         SessionID = $safeSessionID
         UserID = Sanitize-SqlQueryString -String $UserID
         Provider = Sanitize-SqlQueryString -String $Provider
         AuthenticationTime = ($AuthenticationTime | Get-Date -UFormat %s)
+        AuthenticationState = $AuthenticationState
         LogonExpires = ($LogonExpires | Get-Date -UFormat %s)
         UserAgent = Sanitize-SqlQueryString -String $UserAgent
     }
@@ -1043,15 +1057,31 @@ function Get-CardSettings {
     if (-not $UserId) { Write-Error "$MyTag The -UserId parameter is required."; return }
     $safeGuid = Sanitize-SqlQueryString -String $EndpointGuid
     $safeUser = Sanitize-SqlQueryString -String $UserId
-    # This table/logic is a guess based on the function name
-    $query = "SELECT SettingsJson FROM card_settings WHERE UserID = '$safeUser' AND EndpointGuid = '$safeGuid';"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
-    write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
-    $result = Get-PSWebSQLiteData -File $dbFile -Query $query
-    write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Get-PSWebSQLiteData"
-    if ($result) {
-        return $result.SettingsJson
+
+    # Read JSON from the `data` column (alias it as SettingsJson for compatibility)
+    $query = "SELECT data AS SettingsJson FROM card_settings WHERE user_id = '$safeUser' AND endpoint_guid = '$safeGuid' LIMIT 1;"
+    write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: $query"
+    try {
+        $result = Get-PSWebSQLiteData -File $dbFile -Query $query -ErrorAction Stop
+        write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed data query"
+    } catch {
+        Write-PSWebHostLog -Severity Error -Category 'SQLData' -message "$MyTag Data column query failed: $($_.Exception.Message)" -WriteHost -ForegroundColor Red
+        return $null
     }
+
+    if ($result) {
+        $row = if ($result -is [System.Array]) { $result[0] } else { $result }
+        if ($row.PSObject.Properties.Name -contains 'SettingsJson') {
+            return $row.SettingsJson
+        } elseif ($row.PSObject.Properties.Name -contains 'data') {
+            return $row.data
+        } else {
+            $firstProp = $row.PSObject.Properties | Select-Object -First 1
+            return $firstProp.Value
+        }
+    }
+
     return $null
 }
 

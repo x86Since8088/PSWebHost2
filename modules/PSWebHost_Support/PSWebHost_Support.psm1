@@ -69,17 +69,47 @@ function Set-PSWebSession {
     $sessionData = Get-PSWebSessions -SessionID $SessionID
 
     if ($UserID) { $sessionData.UserID = $UserID }
-    if ($Roles) { $sessionData.Roles = @($Roles) }
-    if ($RemoveRoles) { $sessionData.Roles.RemoveAll( { param($item) $RemoveRoles -contains $item } ) }
+    # Normalize Roles to an ArrayList when provided
+    if ($Roles) {
+        if ($Roles -is [System.Collections.ArrayList]) {
+            $alist = $Roles
+        } else {
+            $alist = [System.Collections.ArrayList]::new()
+            foreach ($r in $Roles) { if ($r -and $r.Trim() -ne '') { [void]$alist.Add($r) } }
+        }
+        $sessionData.Roles = $alist
+    }
+    if ($RemoveRoles) {
+        if ($null -eq $sessionData.Roles) { $sessionData.Roles = [System.Collections.ArrayList]::new() }
+        if ($sessionData.Roles -isnot [System.Collections.ArrayList]) { $sessionData.Roles = [System.Collections.ArrayList]@($sessionData.Roles) }
+        foreach ($rr in $RemoveRoles) { $null = $sessionData.Roles.Remove($rr) }
+    }
     if ($Request) { $sessionData.UserAgent = $Request.UserAgent }
     if ($Provider) { $sessionData.Provider = $Provider }
     
     $sessionData.AuthTokenExpiration = (Get-Date).AddDays(7)
     $sessionData.LastUpdated = Get-Date
 
+    # Ensure Roles exists and reflects authentication status
+    if (-not $sessionData.Roles) { $sessionData.Roles = [System.Collections.ArrayList]::new(); $null = $sessionData.Roles.Add('unauthenticated') }
+    if ($sessionData.UserID -and $sessionData.UserID.Trim() -ne '' -and $sessionData.UserID -ne 'pending') {
+        if (-not ($sessionData.Roles -contains 'authenticated')) { [void]$sessionData.Roles.Add('authenticated') }
+        if ($sessionData.Roles -contains 'unauthenticated') { $null = $sessionData.Roles.Remove('unauthenticated') }
+        # Mark session as authenticated unless already marked completed/authenticated
+        if (-not $sessionData.AuthenticationState -or $sessionData.AuthenticationState -notin @('completed','authenticated')) {
+            $sessionData.AuthenticationState = 'authenticated'
+        }
+    } else {
+        # ensure unauthenticated role present
+        if (-not ($sessionData.Roles -contains 'unauthenticated')) { [void]$sessionData.Roles.Add('unauthenticated') }
+        if ($sessionData.Roles -contains 'authenticated') { $null = $sessionData.Roles.Remove('authenticated') }
+        # Clear authentication state for anonymous sessions
+        if ($sessionData.AuthenticationState) { $sessionData.AuthenticationState = '' }
+    }
+
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Set-LoginSession -SessionID '$SessionID' -UserID '$($sessionData.UserID)' -Provider '$($sessionData.Provider)' -AuthenticationTime '$($sessionData.LastUpdated)' -LogonExpires '$($sessionData.AuthTokenExpiration)' -UserAgent '$($sessionData.UserAgent)' | Out-Null"
     Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "Setting PSWeb session for SessionID '$SessionID', UserID '$($sessionData.UserID)'." -Data @{ SessionID = $SessionID; UserID = $sessionData.UserID; Provider = $sessionData.Provider; UserAgent = $sessionData.UserAgent; AuthTokenExpiration = $sessionData.AuthTokenExpiration } -WriteHost:$Verbose.ispresent
-    Set-LoginSession -SessionID $SessionID -UserID $sessionData.UserID -Provider $sessionData.Provider -AuthenticationTime $sessionData.LastUpdated -LogonExpires $sessionData.AuthTokenExpiration -UserAgent $sessionData.UserAgent | Out-Null
+    Set-LoginSession -SessionID $SessionID -UserID $sessionData.UserID -Provider $sessionData.Provider -AuthenticationTime $sessionData.LastUpdated -LogonExpires $sessionData.AuthTokenExpiration  -AuthenticationState $sessionData.AuthenticationState -UserAgent $sessionData.UserAgent | Out-Null
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Set-LoginSession" -Verbose
 }
 
@@ -93,7 +123,7 @@ function Get-PSWebSessions {
         $loginSession = Get-LoginSession -SessionID $SessionID
         if ($loginSession) {
             $roles = [System.Collections.ArrayList]@()
-            if ($loginSession.AuthenticationState -eq 'completed' -and $loginSession.UserID -ne 'pending') {
+            if ($loginSession.AuthenticationState -in @('completed','authenticated') -and $loginSession.UserID -and $loginSession.UserID -ne 'pending') {
                 $roles.Add('authenticated')
                 $user = Get-PSWebUser -UserID $loginSession.UserID
                 if ($user) {
@@ -199,7 +229,7 @@ function Validate-UserSession {
         # Save the current UserAgent to the session.
         $SessionData.UserAgent = $requestUserAgent
         # Also persist this to the database record for the session.
-        Set-LoginSession -SessionID $SessionID -UserID $SessionData.UserID -Provider $SessionData.Provider -AuthenticationTime $SessionData.LastUpdated -LogonExpires $SessionData.AuthTokenExpiration -UserAgent $requestUserAgent
+        Set-LoginSession -SessionID $SessionID -UserID $SessionData.UserID -Provider $SessionData.Provider -AuthenticationTime $SessionData.LastUpdated -AuthenticationState 'New' -LogonExpires $SessionData.AuthTokenExpiration -UserAgent $requestUserAgent
         Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "First User-Agent seen for SessionID '$SessionID'. Setting to: '$requestUserAgent'."
     }
     elseif ($SessionData.UserAgent -ne $requestUserAgent) {
@@ -388,6 +418,7 @@ function Process-HttpRequest {
                         if ($guid -and $session.UserID) {
                             Write-Verbose "$MyTag Retrieving card settings for GUID: $guid, UserID: $($session.UserID)"
                             $cardSettingsData = Get-CardSettings -EndpointGuid $guid -UserId $session.UserID
+                            Write-Host -Message "$MyTag Retrieved -EndpointGuid $guid -UserId $($session.UserID) card settings data: $cardSettingsData"
                             if ($cardSettingsData) {
                                 try {
                                     Write-Verbose "$MyTag Decompressing card settings data"
@@ -465,8 +496,23 @@ function Write-PSWebHostLog {
         [string]$UserID = $Session.UserID,
         [string]$SessionID = $SessionID,
         [switch]$WriteHost,
-        [string]$State = 'Unspecified'
+        [string]$State = 'Unspecified',
+        [string]$ForeGroundColor,
+        [string]$BackGroundColor = $host.UI.RawUI.BackgroundColor
     )
+    if ($WriteHost.IsPresent) {
+        if ($ForeGroundColor -eq '') {
+            if ($Severity -eq 'Critical' -or $Severity -eq 'Error') {
+                $ForeGroundColor = 'Red'
+            } elseif ($Severity -eq 'Warning') {
+                $ForeGroundColor = 'Yellow'
+            } elseif ($Severity -eq 'Info') {
+                $ForeGroundColor = 'Green'
+            } else {
+                $ForeGroundColor = $host.UI.RawUI.ForegroundColor
+            }
+        }
+    }
     $date = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss.fff")
     $escapedMessage = [regex]::Escape($Message)
     $dataString = ""
@@ -522,7 +568,7 @@ function Write-PSWebHostLog {
                     }
                 }
             }
-        Write-Host ($(($Callstack | Format-List -Property *|Out-String).trim('\s')))
+        Write-Host ($(($Callstack | Format-List -Property *|Out-String).trim('\s'))) -ForegroundColor $ForeGroundColor -BackgroundColor $BackGroundColor
         Write-Host $logEntry
     }
 }
@@ -719,12 +765,15 @@ function Sync-SessionStateToDatabase {
     param()
     foreach ($sessionID in ($global:PSWebSessions.Keys|Where-Object{$_ -match '\w'})) {
         $session = $global:PSWebSessions[$sessionID]
+        if ($session.AuthenticationState -notmatch '\w' -and ((get-date) -lt $session.AuthTokenExpiration)) {
+            $session.AuthenticationState = 'Authenticated'
+        }
         if ($session.LastUpdated) {
             $dbSession = Get-LoginSession -SessionID $sessionID
             if ($dbSession) {
                 $dbLastUpdated = [datetimeoffset]::FromUnixTimeSeconds([int64]$dbSession.AuthenticationTime).DateTime
                 if ($session.LastUpdated -gt $dbLastUpdated) {
-                    Set-LoginSession -SessionID $sessionID -UserID $session.UserID -Provider $session.Provider -AuthenticationTime $session.LastUpdated -LogonExpires $session.AuthTokenExpiration -UserAgent $session.UserAgent | Out-Null
+                    Set-LoginSession -SessionID $sessionID -UserID $session.UserID -Provider $session.Provider -AuthenticationTime $session.LastUpdated -AuthenticationState $session.AuthenticationState -LogonExpires $session.AuthTokenExpiration -UserAgent $session.UserAgent | Out-Null
                 }
             }
         }

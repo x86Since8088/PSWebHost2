@@ -9,7 +9,11 @@
         'Get-PSWebSQLiteData',
         'Invoke-PSWebSQLiteNonQuery',
         'New-PSWebSQLiteData',
-        'Sanitize-SqlQueryString'
+        'Sanitize-SqlQueryString',
+        'Invoke-TestToken',
+        'Get-PSWebUser',
+        'Set-PSWebUser',
+        'Set-PSWebHostRole'
     )
     RootModule = 'PSWebHost_Database.psm1'
     RequiredModules = @()

@@ -96,7 +96,7 @@ try {
         Write-Warning "$MyTag MFA check has been temporarily disabled in this route."
 
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Set-PSWebSession -SessionID `$sessionID -UserID $UserPrincipalName -Provider 'Windows' -Request `$Request"
-        Set-PSWebSession -SessionID $sessionID -UserID $UserPrincipalName -Provider 'Windows' -Request $Request
+        Set-PSWebSession -SessionID $sessionID -UserID $UserPrincipalName -Provider 'Windows' -Request $Request -
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Set-PSWebSession"
 
         $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"

@@ -7,6 +7,7 @@ param (
 # Import required modules
 Import-Module PSWebHost_Support -DisableNameChecking
 Import-Module PSWebHost_Database -DisableNameChecking
+Import-Module PSWebHost_Authentication -DisableNameChecking
 # Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "system/auth/TestToken.ps1") -DisableNameChecking
 
 
