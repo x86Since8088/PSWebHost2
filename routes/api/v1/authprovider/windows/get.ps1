@@ -4,13 +4,13 @@ param (
     [System.Net.HttpListenerResponse]$Response = $Context.Response
 )
 
+
+
 #Get State and RedirectTo from query parameters
-$sessionID
 $state = $Request.QueryString["state"]
 $redirectTo = $Request.QueryString["RedirectTo"]
 
 # Check if the user is authenticated
-
 $sessionID = $request.Cookies["PSWebSessionID"].Value
 $SessionData = Get-PSWebSessions -SessionID $sessionID
 $isSessionValid = Validate-UserSession -Context $Context -Verbose

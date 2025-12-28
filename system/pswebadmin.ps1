@@ -26,7 +26,12 @@ param(
 
     # Database Management
     [switch]$ValidateDatabase,
-    [switch]$BackupDatabase
+    [switch]$BackupDatabase,
+
+    # Config/Test/Automation
+    [switch]$TestConfig,
+    [switch]$DryRun,
+    [switch]$Confirm = $true
 )
 $ScriptRoot = $PSScriptRoot
 $ProjectRoot = (Resolve-Path (Join-Path $ScriptRoot '..')).Path
@@ -67,7 +72,62 @@ function ConvertTo-PlainText {
 }
 
 
+
 # --- Main Logic ---
+
+# TestConfig and DryRun logic
+if ($TestConfig) {
+    Write-Verbose "Running TestConfig scan..."
+    $repoRoot = $ProjectRoot
+    $jsonFiles = Get-ChildItem -Path $repoRoot -Recurse -Filter *.json -File -ErrorAction SilentlyContinue
+    $recommendations = @()
+    foreach ($file in $jsonFiles) {
+        Write-Verbose "Checking $($file.FullName)"
+        $rec = $null
+        $parseErr = $null
+        $json = Get-Content -Raw -Path $file.FullName | ConvertFrom-Json -ErrorAction SilentlyContinue -ErrorVariable parseErr
+        if ($parseErr) {
+            $rec = [PSCustomObject]@{
+                Finding = "Invalid JSON syntax"
+                Path = $file.FullName
+                recomendation = "Fix JSON parse error. $($parseErr[0].ToString())"
+            }
+            $recommendations += $rec
+            continue
+        }
+        # Security file: missing roles
+        if ($file.FullName -match '[\\/]routes[\\/]api[\\/].*[\\/][a-z]\\.security\\.json$') {
+            if (-not $json.roles) {
+                $rec = [PSCustomObject]@{
+                    Finding = "No roles defined in security file"
+                    Path = $file.FullName
+                    recomendation = "Add required roles to this security file."
+                }
+                $recommendations += $rec
+            }
+        }
+        # Generic: empty arrays or objects in config
+        if ($file.FullName -match '[\\/]config[\\/]') {
+            foreach ($key in $json.PSObject.Properties.Name) {
+                $val = $json.$key
+                if (($val -is [System.Collections.IEnumerable] -and $val.Count -eq 0) -or ($val -is [hashtable] -and $val.Count -eq 0)) {
+                    $rec = [PSCustomObject]@{
+                        Finding = "Empty array or object in config"
+                        Path = $file.FullName
+                        recomendation = "Check config key '$key' for completeness."
+                    }
+                    $recommendations += $rec
+                }
+            }
+        }
+    }
+    $recCount = $recommendations.Count
+    $outPath = Join-Path $ProjectRoot 'system/pswebadmin_testconfig_recs.json'
+    $recommendations | ConvertTo-Json -Depth 6 | Set-Content -Path $outPath -Encoding UTF8
+    $recommendations | ForEach-Object { $_ | Write-Output }
+    Write-Host "TestConfig scan complete. Recommendations found: $recCount. Output written to $outPath"
+    return
+}
 
 # User Management
 if ($PSBoundParameters.ContainsKey('User')) {
@@ -89,11 +149,14 @@ if ($PSBoundParameters.ContainsKey('User')) {
                 return
             }
 
-            try {
-                $newUser = New-PSWebHostUser -Email $User -Password $plainPassword -ErrorAction Stop
-                Write-Verbose "User ' $($newUser.Email)' created successfully with UserID $($newUser.UserID)."
-            } catch {
-                Write-Error "Failed to create user. Error: $($_.Exception.Message)"
+            $newUserErr = $null
+            $newUser = New-PSWebHostUser -Email $User -Password $plainPassword -ErrorAction SilentlyContinue -ErrorVariable newUserErr
+            if ($newUserErr) {
+                $errMsg = $newUserErr[0].ToString()
+                $global:PSWebAdminLastResult = @{ ExitCode = 1; Message = "Failed to create user"; Error = $errMsg }
+                Write-Error "Failed to create user. Error: $errMsg"
+            } else {
+                Write-Verbose "User '$($newUser.Email)' created successfully with UserID $($newUser.UserID)."
             }
         }
         return
@@ -123,11 +186,14 @@ if ($PSBoundParameters.ContainsKey('User')) {
             return
         }
         
-        try {
-            Set-PSWebHostUserPassword -UserID $userObj.UserID -Password $plainPassword -ErrorAction Stop
+        $pwErr = $null
+        Set-PSWebHostUserPassword -UserID $userObj.UserID -Password $plainPassword -ErrorAction SilentlyContinue -ErrorVariable pwErr
+        if ($pwErr) {
+            $errMsg = $pwErr[0].ToString()
+            $global:PSWebAdminLastResult = @{ ExitCode = 1; Message = "Failed to update password"; Error = $errMsg }
+            Write-Error "Failed to update password. Error: $errMsg"
+        } else {
             Write-Verbose "Password for user '$User' has been updated successfully."
-        } catch {
-            Write-Error "Failed to update password. Error: $($_.Exception.Message)"
         }
     }
     if ($ResetMfa) {
@@ -211,10 +277,13 @@ if ($BackupDatabase) {
     $backupFileName = "pswebhost_backup_$timestamp.db"
     $backupPath = Join-Path $backupDir $backupFileName
 
-    try {
-        Copy-Item -Path $dbPath -Destination $backupPath -ErrorAction Stop
+    $cpErr = $null
+    Copy-Item -Path $dbPath -Destination $backupPath -ErrorAction SilentlyContinue -ErrorVariable cpErr
+    if ($cpErr) {
+        $errMsg = $cpErr[0].ToString()
+        $global:PSWebAdminLastResult = @{ ExitCode = 1; Message = "Failed to back up database"; Error = $errMsg }
+        Write-Error "Failed to back up database. Error: $errMsg"
+    } else {
         Write-Verbose "Database successfully backed up to: $backupPath"
-    } catch {
-        Write-Error "Failed to back up database. Error: $($_.Exception.Message)"
     }
 }

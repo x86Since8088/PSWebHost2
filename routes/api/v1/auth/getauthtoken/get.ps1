@@ -26,15 +26,13 @@ if ([string]::IsNullOrEmpty($state)) {
 $ValidateUserSession = Validate-UserSession -Context $Context -Verbose
 Write-Verbose "`tValidateUserSession: $($ValidateUserSession)"
 
-# --- BROKEN TOKEN LOGIC DISABLED ---
-Write-Warning "The token-based authentication flow is currently disabled due to incomplete implementation."
-# if ($ValidateUserSession) {
-#     context_reponse -Response $Response -StatusCode 302 -RedirectLocation "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
-#     return
-# } else {
-#     # Initiate a record for this authentication attempt
-#     Invoke-TestToken -SessionID $sessionCookie.Value -AuthenticationState 'initiated' -Provider 'GetAuthToken' -UserID 'pending' -UserAgent $Request.UserAgent -Verbose
-# }
+if ($ValidateUserSession) {
+    context_reponse -Response $Response -StatusCode 302 -RedirectLocation "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
+    return
+} else {
+    # Initiate a record for this authentication attempt
+    Invoke-TestToken -SessionID $sessionCookie.Value -AuthenticationState 'initiated' -Provider 'GetAuthToken' -UserID 'pending' -UserAgent $Request.UserAgent -Verbose
+}
 
 $provider = $Request.QueryString["Provider"]
 if (-not [string]::IsNullOrEmpty($provider)) {

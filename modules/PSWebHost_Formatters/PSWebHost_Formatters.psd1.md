@@ -13,5 +13,5 @@ This file is the PowerShell module manifest for the `PSWebHost_Formatters` modul
 
 - `Convert-ObjectToYaml`
 - `Inspect-Object`
-- `Safe-WalkObject`
+- `Get-ObjectSafeWalk`
 - `Test-Walkable`

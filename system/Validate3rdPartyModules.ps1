@@ -20,12 +20,13 @@ if (-not ($moduleDownloadDir -in ($env:PSModulePath -split ";"))) {
 # --- Bootstrap YAML module ---
 if (-not (Get-Module -ListAvailable -Name 'powershell-yaml')) {
     Write-Verbose "'powershell-yaml' module not found. Attempting to install..."
-    try {
-        Install-Module -Name 'powershell-yaml' -Repository PSGallery -Force -Scope CurrentUser -ErrorAction Stop
-        Write-Verbose "Successfully installed 'powershell-yaml'."
-    } catch {
-        Write-Error "Failed to install 'powershell-yaml'. This script cannot continue without it. Please install it manually."
+    $__err = $null
+    Install-Module -Name 'powershell-yaml' -Repository PSGallery -Force -Scope CurrentUser -ErrorAction SilentlyContinue -ErrorVariable __err
+    if ($__err) {
+        Write-Error "Failed to install 'powershell-yaml'. This script cannot continue without it. Error: $__err"
         return
+    } else {
+        Write-Verbose "Successfully installed 'powershell-yaml'."
     }
 }
 
@@ -139,7 +140,6 @@ foreach ($moduleSpec in $modulesToValidate) {
     if ($needsDownload) {
         $HighestRequiredVersion = $requiredVersion |Where-Object{$null -ne $_} | Sort-Object -Descending | Select-Object -First 1
         Write-Verbose "	Downloading '$moduleName' version '$($requiredVersion -join ', ')' from repository '$repository'..."
-        try {
             $saveParams = @{
                 Name = $moduleName
                 Repository = $repository
@@ -158,22 +158,28 @@ foreach ($moduleSpec in $modulesToValidate) {
                     $saveParams.MaximumVersion = $VersionMAX
                 }
             }
-            Save-Module @saveParams -ErrorAction Stop
-            Write-Verbose "	Successfully downloaded '$moduleName'."
-        } catch {
-            $ThisError = $_
-            if ($ThisError.Exception.Message -match "A parameter cannot be found that matches parameter name 'AcceptLicense'") {
-                $saveParams.Remove('AcceptLicense') 
-                Save-Module @saveParams -ErrorAction Continue                
-            }
-            else {
-            Write-Error "	Failed to download module '$moduleName'. Error: $($_.Exception.Message)"
-                if ($moduleSpec.URL) {
-                    Write-Warning "	Attempting direct download from $($moduleSpec.URL)..."
-                    # Add logic for direct download and extraction here if needed
+
+            $__err = $null
+            Save-Module @saveParams -ErrorAction SilentlyContinue -ErrorVariable __err
+            if ($__err) {
+                $errMsg = $__err[0].ToString()
+                if ($errMsg -match "A parameter cannot be found that matches parameter name 'AcceptLicense'") {
+                    $saveParams.Remove('AcceptLicense')
+                    $__err = $null
+                    Save-Module @saveParams -ErrorAction SilentlyContinue -ErrorVariable __err
+                    if ($__err) {
+                        Write-Error "	Failed to download module '$moduleName' after retry. Error: $__err"
+                    }
+                } else {
+                    Write-Error "	Failed to download module '$moduleName'. Error: $errMsg"
+                    if ($moduleSpec.URL) {
+                        Write-Warning "	Attempting direct download from $($moduleSpec.URL)..."
+                        # Add logic for direct download and extraction here if needed
+                    }
                 }
+            } else {
+                Write-Verbose "	Successfully downloaded '$moduleName'."
             }
-        }
     } else {
         Write-Verbose "	Module '$moduleName' is already up to date."
     }

@@ -78,22 +78,51 @@ begin {
         $port = $Global:PSWebServer.Config.WebServer.Port
         Write-Verbose "Using port from config: $port"
     }
-    $prefix = "http://+:$port/"
-    Write-Verbose "Adding prefix: $prefix"
-    $listener.Prefixes.Add($prefix)
-    Write-Verbose "Prefix '$prefix' added."
-    Write-Verbose "Setting AuthenticationSchemes to: $AuthenticationSchemes"
-    $listener.AuthenticationSchemes = [System.Net.AuthenticationSchemes]::$AuthenticationSchemes
-    Write-Verbose "AuthenticationSchemes set."
-
-    try {
-        Write-Verbose "Starting listener..."
-        $listener.Start()
-        Write-Verbose "Listener started successfully."
-        Write-Verbose "Listening on $($prefix -replace '\+:', 'localhost:')"
-    } catch {
-        Write-Error "Failed to start listener. Error: $($_.Exception.ToString())"
-        exit 1
+    
+    # Check if running as admin
+    $isAdmin = ([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+    
+    # For non-admin users, try localhost first, then fall back to +
+    $prefixesToTry = @()
+    if (-not $isAdmin) {
+        $prefixesToTry += "http://localhost:$port/"
+    }
+    $prefixesToTry += "http://+:$port/"
+    
+    $listenerStarted = $false
+    $lastError = $null
+    
+    foreach ($prefix in $prefixesToTry) {
+        try {
+            Write-Verbose "Adding prefix: $prefix"
+            $listener.Prefixes.Add($prefix)
+            Write-Verbose "Prefix '$prefix' added."
+            Write-Verbose "Setting AuthenticationSchemes to: $AuthenticationSchemes"
+            $listener.AuthenticationSchemes = [System.Net.AuthenticationSchemes]::$AuthenticationSchemes
+            Write-Verbose "AuthenticationSchemes set."
+            
+            Write-Verbose "Starting listener with prefix: $prefix"
+            $listener.Start()
+            Write-Verbose "Listener started successfully on $prefix"
+            $listenerStarted = $true
+            break
+        } catch {
+            $lastError = $_
+            Write-Verbose "Failed to bind to $prefix - Error: $($_.Exception.Message)"
+            # Dispose current listener and create a new one for next attempt
+            if ($listener) {
+                try { $listener.Dispose() } catch { }
+                $listener = New-Object System.Net.HttpListener
+            }
+        }
+    }
+    
+    if (-not $listenerStarted) {
+        $errMsg = if ($lastError) { $lastError.Exception.ToString() } else { "Unable to bind to any prefix" }
+        Write-Error "Failed to start listener. Error: $errMsg"
+        # Record failure info for callers to inspect instead of terminating the process
+        $script:ListenerStartResult = @{ ExitCode = 1; Message = $errMsg }
+        return
     }
 
     $script:ListenerInstance = $listener # Store for cleanup
@@ -127,7 +156,10 @@ end {
             if ($fileInfo -and $fileInfo.LastWriteTime -gt $moduleData.LastWriteTime) {
                 Write-Verbose "Module '$moduleName' has changed. Reloading..."
                 try {
-                    Remove-Module -Name $moduleName -Force -ErrorAction Stop
+                    Remove-Module -Name $moduleName -Force
+                    if (-not $?) {
+                        Write-Warning "Remove-Module reported failure for module '$moduleName' - continuing."
+                    }
                     $reloadedModuleInfo = Import-Module -Name $moduleData.Path -Force -PassThru -ErrorAction Continue -DisableNameChecking 2>&1
                     $newFileInfo = Get-Item -Path $moduleData.Path
                     $Global:PSWebServer.Modules[$moduleName].LastWriteTime = $newFileInfo.LastWriteTime
@@ -147,74 +179,79 @@ end {
     $lastSettingsCheck = Get-Date
     $lastSessionSync = Get-Date
     
-    try {
-        while ($script:ListenerInstance.IsListening) {
-            if ((Get-Date) - $lastSessionSync -gt [TimeSpan]::FromMinutes(1)) {
-                Sync-SessionStateToDatabase
-                $lastSessionSync = Get-Date
+    function ProcessLogQueue {
+        $LogEnd = $PSWebHostLogQueue.count
+        if ($LogEnd -lt $Logpos) {
+            $Logpos = 0
+        }
+        if ([int]$Logpos -lt $LogEnd) {
+            [array]$logEntries = $LogPos .. ($LogEnd -1)|ForEach-Object{$PSWebHostLogQueue[$_]}
+            if ($logEntries.Count) {
+                $logEntries|Tee-Object -FilePath $global:PSWebServer.LogFilePath -Append|ForEach-Object{Write-Host "`tLogging: $_"}
             }
+            $Logpos = $LogEnd
+        }
+    }
 
-            if ((Get-Date) - $lastSettingsCheck -gt [TimeSpan]::FromSeconds(30)) {
-                $settingsFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "config\settings.json"
-                $currentSettingsWriteTime = (Get-Item $settingsFilePath).LastWriteTime
-                if ($currentSettingsWriteTime -gt $global:PSWebServer.SettingsLastWriteTime) {
-                    Write-Verbose "settings.json has changed. Reloading..."
-                    $global:PSWebServer.SettingsLastWriteTime = $currentSettingsWriteTime
-                    $Global:PSWebServer.Config = (Get-Content $settingsFilePath) | ConvertFrom-Json
-                }
-                $lastSettingsCheck = Get-Date
-            }
-            
-            . Invoke-ModuleRefreshAsNeeded
+    while ($script:ListenerInstance.IsListening) {
+        if ((Get-Date) - $lastSessionSync -gt [TimeSpan]::FromMinutes(1)) {
+            Sync-SessionStateToDatabase
+            $lastSessionSync = Get-Date
+        }
 
-            $LogEnd = $PSWebHostLogQueue.count
-            if ($LogEnd -lt $Logpos) {
-                $Logpos = 0
+        if ((Get-Date) - $lastSettingsCheck -gt [TimeSpan]::FromSeconds(30)) {
+            $settingsFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "config\settings.json"
+            $currentSettingsWriteTime = (Get-Item $settingsFilePath).LastWriteTime
+            if ($currentSettingsWriteTime -gt $global:PSWebServer.SettingsLastWriteTime) {
+                Write-Verbose "settings.json has changed. Reloading..."
+                $global:PSWebServer.SettingsLastWriteTime = $currentSettingsWriteTime
+                $Global:PSWebServer.Config = (Get-Content $settingsFilePath) | ConvertFrom-Json
             }
-            if ([int]$Logpos -lt $LogEnd) {
-                $LogPos .. ($LogEnd -1)|ForEach-Object{$PSWebHostLogQueue[$_]}| Select-Object * | Format-Table -AutoSize -Wrap | Out-String
-                $Logpos = $LogEnd
-            }
+            $lastSettingsCheck = Get-Date
+        }
+        
+        . Invoke-ModuleRefreshAsNeeded
 
-            $UIQueueEnd = $PSHostUIQueue.count
-            if ($UIQueueEnd -lt $UIQueuePos) {
-                $UIQueuePos = 0
-            }
-            if ([int]$UIQueuePos -lt $UIQueueEnd) {
-                $UIQueuePos .. ($UIQueueEnd -1)|ForEach-Object{$PSHostUIQueue[$_]}| ForEach-Object {
-                    $Host.UI.WriteLine($_)
-                }
-                $UIQueuePos = $UIQueueEnd
-            }
+        . ProcessLogQueue
 
-            if ($Async) {
-                # Check for and clean up completed runspace jobs every 5 seconds.
-                if (((get-date).Second % 5) -eq 0) {
-                    if ($global:PSWebSessions) {
-                        $sessions = $global:PSWebSessions.Clone()
-                        foreach ($sessionEntry in $sessions.GetEnumerator()) {
-                            $sessionData = $sessionEntry.Value
-                            if ($sessionData.Runspaces) {
-                                $runspaceTable = $sessionData.Runspaces
-                                $runspaceKeys = @($runspaceTable.Keys)
-                                
-                                foreach ($key in $runspaceKeys) {
-                                    if ($key -like "*_handle") {
-                                        $handle = $runspaceTable[$key]
-                                        if ($handle.IsCompleted) {
-                                            $psInstanceKey = $key.Replace('_handle', '_ps')
-                                            if ($runspaceTable.ContainsKey($psInstanceKey)) {
-                                                $psInstance = $runspaceTable[$psInstanceKey]
-                                                try {
-                                                    $psInstance.EndInvoke($handle)
-                                                } catch {
-                                                    Write-Warning "Error in background runspace for session $($sessionEntry.Key): $($_.Exception.Message)"
-                                                } finally {
-                                                    $psInstance.Dispose()
-                                                    $runspaceTable.Remove($key)
-                                                    $runspaceTable.Remove($psInstanceKey)
-                                                    Write-Verbose "Cleaned up completed runspace job for session $($sessionEntry.Key)."
-                                                }
+        $UIQueueEnd = $PSHostUIQueue.count
+        if ($UIQueueEnd -lt $UIQueuePos) {
+            $UIQueuePos = 0
+        }
+        if ([int]$UIQueuePos -lt $UIQueueEnd) {
+            $UIQueuePos .. ($UIQueueEnd -1)|ForEach-Object{$PSHostUIQueue[$_]}| ForEach-Object {
+                $Host.UI.WriteLine($_)
+            }
+            $UIQueuePos = $UIQueueEnd
+        }
+
+        if ($Async) {
+            # Check for and clean up completed runspace jobs every 5 seconds.
+            if (((get-date).Second % 5) -eq 0) {
+                if ($global:PSWebSessions) {
+                    $sessions = $global:PSWebSessions.Clone()
+                    foreach ($sessionEntry in $sessions.GetEnumerator()) {
+                        $sessionData = $sessionEntry.Value
+                        if ($sessionData.Runspaces) {
+                            $runspaceTable = $sessionData.Runspaces
+                            $runspaceKeys = @($runspaceTable.Keys)
+                            
+                            foreach ($key in $runspaceKeys) {
+                                if ($key -like "*_handle") {
+                                    $handle = $runspaceTable[$key]
+                                    if ($handle.IsCompleted) {
+                                        $psInstanceKey = $key.Replace('_handle', '_ps')
+                                        if ($runspaceTable.ContainsKey($psInstanceKey)) {
+                                            $psInstance = $runspaceTable[$psInstanceKey]
+                                            try {
+                                                $psInstance.EndInvoke($handle)
+                                            } catch {
+                                                Write-Warning "Error in background runspace for session $($sessionEntry.Key): $($_.Exception.Message)"
+                                            } finally {
+                                                $psInstance.Dispose()
+                                                $runspaceTable.Remove($key)
+                                                $runspaceTable.Remove($psInstanceKey)
+                                                Write-Verbose "Cleaned up completed runspace job for session $($sessionEntry.Key)."
                                             }
                                         }
                                     }
@@ -223,63 +260,70 @@ end {
                         }
                     }
                 }
+            }
 
-                # Use the modern Task-based Asynchronous Pattern (TAP)
-                
-                # If there is no active task to get a context, start one.
-                if ($null -eq $contextTask) {
-                    $contextTask = $script:ListenerInstance.GetContextAsync()
-                    $msg = "Asynchronous listener waiting for a new request."
+            # Use the modern Task-based Asynchronous Pattern (TAP)
+            
+            # If there is no active task to get a context, start one.
+            if ($null -eq $contextTask) {
+                $contextTask = $script:ListenerInstance.GetContextAsync()
+                $msg = "Asynchronous listener waiting for a new request."
+                Write-Verbose $msg
+            }
+
+            # Check if the task has completed.
+            if ($contextTask.IsCompleted) {
+                if ($contextTask.IsFaulted) {
+                    # The async operation failed. Log the error and reset the task.
+                    $msg = "An error occurred while waiting for a request: $($contextTask.Exception.InnerException.Message)"
+                    Write-Warning $msg
+                    $contextTask = $null
+                } else {
+                    # The operation completed successfully. Get the context.
+                    $context = $contextTask.Result
+                    $msg = "Asynchronous context received. Processing request."
                     Write-Verbose $msg
-                }
-
-                # Check if the task has completed.
-                if ($contextTask.IsCompleted) {
-                    if ($contextTask.IsFaulted) {
-                        # The async operation failed. Log the error and reset the task.
-                        $msg = "An error occurred while waiting for a request: $($contextTask.Exception.InnerException.Message)"
-                        Write-Warning $msg
-                        $contextTask = $null
-                    } else {
-                        # The operation completed successfully. Get the context.
-                        $context = $contextTask.Result
-                        $msg = "Asynchronous context received. Processing request."
-                        Write-Verbose $msg
-                        $contextTask = $null
-                        # Process the request asynchronously in a separate runspace.
-                        Process-HttpRequest -Context $context -Async -HostUIQueue $global:PSHostUIQueue
-                        
-                        # Reset the task to be ready for the next request.
-                        $contextTask = $null
-                    }
-                }
-                
-                # Pause briefly to prevent a tight loop.
-                Start-Sleep -Milliseconds 100
-            } else {
-                try {
-                    $context = $script:ListenerInstance.GetContext()
-                    $Loop_Start = Get-Date
-                    Process-HttpRequest -Context $context -HostUIQueue $global:PSHostUIQueue
-                } catch {
-                    Write-PSWebHostLog -Severity 'Error' -Category 'RequestHandler' -Message "A terminating error occurred while processing a synchronous request: $($_.Exception.Message)" -Data @{ Error = $_.ToString() }
+                    $contextTask = $null
+                    # Process the request asynchronously in a separate runspace.
+                    Process-HttpRequest -Context $context -Async -HostUIQueue $global:PSHostUIQueue -InlineExecute
+                    
+                    # Reset the task to be ready for the next request.
+                    $contextTask = $null
                 }
             }
-            if ($StopOnScriptUpdate.IsPresent) {
-                $FileDate = (get-item $MyInvocation.MyCommand.Path).LastWriteTime # This is the current script's last write time
-                if ($InitialFileDate -ne $FileDate) { # If the script file has been updated
-                    $script:ListenerInstance.Stop()
-                    Write-PSWebHostLog -Message "Script file updated. Stopping listener for reload." -Severity 'Information' -Category 'ScriptUpdate'
+            
+            # Pause briefly to prevent a tight loop.
+            Start-Sleep -Milliseconds 100
+        } 
+        else {
+            try {
+                $context = $script:ListenerInstance.GetContext()
+                $Loop_Start = Get-Date
+                Write-Verbose "Synchronous context received. Processing request $($context.Request.RawUrl)"
+                Process-HttpRequest -Context $context -HostUIQueue $global:PSHostUIQueue -InlineExecute
+            } catch {
+                Write-PSWebHostLog -Severity 'Error' -Category 'RequestHandler' -Message "[WebHost.PS1] A terminating error occurred while processing a synchronous request: $($_.Exception.Message + "`n" + $_.InvocationInfo.PositionMessage)" -Data @{ Message = $_.Exception.Message; PositionMessage=$_.InvocationInfo.PositionMessage} -WriteHost
+            }
+            $I=0
+            $Error | 
+                Where-Object{$_} |
+                ForEach-Object{
+                    Write-PSWebHostLog -Severity 'Error' -Category 'ErrorArrayCheck' -Message "[WebHost.PS1] `$Error[$i] $($_.Exception.Message + "`n" + $_.InvocationInfo.PositionMessage)" -Data @{ Message = $_.Exception.Message; PositionMessage=$_.InvocationInfo.PositionMessage} -WriteHost
+                    $I++
                 }
+            $Error.Clear()
+        }
+        if ($StopOnScriptUpdate.IsPresent) {
+            $FileDate = (get-item $MyInvocation.MyCommand.Path).LastWriteTime # This is the current script's last write time
+            if ($InitialFileDate -ne $FileDate) { # If the script file has been updated
+                $script:ListenerInstance.Stop()
+                Write-PSWebHostLog -Message "Script file updated. Stopping listener for reload." -Severity 'Information' -Category 'ScriptUpdate'
             }
         }
-    } catch [System.Net.HttpListenerException] {
-        # This exception can be thrown if the listener is stopped while GetContextAsync is pending.
-        Write-Verbose "Listener was stopped. Exiting loop."
-    } catch {
-        $logData = @{ Error = $_.Exception.Message; StackTrace = $_.Exception.StackTrace }
-        Write-PSWebHostLog -Severity 'Error' -Category 'Listener' -Message "Error in listener loop" -Data $logData
     }
+    $logData = @{ Error = $_.Exception.Message; StackTrace = $_.Exception.StackTrace }
+    Write-PSWebHostLog -Severity 'Error' -Category 'Listener' -Message "Error in listener loop" -Data $logData
+    . ProcessLogQueue
 
     Write-Verbose "Exiting listener loop."
 
@@ -292,7 +336,7 @@ end {
 
     # Stop the logging job
     $global:StopLogging = $true
-    if (! $ShowVariables.ispresent) {
+    if (! $ShowVariables.ispresent -and $global:PSWebServer.LoggingJob) {
         $global:PSWebServer.LoggingJob.AsyncWaitHandle.WaitOne(2000) | Out-Null # Wait up to 2s for it to stop
     }
     if ($loggingPowerShell) {

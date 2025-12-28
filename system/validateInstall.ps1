@@ -57,15 +57,18 @@ begin{
 
     Write-Verbose -Message 'Validating SQLite installation.' -Verbose
     # Check if sqlite3 command is available
-    try {
-        $sqlite3Path = (Get-Command sqlite3 -ErrorAction Stop).Path
+    # Prefer non-throwing checks to find sqlite3
+    $__err = $null
+    $sqliteCmd = Get-Command sqlite3 -ErrorAction SilentlyContinue -ErrorVariable __err
+    if ($sqliteCmd) {
+        $sqlite3Path = $sqliteCmd.Path
         Write-Verbose "SQLite found at: $sqlite3Path" -Verbose
-    }
-    catch {
+    } else {
         Write-Warning "SQLite (sqlite3 command) not found. Attempting to install via Winget."
-        # Check if Winget is available
-        try {
-            (Get-Command winget -ErrorAction Stop) | Out-Null
+
+        $__err = $null
+        $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue -ErrorVariable __err
+        if ($wingetCmd) {
             Write-Verbose "Winget found." -Verbose
 
             $wingetCommand = "winget install --id SQLite.SQLite --accept-package-agreements --accept-source-agreements --silent"
@@ -83,8 +86,7 @@ begin{
                 Write-Error "Failed to install/upgrade SQLite via Winget. Winget exit code: $LASTEXITCODE. Output: $($wingetResult | Out-String)"
                 Write-Warning "Please install SQLite manually or run this script with administrative privileges if Winget requires them."
             }
-        }
-        catch {
+        } else {
             Write-Error "Winget not found or failed to execute. Please install SQLite manually."
         }
     }

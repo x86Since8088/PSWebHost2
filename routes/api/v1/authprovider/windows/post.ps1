@@ -1,6 +1,7 @@
 [cmdletbinding()]
 param (
     [System.Net.HttpListenerContext]$Context,
+    $SessionData,
     [System.Net.HttpListenerRequest]$Request=$Context.Request,
     [System.Net.HttpListenerResponse]$Response=$Context.Response
 )
@@ -27,6 +28,7 @@ $username = $null
 $password = $null
 
 try {
+    Write-Host "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Processing Windows authentication POST from $ipAddress"
     $bodyContent = Get-RequestBody -Request $Request
     $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
     $username = $parsedBody["username"]
@@ -55,6 +57,7 @@ try {
     }
 
     if ($Fail.count -ne 0) {
+        write-pswebhostlog -Severity 'Warning' -Category 'Auth' -Message "$MyTag Validation failed for Windows auth POST from $ipAddress. Errors: $($Fail -join '; ')" -Data @{ IPAddress = $ipAddress; Body = $bodyContent } -WriteHost
         $jsonResponse = New-JsonResponse -status 'fail' -message ($Fail -join '<br>')
         context_reponse -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
         return
@@ -64,6 +67,12 @@ try {
 
     # 2. Check for existing lockouts
     $lockoutStatus = Test-LoginLockout -IPAddress $ipAddress -Username $username
+    write-pswebhostlog -Severity 'Verbose' -Category 'Auth' -Message "$MyTag Lockout status for $username from $ipAddress`: LockedOut=$(($lockoutStatus).LockedOut); Message='$(($lockoutStatus).Message)'" -Data @{ 
+            IPAddress = $ipAddress; 
+            Username = $username 
+            lockoutStatus = $lockoutStatus
+            retryAfter = ($lockoutStatus).LockedUntil|Where-Object{$_}|ForEach-Object{$_.ToString("o")}
+        } -WriteHost
     if ($lockoutStatus.LockedOut) {
         $retryAfter = $lockoutStatus.LockedUntil.ToString("o")
         $jsonResponse = New-JsonResponse -status 'fail' -message "<p class='error'>$($lockoutStatus.Message)</p>"
@@ -75,9 +84,9 @@ try {
     # 3. Attempt Authentication
     $credential = New-Object System.Management.Automation.PSCredential($username, (ConvertTo-SecureString $password -AsPlainText -Force))
     $AuthTestScript = Join-Path $global:PSWebServer.Project_Root.Path "\system\auth\Test-PSWebWindowsAuth.ps1"
-    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Running '\system\auth\Test-PSWebWindowsAuth.ps1'" 
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Running '\system\auth\Test-PSWebWindowsAuth.ps1'" -Verbose
     $isAuthenticated = & $AuthTestScript -credential $credential
-    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed '\system\auth\Test-PSWebWindowsAuth.ps1'" 
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed '\system\auth\Test-PSWebWindowsAuth.ps1'" -Verbose
 
     if ($isAuthenticated) {
         # --- On Success ---
@@ -102,7 +111,7 @@ try {
         context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
     }
 } catch {
-    Write-PSWebHostLog -Severity 'Error' -Category 'Auth' -Message "Invalid request body for Windows auth POST: $($_.Exception.Message)" -Data @{ IPAddress = $ipAddress; Body = $bodyContent }
+    write-pswebhostlog -Severity 'Error' -Category 'Auth' -Message "$MyTag Exception during Windows authentication POST: $($_.Exception.Message)" -Data @{ IPAddress = $ipAddress; Body = $bodyContent } -WriteHost
     PSWebLogon -ProviderName "Windows" -Result "error" -Request $Request
 
     $jsonResponse = New-JsonResponse -status 'fail' -message "An internal error occurred: $($_.Exception.Message)`n$($_.InvocationInfo.PositionMessage)"

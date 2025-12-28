@@ -44,7 +44,7 @@ function Convert-ObjectToYaml {
 # NOTE: This function appears to be incomplete or obsolete. 
 # The main logic for recursively walking properties is commented out.
 # The Inspect-Object function provides similar, more robust functionality.
-function Safe-WalkObject {
+function Get-ObjectSafeWalk {
     param(
         $InputObject,
         [int]$MaxDepth = 5,
@@ -78,7 +78,7 @@ function Safe-WalkObject {
         $count = 0
         foreach ($it in $InputObject) {
             if ($count -ge $MaxEnumerable) { $list += "[Truncated: more items]"; break }
-            $list += Safe-WalkObject -InputObject $it -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
+            $list += Get-ObjectSafeWalk -InputObject $it -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
             $count++
         }
         return $list
@@ -92,7 +92,7 @@ function Safe-WalkObject {
     foreach ($p in $props) {
         try {
             $val = $p.Value
-            #$o[$p.Name] = Safe-WalkObject -InputObject $val -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
+            #$o[$p.Name] = Get-ObjectSafeWalk -InputObject $val -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
         } catch {
             #$o[$p.Name] = "[ErrorReadingProperty: $($_.Exception.Message)]"
         }

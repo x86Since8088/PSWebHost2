@@ -55,12 +55,15 @@ if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
 # --- Thread-Safe Logging Setup ---
 $global:PSWebHostLogQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $global:PSHostUIQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
+$Global:PSWebServer.LogFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/Logs/log.tsv"
+
+<#
 $global:StopLogging = $false
 
 $loggingScriptBlock = {
     param($logQueue, $webServerConfig, $stopSignal)
 
-    $logDirectory = Join-Path $webServerConfig.Project_Root.Path "PsWebHost_Data/Logs"
+    $logDirectory = Join-Path $global:PSWebServer.Project_Root.Path "PsWebHost_Data/Logs"
     if (-not (Test-Path $logDirectory)) {
         New-Item -Path $logDirectory -ItemType Directory -Force | Out-Null
     }
@@ -68,7 +71,7 @@ $loggingScriptBlock = {
 
     while (-not $stopSignal.Value) {
         $logEntries = [System.Collections.Generic.List[string]]::new()
-        while ($logQueue.TryDequeue([ref]$logEntry)) {
+        while ($logQueue.TryDequeue([ref]'logEntry')) {
             $logEntries.Add($logEntry)
         }
 
@@ -78,6 +81,7 @@ $loggingScriptBlock = {
         Start-Sleep -Milliseconds 500
     }
 }
+#>
 
 $loggingPowerShell = [powershell]::Create().AddScript($loggingScriptBlock).AddParameters(@{
     logQueue = $global:PSWebHostLogQueue

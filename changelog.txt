@@ -72,7 +72,7 @@ This change involved a significant refactoring of the `PSWebHost_Database` and `
 
 - [complete] Scan and correct issues in `PSWebHost_Formatters` module.
     - [complete] Add max depth check to `Convert-ObjectToYaml` to prevent infinite recursion.
-    - [complete] Add comment to broken `Safe-WalkObject` function noting it is incomplete.
+    - [complete] Add comment to broken `Get-ObjectSafeWalk` function noting it is incomplete.
     - [complete] Replace all `Mandatory=$true` parameters in `PSWebHost_Formatters` module with manual checks.
 - [complete] Scan and correct issues in `PSWebHost_Support` module.
     - [complete] Fix critical bug in `Process-HttpRequest` hashtable assignment.

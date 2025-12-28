@@ -2,7 +2,7 @@
 # Use $ProjectRoot and Start-WebHostForTest for web host lifecycle
 $ProjectRoot = (Resolve-Path "$PSScriptRoot\..\..\..").Path
 Import-Module (Join-Path $ProjectRoot 'tests\modules\TestCodeHelpers.psm1') -ErrorAction SilentlyContinue
-Import-Module (Join-Path $ProjectRoot 'tests\helpers\Start-WebHostForTest.ps1') -ErrorAction SilentlyContinue
+Import-Module (Join-Path $ProjectRoot 'tests\helpers\Start-WebHostForTest.psm1') -ErrorAction SilentlyContinue
 
 $web = Start-WebHostForTest -ProjectRoot $ProjectRoot
 try {

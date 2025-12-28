@@ -2,6 +2,11 @@ function Get-AuthenticationMethod {
     [cmdletbinding()]
     param()
 
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Get-AuthenticationMethod' called from '$caller'."
+    }
+
     # This function would typically query a database or configuration file
     # to get the available authentication methods.
     # For now, we'll return a static list.
@@ -13,6 +18,12 @@ function Get-AuthenticationMethodForm {
     param(
         [string]$Name
     )
+
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Get-AuthenticationMethodForm' called from '$caller'."
+    }
+
     $myTag = '[Get-AuthenticationMethodForm]'
     if (-not $Name) { Write-Error "$myTag The -Name parameter is required."; return }
 
@@ -64,6 +75,12 @@ function Get-PSWebHostUser {
         [parameter(ParameterSetName='Listall')]
         [switch]$Listall
     )
+
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Get-PSWebHostUser' called from '$caller'."
+    }
+
     $MyTag = "[Get-PSWebHostUser]"
     if ($PSBoundParameters.ContainsKey('Email')) {
         $safeEmail = Sanitize-SqlQueryString -String $Email
@@ -90,6 +107,12 @@ function Get-PSWebHostUser {
 function Get-PSWebHostUsers {
     [cmdletbinding()]
     param()
+
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Get-PSWebHostUsers' called from '$caller'."
+    }
+
     $MyTag = "[Get-PSWebHostUsers]"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $query = "SELECT Email FROM Users;"
@@ -108,6 +131,12 @@ function Get-UserAuthenticationMethods {
     param(
         [string]$Email
     )
+
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Get-UserAuthenticationMethods' called from '$caller'."
+    }
+
     $MyTag = "[Get-UserAuthenticationMethods]"
     if (-not $Email) { Write-Error "The -Email parameter is required."; return }
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebHostUser -Email '$Email'"
@@ -139,6 +168,12 @@ function Get-PSWebHostRole {
         [parameter(ParameterSetName='ListAll')]
         [switch]$ListAll
     )
+
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Get-PSWebHostRole' called from '$caller'."
+    }
+
     $MyTag = "[Get-PSWebHostRole]"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
 
@@ -187,6 +222,12 @@ function Invoke-AuthenticationMethod {
         [string]$Name,
         [hashtable]$FormData
     )
+
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Invoke-AuthenticationMethod' called from '$caller'."
+    }
+
     $MyTag = "[Invoke-AuthenticationMethod]"
     if (-not $Name) { Write-Error "The -Name parameter is required."; return }
     if (-not $FormData) { Write-Error "The -FormData parameter is required."; return }
@@ -267,11 +308,18 @@ function Invoke-AuthenticationMethod {
 }
 
 function Test-IsValidEmailAddress {
+    [cmdletbinding()]
     param(
         [string]$Email,
         [string]$Regex = '^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
         [string]$AddCustomRegex
     )
+
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Test-IsValidEmailAddress' called from '$caller'."
+    }
+
     $MyTag = "[Test-IsValidEmailAddress]"
     # Basic email validation regex
     if ($AddCustomRegex) {$Regex+="|$AddCustomRegex"}
@@ -288,9 +336,16 @@ function Test-IsValidEmailAddress {
 
 
 function Test-StringForHighRiskUnicode {
+    [cmdletbinding()]
     param(
         [string]$String
     )
+
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Test-StringForHighRiskUnicode' called from '$caller'."
+    }
+
     $MyTag = "[Test-StringForHighRiskUnicode]"
     # Define a hashtable of forbidden character codes to enhance security.
     # This list includes non-printable control characters, ambiguous symbols, and characters
@@ -415,6 +470,7 @@ function Test-StringForHighRiskUnicode {
 }
 
 function Test-IsValidPassword {
+    [cmdletbinding()]
     param(
         [string]$Password,
         $Length = 8,
@@ -424,6 +480,12 @@ function Test-IsValidPassword {
         $Numbers = 2,
         $ValidSymbolCharactersRegex = '[!@#$%^&*()_+\-=\[\]{};'':"\\|,.<>/?`~]'
     )
+
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Test-IsValidPassword' called from '$caller'."
+    }
+
     $MyTag = "[Test-IsValidPassword]"
     if ($Password.Length -lt 8) {
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Password length is less than minimum required length of 8."
@@ -467,10 +529,17 @@ function Test-IsValidPassword {
 }
 
 function Test-LoginLockout {
+    [cmdletbinding()]
     param (
         [string]$IPAddress,
         [string]$Username
     )
+
+    if ($PSBoundParameters.Verbose.IsPresent) {
+        $caller = (Get-PSCallStack)[1].FunctionName
+        Write-Verbose "Function 'Test-LoginLockout' called from '$caller'."
+    }
+
     $MyTag = "[Test-LoginLockout]"
     if (-not $IPAddress) { Write-Host -ForegroundColor Red "$MyTag The -IPAddress parameter is required."; return $false}
     if (-not $Username) { Write-Host  -ForegroundColor Red "$MyTag The -Username parameter is required."; return $false}
@@ -682,12 +751,17 @@ function PSWebLogon {
         # Reset violation counts on success
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Login successful. Resetting violation counts for user '$UserID' and IP '$ipAddress'."
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing Set-LastLoginAttempt -IPAddress $ipAddress -Username $UserID -Time $now -UserViolationsCount 0 -IPViolationCount 0 -UserNameLockedUntil `$null -IPAddressLockedUntil `$null"
-        Set-LastLoginAttempt -IPAddress $ipAddress -Username $UserID -Time $now -UserViolationsCount 0 -IPViolationCount 0 -UserNameLockedUntil $null -IPAddressLockedUntil $null
+        try{
+            Set-LastLoginAttempt -IPAddress $ipAddress -Username $UserID -Time $now -UserViolationsCount 0 -IPViolationCount 0 -UserNameLockedUntil 0 -IPAddressLockedUntil 0
+        }
+        catch{
+            write-PSWebHostLog -Severity critical -Category Set-LastLoginAttempt -message "$MyTag Failed to reset login attempt data for user '$UserID' and IP '$ipAddress'. Error: $_"
+        }
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Set-LastLoginAttempt"
         # Record successful login session
         if ($sessionID) {
             $logonExpires = $now.AddHours(8) # Example: Session expires in 8 hours
-            Set-LoginSession -SessionID $sessionID -UserID $UserID -Provider $ProviderName -AuthenticationTime $now -LogonExpires $logonExpires
+            Set-LoginSession -SessionID $sessionID -UserID $UserID -Provider $ProviderName -AuthenticationTime $now -LogonExpires $logonExpires -UserAgent $Request.UserAgent 
         }
         Write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Login successful for user '$UserID' from IP '$ipAddress' via '$ProviderName'." -Data @{ UserID = $UserID; IPAddress = $ipAddress; Provider = $ProviderName; Result = $Result }
     }
@@ -857,9 +931,9 @@ function Get-LoginSession {
     $safeSessionID = Sanitize-SqlQueryString -String $SessionID
     $query = "SELECT * FROM LoginSessions WHERE SessionID = '$safeSessionID';"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
-    Write-logfile "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
+    Write-PSWebHostLog -Message "$MyTag Calling: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query" -Severity 'info' -Category 'Auth'
     $Session = Get-PSWebSQLiteData -File $dbFile -Query $query
-    Write-logfile "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Get-PSWebSQLiteData"
+    Write-PSWebHostLog "$MyTag Completed Get-PSWebSQLiteData Session: $Session" -Severity 'info' -Category 'Auth'
     return $Session
 }
 
@@ -901,7 +975,7 @@ function Set-LoginSession {
 
     if ($existing) {
         # Update
-        $updatePairs = $data.Keys | ForEach-Object { "$_ = '$($data[$_])'" } | Join-String -Separator ', '
+        $updatePairs = ($data.Keys | ForEach-Object { "$_ = '$($data[$_])'" }) -Join ', '
         $query = "UPDATE LoginSessions SET $updatePairs WHERE SessionID = '$safeSessionID';"
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Invoke-PSWebSQLiteNonQuery -File '$dbFile' -Query `n`t$query"
         write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Updating login session for SessionID '$SessionID'." -Data @{ SessionID = $SessionID; UserID = $UserID }
@@ -910,7 +984,7 @@ function Set-LoginSession {
     } else {
         # Insert
         $columns = ($data.Keys | ForEach-Object { "`"$_`"" }) -join ", "
-        $values = $data.Keys | ForEach-Object { "'$($data[$_])'" } | Join-String -Separator ', '
+        $values = ($data.Keys | ForEach-Object { "'$($data[$_])'" }) -Join ', '
         $query = "INSERT INTO LoginSessions ($columns) VALUES ($values);"
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Invoke-PSWebSQLiteNonQuery -File '$dbFile' -Query `n`t$query"
         write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Creating new login session for SessionID '$SessionID'." -Data @{ SessionID = $SessionID; UserID = $UserID }

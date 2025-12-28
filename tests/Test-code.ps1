@@ -45,26 +45,23 @@ function New-OutputFolder {
     return $dir
 }
 
-function Safe-WalkObject {
+function Get-ObjectSafeWalk {
     param(
-        [Parameter(Mandatory=$true)] $InputObject,
+        $InputObject,
         [int]$MaxDepth = 5,
-# Prepare output area
-$outDir = New-OutputFolder -base $OutRoot -name $Name
-# create human readable log files inside the test output folder
-$logStdout = Join-Path $outDir 'stdout.log'
-$logStderr = Join-Path $outDir 'stderr.log'
-
-# If this test is the web-routes test, attempt to start a temporary WebHost and inject variables
+        [int]$CurrentDepth = 0,
+        [int]$MaxEnumerable = 20,
         [int]$MaxProperties = 60
     )
+    if (-not $PSBoundParameters.ContainsKey('InputObject')) { Write-Error "The -InputObject parameter is required."; return }
+
     # blacklist full names for types we don't want to record
     $blacklist = @(
         'System.IO.Stream', 'System.IO.FileStream', 'System.Management.Automation.PSObject',
         'System.Management.Automation.Runspaces.Runspace', 'System.Management.Automation.Runspaces.Pipeline',
         'System.Threading.Tasks.Task', 'FileSystemProvider', 
-        'PSDriveInfo', 'ProviderInfo'
-
+        'PSDriveInfo', 'ProviderInfo',
+        'PSCredential'
     )
 
     if ($CurrentDepth -ge $MaxDepth) { return '[MaxDepth]' }
@@ -82,7 +79,7 @@ $logStderr = Join-Path $outDir 'stderr.log'
         $count = 0
         foreach ($it in $InputObject) {
             if ($count -ge $MaxEnumerable) { $list += "[Truncated: more items]"; break }
-            $list += Safe-WalkObject -InputObject $it -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
+            $list += Get-ObjectSafeWalk -InputObject $it -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
             $count++
         }
         return $list
@@ -96,13 +93,14 @@ $logStderr = Join-Path $outDir 'stderr.log'
     foreach ($p in $props) {
         try {
             $val = $p.Value
-            #$o[$p.Name] = Safe-WalkObject -InputObject $val -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
+            #$o[$p.Name] = Get-ObjectSafeWalk -InputObject $val -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
         } catch {
             #$o[$p.Name] = "[ErrorReadingProperty: $($_.Exception.Message)]"
         }
     }
     return $o
 }
+
 
 # Determine if an object should be walked further
 function Test-Walkable {
@@ -227,7 +225,7 @@ function Capture-VariableSnapshot {
     Get-Variable -Scope Global -ErrorAction SilentlyContinue | ForEach-Object {
         $val = $_.Value
         $type = try { $val.GetType().FullName } catch { 'System.Object' }
-        [pscustomobject]@{ Name = $_.Name; Type = $type; Value = Safe-WalkObject -InputObject $val }
+        [pscustomobject]@{ Name = $_.Name; Type = $type; Value = Get-ObjectSafeWalk -InputObject $val }
     }
 }
 
@@ -312,12 +310,12 @@ if ($BeforeTesting) {
     # Record before testing streams (variable snapshot from the isolated runspace)
     foreach ($e in $beforeStreams.Output) {
         $ts = (Get-Date).ToString('o')
-        $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Output'; OutputObjectData=Safe-WalkObject -InputObject $e; VariableChanges = @() }) | Out-Null
+        $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Output'; OutputObjectData=Get-ObjectSafeWalk -InputObject $e; VariableChanges = @() }) | Out-Null
     }
     # store runspace final variables for BeforeTesting if provided
     if ($beforeStreams.RunspaceVariables -and $beforeStreams.RunspaceVariables.Count -gt 0) {
         $tsb = "BeforeTesting_" + (Get-Date).ToString('o')
-        $Script:PSWebTesting.Variables[$tsb] = ($beforeStreams.RunspaceVariables | ForEach-Object { [pscustomobject]@{ Name=$_.Name; Type=$_.Type; Value = Safe-WalkObject -InputObject $_.Value } })
+        $Script:PSWebTesting.Variables[$tsb] = ($beforeStreams.RunspaceVariables | ForEach-Object { [pscustomobject]@{ Name=$_.Name; Type=$_.Type; Value = Get-ObjectSafeWalk -InputObject $_.Value } })
     }
 }
 
@@ -328,28 +326,28 @@ $streams = Invoke-Isolated -sb $Script
 # Record outputs without attempting per-output variable diffs (see notes)
 foreach ($o in $streams.Output) {
     $ts = (Get-Date).ToString('o')
-    $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Output'; OutputObjectData=Safe-WalkObject -InputObject $o; VariableChanges = @() }) | Out-Null
+    $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Output'; OutputObjectData=Get-ObjectSafeWalk -InputObject $o; VariableChanges = @() }) | Out-Null
 }
 foreach ($er in $streams.Error) {
     $ts = (Get-Date).ToString('o')
-    $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Error'; OutputObjectData=Safe-WalkObject -InputObject $er; VariableChanges = @() }) | Out-Null
+    $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Error'; OutputObjectData=Get-ObjectSafeWalk -InputObject $er; VariableChanges = @() }) | Out-Null
 }
 foreach ($v in $streams.Verbose) {
     $ts = (Get-Date).ToString('o')
-    $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Verbose'; OutputObjectData = Safe-WalkObject -InputObject $v; VariableChanges = @() }) | Out-Null
+    $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Verbose'; OutputObjectData = Get-ObjectSafeWalk -InputObject $v; VariableChanges = @() }) | Out-Null
 }
 foreach ($w in $streams.Warning) {
     $ts = (Get-Date).ToString('o')
-    $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Warning'; OutputObjectData = Safe-WalkObject -InputObject $w; VariableChanges = @() }) | Out-Null
+    $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Warning'; OutputObjectData = Get-ObjectSafeWalk -InputObject $w; VariableChanges = @() }) | Out-Null
 }
 foreach ($d in $streams.Debug) {
     $ts = (Get-Date).ToString('o')
-    $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Debug'; OutputObjectData = Safe-WalkObject -InputObject $d; VariableChanges = @() }) | Out-Null
+    $Script:PSWebTesting.Add([pscustomobject]@{ Time=$ts; Stream='Debug'; OutputObjectData = Get-ObjectSafeWalk -InputObject $d; VariableChanges = @() }) | Out-Null
 }
 
 # Use runspace-captured variables for final diff (accurate for the isolated run)
 if ($streams.RunspaceVariables -and $streams.RunspaceVariables.Count -gt 0) {
-    $finalVars = $streams.RunspaceVariables | ForEach-Object { [pscustomobject]@{ Name=$_.Name; Type=$_.Type; Value = Safe-WalkObject -InputObject $_.Value } }
+    $finalVars = $streams.RunspaceVariables | ForEach-Object { [pscustomobject]@{ Name=$_.Name; Type=$_.Type; Value = Get-ObjectSafeWalk -InputObject $_.Value } }
     $varDiff = Compute-VariableDiff -before $beforeVarsForRun -after $finalVars
     $tsFinal = "Final_" + (Get-Date).ToString('o')
     $Script:PSWebTesting.Variables[$tsFinal] = $finalVars

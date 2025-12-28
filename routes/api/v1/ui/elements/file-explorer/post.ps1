@@ -47,13 +47,15 @@ if (-not (Test-Path -Path $actualPath -PathType Container)) {
     return
 }
 
-# 6. Execute directory listing with robust error handling
-try {
-    $filterString = if ($filter) { $filter -replace '[^\w\.\*]' } else { '*' }
-    $items = Get-ChildItem -Path $actualPath -Filter $filterString -ErrorAction Stop | Select-Object Name, FullName, Length, LastWriteTime, @{Name="IsDirectory"; Expression={$_.PSIsContainer}}
-    $responseString = $items | ConvertTo-Json
-    context_reponse -Response $Response -String $responseString -ContentType "application/json"
-} catch {
-    $errorMessage = "Error reading directory '$actualPath'. Details: $($_.Exception.Message)"
+# 6. Execute directory listing with robust error handling (non-throwing)
+$filterString = if ($filter) { $filter -replace '[^\w\.\*]' } else { '*' }
+$__err = $null
+$items = Get-ChildItem -Path $actualPath -Filter $filterString -ErrorAction SilentlyContinue -ErrorVariable __err | Select-Object Name, FullName, Length, LastWriteTime, @{Name="IsDirectory"; Expression={$_.PSIsContainer}}
+if ($__err) {
+    $errorMessage = "Error reading directory '$actualPath'. Details: $(__err)"
     Return-JsonError -Message $errorMessage
+    return
 }
+
+$responseString = $items | ConvertTo-Json
+context_reponse -Response $Response -String $responseString -ContentType "application/json"

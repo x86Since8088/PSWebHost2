@@ -13,14 +13,15 @@ if (-not $name) {
 }
 $name = $name -replace '^\$',''
 Write-Verbose "Deleting variable: $name"
-try {
-    $existing = Get-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue
-    if ($null -ne $existing) {
-        Remove-Variable -Name $name -Scope Global -ErrorAction Stop
-        context_reponse -Response $Response -StatusCode 200 -String "Deleted"
+$existing = Get-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue
+if ($null -ne $existing) {
+    $__err = $null
+    Remove-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue -ErrorVariable __err
+    if ($__err) {
+        context_reponse -Response $Response -StatusCode 500 -String "Failed to delete variable: $__err"
     } else {
-        context_reponse -Response $Response -StatusCode 404 -String "Not found"
+        context_reponse -Response $Response -StatusCode 200 -String "Deleted"
     }
-} catch {
-    context_reponse -Response $Response -StatusCode 500 -String "Failed to delete variable: $_"
+} else {
+    context_reponse -Response $Response -StatusCode 404 -String "Not found"
 }

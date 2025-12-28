@@ -16,7 +16,7 @@ This is the main function of the module. It recursively walks a PowerShell objec
   - A `-MaxEnumerable` parameter to limit the number of items it processes in an array.
   - An internal blacklist of complex or problematic types to avoid (e.g., `System.IO.Stream`, `PSCredential`).
 
-### Safe-WalkObject
+### Get-ObjectSafeWalk
 
 A simplified version of `Inspect-Object`, also designed to safely convert an object into a serializable hashtable with similar safety features like depth limits, blacklisting, and enumerable/property limits.
 
