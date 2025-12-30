@@ -16,6 +16,32 @@ begin{
 
     Write-Verbose "Detected OS: Windows=$IsWindowsOS, Linux=$IsLinuxOS, macOS=$IsMacOSPlatform" -Verbose
 
+    # Function to refresh PATH from registry on Windows
+    function Update-EnvironmentPath {
+        if ($IsWindowsOS) {
+            Write-Verbose "Refreshing PATH environment variable from registry..." -Verbose
+            try {
+                $machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
+                $userPath = [System.Environment]::GetEnvironmentVariable('Path', 'User')
+
+                # Combine machine and user paths, removing duplicates while preserving order
+                $combinedPath = ($machinePath, $userPath) -join ';'
+                $uniquePaths = [System.Collections.Generic.LinkedHashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+
+                foreach ($path in ($combinedPath -split ';')) {
+                    if (-not [string]::IsNullOrWhiteSpace($path)) {
+                        [void]$uniquePaths.Add($path.Trim())
+                    }
+                }
+
+                $env:Path = ($uniquePaths -join ';')
+                Write-Verbose "PATH refreshed successfully. New PATH contains $($uniquePaths.Count) unique entries." -Verbose
+            } catch {
+                Write-Warning "Failed to refresh PATH: $($_.Exception.Message)"
+            }
+        }
+    }
+
     # Add project modules folder to PSModulePath if not already present
     $projectRoot = Split-Path -Parent $ScriptFolder
     $modulesFolderPath = Join-Path $projectRoot "modules"
@@ -52,6 +78,9 @@ begin{
             if (-not ($WingetList -match 'SQLite.SQLite')) {
                 Write-Verbose "SQLite not found in winget list. Installing..." -Verbose
                 winget install SQLite.SQLite --accept-package-agreements --accept-source-agreements --silent
+                if ($LASTEXITCODE -eq 0) {
+                    Update-EnvironmentPath
+                }
             }
         } else {
             Write-Verbose "Winget not available on this system." -Verbose
@@ -131,6 +160,15 @@ begin{
                 $wingetResult = Invoke-Expression $wingetCommand
                 if ($LASTEXITCODE -eq 0) {
                     Write-Verbose "SQLite operation completed successfully via Winget." -Verbose
+                    # Refresh PATH so sqlite3 command is immediately available
+                    Update-EnvironmentPath
+                    Write-Verbose "Verifying sqlite3 is now available..." -Verbose
+                    $sqliteVerify = Get-Command sqlite3 -ErrorAction SilentlyContinue
+                    if ($sqliteVerify) {
+                        Write-Verbose "SQLite verified at: $($sqliteVerify.Path)" -Verbose
+                    } else {
+                        Write-Warning "SQLite installed but sqlite3 command not found in PATH. You may need to restart your terminal."
+                    }
                 } else {
                     Write-Error "Failed to install/upgrade SQLite via Winget. Winget exit code: $LASTEXITCODE. Output: $($wingetResult | Out-String)"
                     Write-Warning "Please install SQLite manually or run this script with administrative privileges if Winget requires them."
