@@ -26,19 +26,11 @@ begin{
 
                 # Combine machine and user paths, removing duplicates while preserving order
                 $combinedPath = ($machinePath, $userPath) -join ';'
-
-                # Use ArrayList for PowerShell 5.1 compatibility
-                $uniquePaths = New-Object System.Collections.ArrayList
-                $pathHash = @{}
+                $uniquePaths = [System.Collections.Generic.LinkedHashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 
                 foreach ($path in ($combinedPath -split ';')) {
-                    $trimmedPath = $path.Trim()
-                    if (-not [string]::IsNullOrWhiteSpace($trimmedPath)) {
-                        $lowerPath = $trimmedPath.ToLower()
-                        if (-not $pathHash.ContainsKey($lowerPath)) {
-                            [void]$uniquePaths.Add($trimmedPath)
-                            $pathHash[$lowerPath] = $true
-                        }
+                    if (-not [string]::IsNullOrWhiteSpace($path)) {
+                        [void]$uniquePaths.Add($path.Trim())
                     }
                 }
 

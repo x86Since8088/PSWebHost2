@@ -1,6 +1,65 @@
 param (
     [switch]$Loadvariables
 )
+
+# ============================================================================
+# PowerShell Version Check - Require PowerShell 7 or later
+# ============================================================================
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    Write-Host "`n========================================================================================================" -ForegroundColor Red
+    Write-Host "  ERROR: PowerShell 7 or later is required to run PSWebHost" -ForegroundColor Red
+    Write-Host "========================================================================================================" -ForegroundColor Red
+    Write-Host "`nCurrent version: PowerShell $($PSVersionTable.PSVersion.ToString())" -ForegroundColor Yellow
+    Write-Host "Required version: PowerShell 7.0 or later`n" -ForegroundColor Yellow
+
+    Write-Host "Installation Instructions:" -ForegroundColor Cyan
+    Write-Host "-------------------------`n" -ForegroundColor Cyan
+
+    # Detect OS and provide appropriate instructions
+    $isWindows = $PSVersionTable.PSVersion.Major -lt 6 -or $env:OS -eq 'Windows_NT' -or $IsWindows
+    $isLinux = $PSVersionTable.Platform -eq 'Unix' -and -not $IsMacOS
+    $isMacOS = $IsMacOS
+
+    if ($isWindows) {
+        Write-Host "Windows - Option 1 (Recommended): Using Winget" -ForegroundColor Green
+        Write-Host "  winget install --id Microsoft.Powershell --source winget`n" -ForegroundColor White
+
+        Write-Host "Windows - Option 2: Using MSI Installer" -ForegroundColor Green
+        Write-Host "  Download from: https://aka.ms/powershell-release?tag=stable`n" -ForegroundColor White
+
+        Write-Host "Windows - Option 3: Using Windows Package Manager" -ForegroundColor Green
+        Write-Host "  Install from Microsoft Store: search for 'PowerShell'`n" -ForegroundColor White
+    } elseif ($isLinux) {
+        Write-Host "Linux - Detect your distribution and use the appropriate command:`n" -ForegroundColor Green
+
+        Write-Host "Ubuntu/Debian:" -ForegroundColor Cyan
+        Write-Host "  sudo apt-get update" -ForegroundColor White
+        Write-Host "  sudo apt-get install -y wget apt-transport-https software-properties-common" -ForegroundColor White
+        Write-Host "  wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb" -ForegroundColor White
+        Write-Host "  sudo dpkg -i packages-microsoft-prod.deb" -ForegroundColor White
+        Write-Host "  sudo apt-get update" -ForegroundColor White
+        Write-Host "  sudo apt-get install -y powershell`n" -ForegroundColor White
+
+        Write-Host "RHEL/CentOS/Fedora:" -ForegroundColor Cyan
+        Write-Host "  sudo dnf install -y powershell`n" -ForegroundColor White
+
+        Write-Host "Arch Linux:" -ForegroundColor Cyan
+        Write-Host "  yay -S powershell-bin`n" -ForegroundColor White
+    } elseif ($isMacOS) {
+        Write-Host "macOS - Using Homebrew:" -ForegroundColor Green
+        Write-Host "  brew install --cask powershell`n" -ForegroundColor White
+    }
+
+    Write-Host "After installation, run this script again using:" -ForegroundColor Yellow
+    Write-Host "  pwsh $($MyInvocation.MyCommand.Path)`n" -ForegroundColor White
+
+    Write-Host "For more information, visit:" -ForegroundColor Cyan
+    Write-Host "  https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell`n" -ForegroundColor White
+
+    Write-Host "========================================================================================================`n" -ForegroundColor Red
+    exit 1
+}
+
 # Define project root
 if ($null -eq $ProjectRoot) {
     $ProjectRoot = Split-Path (Split-Path -Parent $MyInvocation.MyCommand.Definition)
