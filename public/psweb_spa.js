@@ -345,14 +345,41 @@ const App = () => {
         // TODO: Save to backend
     };
 
-    const handleMaximizeCard = (cardId) => {
+    const handleMaximizeCard = (cardId, event) => {
         if (maximizedCard) {
+            // Un-maximize: restore layout
             setGridLayout(layoutBeforeMaximize);
             setMaximizedCard(null);
             setLayoutBeforeMaximize(null);
+
+            // Restore the parent div's style attribute
+            setTimeout(() => {
+                // Get the maximize button's parent.parent.parent (the GridLayout item wrapper)
+                if (event && event.target) {
+                    const gridItemDiv = event.target.parentElement.parentElement.parentElement;
+                    const savedStyle = gridItemDiv.getAttribute('data-maximized-style');
+                    if (savedStyle) {
+                        gridItemDiv.setAttribute('style', savedStyle);
+                        gridItemDiv.removeAttribute('data-maximized-style');
+                    }
+                }
+            }, 0);
         } else {
+            // Maximize: save layout
             setLayoutBeforeMaximize(gridLayout);
             setMaximizedCard(cardId);
+
+            // Clear the style attribute on the parent.parent.parent div (GridLayout wrapper)
+            setTimeout(() => {
+                // Get the maximize button's parent.parent.parent (the GridLayout item wrapper)
+                if (event && event.target) {
+                    const gridItemDiv = event.target.parentElement.parentElement.parentElement;
+                    // Save the original style to restore later
+                    gridItemDiv.setAttribute('data-maximized-style', gridItemDiv.getAttribute('style') || '');
+                    gridItemDiv.removeAttribute('style');
+                }
+            }, 10);
+
             const newLayout = gridLayout.map(item => {
                 if (item.i === cardId) {
                     return { ...item, x: 0, y: 0, w: 12, h: 8 }; // A large size

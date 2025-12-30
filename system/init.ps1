@@ -10,6 +10,95 @@ $Global:PSWebServer.Project_Root = @{ Path = $ProjectRoot }
 
 # Load configuration
 $Configfile = Join-Path $ProjectRoot "config/settings.json"
+
+# Create default config if it doesn't exist
+if (-not (Test-Path $Configfile)) {
+    Write-Verbose "Config file not found. Creating default configuration at: $Configfile" -Verbose
+
+    $configDir = Split-Path $Configfile -Parent
+    if (-not (Test-Path $configDir)) {
+        New-Item -Path $configDir -ItemType Directory -Force | Out-Null
+    }
+
+    $defaultConfig = @{
+        WebServer = @{
+            Port = 8080
+            HttpsPort = 8443
+            AuthenticationSchemes = "Anonymous"
+        }
+        MimeTypes = @{
+            ".css" = "text/css"
+            ".js" = "application/javascript"
+            ".html" = "text/html"
+            ".png" = "image/png"
+            ".jpg" = "image/jpeg"
+            ".jpeg" = "image/jpeg"
+            ".gif" = "image/gif"
+            ".svg" = "image/svg+xml"
+            ".ico" = "image/x-icon"
+            ".webp" = "image/webp"
+            ".json" = "application/json"
+            ".txt" = "text/plain"
+            ".pdf" = "application/pdf"
+            ".xml" = "application/xml"
+            ".csv" = "text/csv"
+            ".zip" = "application/zip"
+            ".gz" = "application/gzip"
+            ".7z" = "application/x-7z-compressed"
+            ".mp3" = "audio/mpeg"
+            ".wav" = "audio/wav"
+            ".ogg" = "audio/ogg"
+            ".mp4" = "video/mp4"
+            ".webm" = "video/webm"
+            ".ttf" = "font/ttf"
+            ".otf" = "font/otf"
+            ".woff" = "font/woff"
+            ".woff2" = "font/woff2"
+        }
+        authentication = @{
+            providers = @{
+                WindowsIntegrated = @{
+                    Type = "Windows"
+                    AccountNameRegex = "^[\.\w]+[\\/]*\w*$"
+                    endpoint = "/api/v1/authprovider/windows"
+                    RedirectFieldName = $null
+                    cors_origin = $null
+                }
+            }
+        }
+        roles = @(
+            "site_admin"
+            "vault_admin"
+            "system_admin"
+            "user"
+            "unauthenticated"
+            "authenticated"
+        )
+        debug_url = @{
+            default = @{
+                PSNativeCommandUseErrorActionPreference = "False"
+                ProgressPreference = "Continue"
+                ConfirmPreference = "High"
+                DebugPreference = "SilentlyContinue"
+                WhatIfPreference = "False"
+                ErrorActionPreference = "Continue"
+                InformationPreference = "SilentlyContinue"
+                VerbosePreference = "SilentlyContinue"
+                WarningPreference = "Continue"
+            }
+            "/api/v1" = @{
+                VerbosePreference = "Continue"
+            }
+        }
+        Data = @{
+            UserDataStorage = @("PsWebHost_Data\UserData")
+        }
+    }
+
+    $defaultConfig | ConvertTo-Json -Depth 10 | Set-Content $Configfile -Encoding UTF8
+    Write-Verbose "Default configuration created successfully." -Verbose
+}
+
 $Global:PSWebServer.Config = (Get-Content $Configfile | ConvertFrom-Json)
 $Global:PSWebServer.SettingsLastWriteTime = (Get-Item $Configfile).LastWriteTime
 

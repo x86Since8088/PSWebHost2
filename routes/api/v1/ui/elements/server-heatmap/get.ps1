@@ -42,7 +42,7 @@ try {
     if ($os) {
         $totalMemoryGB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
         $freeMemoryGB = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
-        $usedMemoryGB = $totalMemoryGB - $freeMemoryGB
+        $usedMemoryGB = [math]::Round($totalMemoryGB - $freeMemoryGB,2)
         $memoryPercent = [math]::Round(($usedMemoryGB / $totalMemoryGB) * 100, 1)
 
         $systemStats.metrics.memory = @{
@@ -83,7 +83,7 @@ try {
     $netCounters = Get-Counter -Counter '\Network Interface(*)\Bytes Total/sec' -ErrorAction SilentlyContinue
     if ($netCounters) {
         $netData = @($netCounters.CounterSamples | Where-Object {
-            $_.InstanceName -notmatch 'Loopback|isatap' -and $_.CookedValue -gt 0
+            $_.InstanceName -notmatch 'Loopback|isatap'
         } | ForEach-Object {
             $bytesPerSec = [math]::Round($_.CookedValue / 1KB, 1)
             @{
