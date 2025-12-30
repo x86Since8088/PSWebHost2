@@ -242,6 +242,9 @@ Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Database/PSW
 Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Authentication/PSWebHost_Authentication.psd1")
 Import-TrackedModule -Path (Join-Path $modulesFolderPath "smtp/smtp.psd1")
 
+# Validate installation, dependencies, and database schema
+& (Join-Path $PSScriptRoot 'validateInstall.ps1')
+
 try {
     Import-Module PSSQLite 
 }
@@ -250,8 +253,6 @@ catch {
 }
 if ($Loadvariables.IsPresent) {return}
 
-# Validate installation, dependencies, and database schema
-& (Join-Path $PSScriptRoot 'validateInstall.ps1')
 
 # Register roles from config if they don't exist
 if ($Global:PSWebServer.Config.roles) {
