@@ -7,18 +7,15 @@ begin{
     Write-Verbose -Message 'Initializing variables.' -Verbose
     $ScriptFolder             = Split-Path $MyInvocation.MyCommand.Definition
 
-    # Detect OS and set platform-specific variables
-    $IsWindowsOS = $IsWindows -or ($PSVersionTable.PSVersion.Major -lt 6) -or ($env:OS -eq 'Windows_NT')
-    $IsLinuxOS = $IsLinux -or ($PSVersionTable.Platform -eq 'Unix' -and -not $IsMacOS)
-    $IsMacOSPlatform = $IsMacOS
+    # Detect OS using built-in PowerShell 7+ variables
+    # $IsWindows, $IsLinux, $IsMacOS are built-in read-only automatic variables
+    $PathSeparator = if ($IsWindows) { ';' } else { ':' }
 
-    $PathSeparator = if ($IsWindowsOS) { ';' } else { ':' }
-
-    Write-Verbose "Detected OS: Windows=$IsWindowsOS, Linux=$IsLinuxOS, macOS=$IsMacOSPlatform" -Verbose
+    Write-Verbose "Detected OS: Windows=$IsWindows, Linux=$IsLinux, macOS=$IsMacOS" -Verbose
 
     # Function to refresh PATH from registry on Windows
     function Update-EnvironmentPath {
-        if ($IsWindowsOS) {
+        if ($IsWindows) {
             Write-Verbose "Refreshing PATH environment variable from registry..." -Verbose
             try {
                 $machinePath = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
@@ -71,7 +68,7 @@ begin{
     }
 
     # Windows-specific: Check winget for SQLite
-    if ($IsWindowsOS) {
+    if ($IsWindows) {
         $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
         if ($wingetCmd) {
             $WingetList = winget list
@@ -142,7 +139,7 @@ begin{
     } else {
         Write-Warning "SQLite (sqlite3 command) not found. Attempting to install..."
 
-        if ($IsWindowsOS) {
+        if ($IsWindows) {
             # Windows: Use Winget
             $__err = $null
             $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue -ErrorVariable __err
@@ -185,7 +182,7 @@ begin{
             } else {
                 Write-Error "Winget not found or failed to execute. Please install SQLite manually."
             }
-        } elseif ($IsLinuxOS) {
+        } elseif ($IsLinux) {
             # Linux: Detect and use appropriate package manager
             Write-Verbose "Detecting Linux package manager..." -Verbose
 
@@ -227,7 +224,7 @@ begin{
                 Write-Error "Could not detect a supported package manager (apt, dnf, yum, pacman, zypper)."
                 Write-Warning "Please install SQLite manually: 'sudo <your-package-manager> install sqlite3'"
             }
-        } elseif ($IsMacOSPlatform) {
+        } elseif ($IsMacOS) {
             # macOS: Use Homebrew if available
             $brewCmd = Get-Command brew -ErrorAction SilentlyContinue
             if ($brewCmd) {

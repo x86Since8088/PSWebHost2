@@ -15,12 +15,9 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
     Write-Host "Installation Instructions:" -ForegroundColor Cyan
     Write-Host "-------------------------`n" -ForegroundColor Cyan
 
-    # Detect OS and provide appropriate instructions
-    $isWindows = $PSVersionTable.PSVersion.Major -lt 6 -or $env:OS -eq 'Windows_NT' -or $IsWindows
-    $isLinux = $PSVersionTable.Platform -eq 'Unix' -and -not $IsMacOS
-    $isMacOS = $IsMacOS
-
-    if ($isWindows) {
+    # Use built-in OS detection variables (available in PowerShell 6+)
+    # Note: These are read-only automatic variables, don't assign to them
+    if ($IsWindows) {
         Write-Host "Windows - Option 1 (Recommended): Using Winget" -ForegroundColor Green
         Write-Host "  winget install --id Microsoft.Powershell --source winget`n" -ForegroundColor White
 
@@ -29,7 +26,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 
         Write-Host "Windows - Option 3: Using Windows Package Manager" -ForegroundColor Green
         Write-Host "  Install from Microsoft Store: search for 'PowerShell'`n" -ForegroundColor White
-    } elseif ($isLinux) {
+    } elseif ($IsLinux) {
         Write-Host "Linux - Detect your distribution and use the appropriate command:`n" -ForegroundColor Green
 
         Write-Host "Ubuntu/Debian:" -ForegroundColor Cyan
@@ -45,7 +42,7 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 
         Write-Host "Arch Linux:" -ForegroundColor Cyan
         Write-Host "  yay -S powershell-bin`n" -ForegroundColor White
-    } elseif ($isMacOS) {
+    } elseif ($IsMacOS) {
         Write-Host "macOS - Using Homebrew:" -ForegroundColor Green
         Write-Host "  brew install --cask powershell`n" -ForegroundColor White
     }
