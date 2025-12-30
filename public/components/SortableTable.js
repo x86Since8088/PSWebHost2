@@ -52,6 +52,7 @@ const SortableTable = ({ data, columns }) => {
         .generic-table th, .generic-table td {
             border: 1px solid #ddd;
             padding: 4px;
+            padding-left: 5px;
         }
         .generic-table th {
             padding-top: 2px;

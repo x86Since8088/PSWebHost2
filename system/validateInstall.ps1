@@ -43,17 +43,32 @@ begin{
         }
     Write-Verbose -Message 'Validating required modules - complete.' -Verbose
 
+    Write-Verbose -Message 'Validating third-party modules...' -Verbose
+    $thirdPartyValidatorScript = Join-Path $ScriptFolder "Validate3rdPartyModules.ps1"
+    if(!(Test-Path $thirdPartyValidatorScript)) {
+        Write-Warning -Message "thirdPartyValidatorScript not found. '$thirdPartyValidatorScript' will not be executed"
+    }
+    elseif (Test-Path $thirdPartyValidatorScript) {
+        & $thirdPartyValidatorScript
+    } else {
+        Write-Warning "Third-party module validator script not found at $thirdPartyValidatorScript."
+    }
+    Write-Verbose -Message 'Validating third-party modules - complete.' -Verbose
+
     Write-Verbose -Message 'Validating SQLite installation.' -Verbose
     # Check if sqlite3 command is available
-    try {
-        $sqlite3Path = (Get-Command sqlite3 -ErrorAction Stop).Path
+    # Prefer non-throwing checks to find sqlite3
+    $__err = $null
+    $sqliteCmd = Get-Command sqlite3 -ErrorAction SilentlyContinue -ErrorVariable __err
+    if ($sqliteCmd) {
+        $sqlite3Path = $sqliteCmd.Path
         Write-Verbose "SQLite found at: $sqlite3Path" -Verbose
-    }
-    catch {
+    } else {
         Write-Warning "SQLite (sqlite3 command) not found. Attempting to install via Winget."
-        # Check if Winget is available
-        try {
-            (Get-Command winget -ErrorAction Stop) | Out-Null
+
+        $__err = $null
+        $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue -ErrorVariable __err
+        if ($wingetCmd) {
             Write-Verbose "Winget found." -Verbose
 
             $wingetCommand = "winget install --id SQLite.SQLite --accept-package-agreements --accept-source-agreements --silent"
@@ -71,24 +86,22 @@ begin{
                 Write-Error "Failed to install/upgrade SQLite via Winget. Winget exit code: $LASTEXITCODE. Output: $($wingetResult | Out-String)"
                 Write-Warning "Please install SQLite manually or run this script with administrative privileges if Winget requires them."
             }
-        }
-        catch {
+        } else {
             Write-Error "Winget not found or failed to execute. Please install SQLite manually."
         }
     }
     Write-Verbose -Message 'Validating SQLite installation - complete.' -Verbose
 }
 end {
-    Write-Verbose "Validating database schema..." -Verbose
+    Write-Verbose "Validating database schema..."
     try {
-        $dbValidatorScript = Join-Path $ScriptFolder "db/sqlite/validatetables.ps1"
-        $dbConfigFile = Join-Path $ScriptFolder "db/sqlite/sqliteconfig.json"
-        $databaseFile = Join-Path $projectRoot "PsWebHost_Data/pswebhost.db"
-
-        if (Test-Path $dbValidatorScript) {
-            & $dbValidatorScript -DatabaseFile $databaseFile -ConfigFile $dbConfigFile -Verbose
+        $validatorScript = Join-Path $PSScriptRoot "db/sqlite/validatetables.ps1"
+        if (Test-Path $validatorScript) {
+            $dbFile = Join-Path $projectRoot "PsWebHost_Data/pswebhost.db"
+            $configFile = Join-Path $projectRoot "system/db/sqlite/sqliteconfig.json"
+            & $validatorScript -DatabaseFile $dbFile -ConfigFile $configFile
         } else {
-            Write-Warning "Database validator script not found at $dbValidatorScript. Skipping schema validation."
+            Write-Error "Database validation script not found at '$validatorScript'."
         }
     } catch {
         Write-Error "An error occurred during database schema validation: $($_.Exception.Message)"

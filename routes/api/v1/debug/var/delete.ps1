@@ -2,7 +2,7 @@ param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request = $Context.Request,
     [System.Net.HttpListenerResponse]$Response = $Context.Response,
-    [hashtable]$SessionData
+    $sessiondata
 )
 
 # Expect query parameter 'name' (variable name without leading $)
@@ -12,15 +12,16 @@ if (-not $name) {
     return
 }
 $name = $name -replace '^\$',''
-Write-Host "Deleting variable: $name"
-try {
-    $existing = Get-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue
-    if ($null -ne $existing) {
-        Remove-Variable -Name $name -Scope Global -ErrorAction Stop
-        context_reponse -Response $Response -StatusCode 200 -String "Deleted"
+Write-Verbose "Deleting variable: $name"
+$existing = Get-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue
+if ($null -ne $existing) {
+    $__err = $null
+    Remove-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue -ErrorVariable __err
+    if ($__err) {
+        context_reponse -Response $Response -StatusCode 500 -String "Failed to delete variable: $__err"
     } else {
-        context_reponse -Response $Response -StatusCode 404 -String "Not found"
+        context_reponse -Response $Response -StatusCode 200 -String "Deleted"
     }
-} catch {
-    context_reponse -Response $Response -StatusCode 500 -String "Failed to delete variable: $_"
+} else {
+    context_reponse -Response $Response -StatusCode 404 -String "Not found"
 }

@@ -2,16 +2,16 @@ param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request = $Context.Request,
     [System.Net.HttpListenerResponse]$Response = $Context.Response,
-    [hashtable]$SessionData
+    $sessiondata
 )
 
 try {
     # Import required modules
     Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Formatters/PSWebHost_Formatters.psd1") -DisableNameChecking
-    Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/MGMT/PowerShell/SavedModules/powershell-yaml/0.4.7/powershell-yaml.psd1") -DisableNameChecking
+    Import-Module powershell-yaml -DisableNameChecking
 
     # Get and process variables, excluding some known problematic ones
-    $excludeVars = @('PSWebServer', 'Host', 'ExecutionContext', 'true', 'false', 'null', 'Context', 'Request', 'Response', 'SessionData')
+    $excludeVars = @('PSWebServer', 'Host', 'ExecutionContext', 'true', 'false', 'null', 'Context', 'Request', 'Response', 'SessionData', 'PSBoundParameters')
     $vars = Get-Variable -Scope Global -ErrorAction SilentlyContinue | Where-Object { $_.Name -notin $excludeVars } | ForEach-Object {
         $V = $_;
         if ($null -ne $V.Value) {

@@ -2,14 +2,14 @@ param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request = $Context.Request,
     [System.Net.HttpListenerResponse]$Response = $Context.Response,
-    [hashtable]$SessionData
+    $sessiondata
 )
 
 $responseObject = @{
     user = $null
 }
 
-$isSessionValid = Validate-UserSession -Context $Context -SessionID $SessionData.SessionID -SessionData $SessionData
+$isSessionValid = Validate-UserSession -Context $Context -SessionID $SessionData.SessionID -Verbose
 
 if ($isSessionValid -and $SessionData.UserID) {
     $userRoles = Get-UserRoles -UserID $SessionData.UserID

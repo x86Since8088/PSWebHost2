@@ -3,13 +3,13 @@ param (
     [System.Net.HttpListenerRequest]$Request = $Context.Request,
     [System.Net.HttpListenerResponse]$Response = $Context.Response,
     [string]$sessionID = $Context.Request.Cookies["PSWebSessionID"].Value,
-    [hashtable]$SessionData = $global:PSWebSessions[$sessionID],
+    $sessiondata = $global:PSWebSessions[$sessionID],
     [hashtable]$CardSettings
 )
 
 # Import required modules
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Authentication/PSWebHost_Authentication.psm1") -DisableNameChecking
+Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database") -DisableNameChecking
+Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Authentication") -DisableNameChecking
 
 # Helper function to create a JSON response
 function New-JsonResponse($status, $message) {
@@ -25,17 +25,16 @@ $emailForm = @"
     <button type="button" class="btn" onclick="window.location.href='/spa'">Cancel</button>
 </form>
 "@
-write-host ($SessionData|ConvertTo-Yaml).trim("\s") -ForegroundColor Magenta
+Write-Verbose "	[$($Psscriptroot -replace '^.*?([\/]routes[\/])','$1')] GET $((($SessionData|Inspect-Object | ConvertTo-YAML) -split "`n" -notmatch '^\s*Type:' -join "`n").trim("	"))"
+
 # Read request body
-$reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
-$bodyContent = $reader.ReadToEnd()
-$reader.Close()
+$bodyContent = Get-RequestBody -Request $Request
 $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
 $email = $parsedBody["email"]
 
 if ([string]::IsNullOrEmpty($email)) {
     # --- Step 1: Initial check ---
-    $isSessionValid = Validate-UserSession -Context $Context -SessionID $SessionData.SessionID -SessionData $SessionData
+    $isSessionValid = Validate-UserSession -Context $Context -SessionID $sessionID -Verbose
     if ($isSessionValid -and $SessionData.UserID) {
         $jsonResponse = New-JsonResponse -status 'success' -message "You are already logged in as $($SessionData.UserID)."
         context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
@@ -53,7 +52,7 @@ if ([string]::IsNullOrEmpty($email)) {
     if (-not $isEmailValid.isValid) {
         $errorMessage = "<p class=""error"">$($isEmailValid.Message)</p>" + $emailForm
         $jsonResponse = New-JsonResponse -status 'fail' -message $errorMessage
-        write-host "Post"
+        Write-Verbose "Post"
         context_reponse -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
         return
     }
@@ -75,7 +74,7 @@ if ([string]::IsNullOrEmpty($email)) {
         foreach ($method in $authMethods) {
             $encodedEmail = [System.Web.HttpUtility]::UrlEncode($email)
             $onClickUrl = "/api/v1/authprovider/$method?email=$encodedEmail"
-            $buttonsHtml += "<button class='btn' onclick=""window.location.href='$onClickUrl'"">$method</button>"
+            $buttonsHtml += "<button class='btn' onclick=`"window.location.href='$onClickUrl'`">$method</button>"
         }
         $buttonsHtml += "<button type='button' class='btn' onclick='window.location.reload()'>Cancel</button>"
         $buttonsHtml += "</div>"

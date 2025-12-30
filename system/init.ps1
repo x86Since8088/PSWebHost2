@@ -1,3 +1,6 @@
+param (
+    [switch]$Loadvariables
+)
 # Define project root
 if ($null -eq $ProjectRoot) {
     $ProjectRoot = Split-Path (Split-Path -Parent $MyInvocation.MyCommand.Definition)
@@ -42,6 +45,37 @@ if ($Global:PSWebServer.Config.GoogleMaps -and -not [string]::IsNullOrEmpty($Glo
     $Global:PSWebServer.Config.GoogleMaps.ApiKey = $null
 }
 
+# Initialize UserDataStorage if not present
+if (-not $Global:PSWebServer.Config.Data) {
+    $Global:PSWebServer.Config | Add-Member -MemberType NoteProperty -Name 'Data' -Value ([PSCustomObject]@{
+        UserDataStorage = @("PsWebHost_Data\UserData")
+    })
+    $configUpdated = $true
+}
+elseif (-not $Global:PSWebServer.Config.Data.UserDataStorage -or $Global:PSWebServer.Config.Data.UserDataStorage.Count -eq 0) {
+    $Global:PSWebServer.Config.Data | Add-Member -MemberType NoteProperty -Name 'UserDataStorage' -Value @("PsWebHost_Data\UserData") -Force
+    $configUpdated = $true
+}
+
+# Save config if updated
+if ($configUpdated) {
+    $Global:PSWebServer.Config | ConvertTo-Json -Depth 10 | Set-Content $Configfile
+    Write-Verbose "Initialized Data.UserDataStorage in configuration." -Verbose
+}
+
+# Ensure UserData directories exist
+foreach ($storagePath in $Global:PSWebServer.Config.Data.UserDataStorage) {
+    $fullPath = if ([System.IO.Path]::IsPathRooted($storagePath)) {
+        $storagePath
+    } else {
+        Join-Path $ProjectRoot $storagePath
+    }
+    if (-not (Test-Path $fullPath)) {
+        New-Item -Path $fullPath -ItemType Directory -Force | Out-Null
+        Write-Verbose "Created user data storage directory: $fullPath" -Verbose
+    }
+}
+
 # Add modules folder to PSModulePath
 $modulesFolderPath = Join-Path $Global:PSWebServer.Project_Root.Path "modules"
 if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
@@ -52,12 +86,21 @@ if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
 # --- Thread-Safe Logging Setup ---
 $global:PSWebHostLogQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $global:PSHostUIQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
+$Global:PSWebServer.LogFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/Logs/log.tsv"
+
+# --- Real-Time Event Stream Buffer ---
+# Initialize a thread-safe ring buffer for real-time log events
+$Global:PSWebServer.EventStreamBuffer = [System.Collections.Concurrent.ConcurrentQueue[PSCustomObject]]::new()
+$Global:PSWebServer.EventStreamMaxSize = 1000  # Maximum events to retain
+$Global:PSWebServer.EventStreamJobName = "PSWebHost_LogTail_EventStream"
+
+<#
 $global:StopLogging = $false
 
 $loggingScriptBlock = {
     param($logQueue, $webServerConfig, $stopSignal)
 
-    $logDirectory = Join-Path $webServerConfig.Project_Root.Path "PsWebHost_Data/Logs"
+    $logDirectory = Join-Path $global:PSWebServer.Project_Root.Path "PsWebHost_Data/Logs"
     if (-not (Test-Path $logDirectory)) {
         New-Item -Path $logDirectory -ItemType Directory -Force | Out-Null
     }
@@ -65,7 +108,7 @@ $loggingScriptBlock = {
 
     while (-not $stopSignal.Value) {
         $logEntries = [System.Collections.Generic.List[string]]::new()
-        while ($logQueue.TryDequeue([ref]$logEntry)) {
+        while ($logQueue.TryDequeue([ref]'logEntry')) {
             $logEntries.Add($logEntry)
         }
 
@@ -75,6 +118,7 @@ $loggingScriptBlock = {
         Start-Sleep -Milliseconds 500
     }
 }
+#>
 
 $loggingPowerShell = [powershell]::Create().AddScript($loggingScriptBlock).AddParameters(@{
     logQueue = $global:PSWebHostLogQueue
@@ -92,7 +136,7 @@ function Import-TrackedModule {
     param (
         [string]$Path
     )
-    $moduleInfo = Import-Module $Path -Force -DisableNameChecking -PassThru
+    $moduleInfo = Import-Module $Path -Force -DisableNameChecking -PassThru 3>$null
     $fileInfo = Get-Item -Path $Path
     $Global:PSWebServer.Modules[$moduleInfo.Name] = @{
         Path = $Path
@@ -109,6 +153,25 @@ Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Database/PSW
 Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Authentication/PSWebHost_Authentication.psd1")
 Import-TrackedModule -Path (Join-Path $modulesFolderPath "smtp/smtp.psd1")
 
+try {
+    Import-Module PSSQLite 
+}
+catch {
+    Write-Error -Message "Error importing PSSQLite module: $($_.Exception.Message)"
+}
+if ($Loadvariables.IsPresent) {return}
 
-# Initialize the database
-Initialize-PSWebHostDatabase
+# Validate installation, dependencies, and database schema
+& (Join-Path $PSScriptRoot 'validateInstall.ps1')
+
+# Register roles from config if they don't exist
+if ($Global:PSWebServer.Config.roles) {
+    $configRoles = $Global:PSWebServer.Config.roles
+    $dbRoles = Get-PSWebHostRole -ListAll
+    foreach ($role in $configRoles) {
+        if ($role -notin $dbRoles) {
+            Write-Verbose "Registering role '$role' from config." -Verbose
+            New-PSWebHostRole -RoleName $role
+        }
+    }
+}

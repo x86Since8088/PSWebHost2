@@ -47,7 +47,8 @@ try {
 
     # --- 1. Setup Paths and Validate Inputs ---
     if (-not (Test-Path -Path $Path -PathType Leaf)) {
-        throw "Source image file not found at: $Path"
+        Write-Error "Source image file not found at: $Path"
+        return
     }
 
     # Create the output directory if it doesn't exist

@@ -1,0 +1,28 @@
+- Name: LogError
+  Repository: PSGallery
+  # This module is used for error logging functionality.
+  Version: 1.0.0
+
+- Name: PSSQLite
+  Repository: PSGallery
+  # This module is required for SQLite database operations.
+  Version: 1.1.0
+
+- Name: OTP
+  Repository: PSGallery
+  # This module is used for MFA functionality, replacing the unavailable TOTP module.
+  # Pinning to a specific version for reproducibility.
+  Version: 0.1.1
+
+- Name: powershell-yaml
+  Repository: PSGallery
+  # This module is required by Validate3rdPartyModules.ps1 to parse this YAML file.
+  Version: 0.4.2
+
+- Name: QRCodeGenerator
+  Repository: PSGallery
+  # This module is used to generate QR codes for MFA setup.
+  Version: 2.6.0
+
+- Name: PSScriptAnalyzer 
+  Repository: PSGallery

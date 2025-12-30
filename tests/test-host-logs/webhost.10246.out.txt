@@ -1,0 +1,117 @@
+Started background logging job.
+Tracked module Sanitization from E:\sc\git\PsWebHost\modules\Sanitization\Sanitization.psm1
+Tracked module PSWebHost_Support from E:\sc\git\PsWebHost\modules\PSWebHost_Support\PSWebHost_Support.psd1
+Tracked module PSWebHost_Database from E:\sc\git\PsWebHost\modules\PSWebHost_Database\PSWebHost_Database.psd1
+Tracked module PSWebHost_Authentication from E:\sc\git\PsWebHost\modules\PSWebHost_Authentication\PSWebHost_Authentication.psd1
+Tracked module smtp from E:\sc\git\PsWebHost\modules\smtp\smtp.psd1
+Initializing variables.
+Validating required modules - complete.
+Validating third-party modules...
+	Module 'powershell-yaml' version mismatch. Found 0.4.7.0, require '0.4.2.0'. Scheduling for download.
+Access to the path 'E:\sc\git\PsWebHost\ModuleDownload\powershell-yaml\0.4.2' is denied.
+Write-Error: E:\sc\git\PsWebHost\system\validateInstall.ps1:52:9
+Line |
+  52 |          & $thirdPartyValidatorScript
+     |          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     |  Failed to download module 'powershell-yaml'. Error: Unable to save the module 'powershell-yaml'.
+
+
+Command                     Arguments Location
+-------                     --------- --------
+init.ps1                    {}        <No file>
+Validate3rdPartyModules.ps1 {}        Validate3rdPartyModules.ps1: line 174
+validateInstall.ps1         {}        validateInstall.ps1: line 52
+init.ps1                    {}        init.ps1: line 124
+WebHost.ps1                 {Port=}   WebHost.ps1: line 14
+<ScriptBlock>               {}        <No file>
+Validating third-party modules - complete.
+Validating SQLite installation.
+SQLite found at: C:\Users\eskar\AppData\Local\Microsoft\WinGet\Links\sqlite3.exe
+Validating SQLite installation - complete.
+Validating table: Users
+Table 'Users' exists. Verifying schema.
+Reason for rebuild: Primary key mismatch.
+Schema mismatch for table 'Users'. Rebuilding table.
+Renamed table 'Users' to 'Users_old_20251207001619'
+Created new table 'Users' with updated schema.
+Copied data from 'Users_old_20251207001619' to 'Users'.
+Dropped old table 'Users_old_20251207001619'.
+Validating table: User_Data
+Table 'User_Data' exists. Verifying schema.
+Validating table: LoginSessions
+Table 'LoginSessions' exists. Verifying schema.
+Reason for rebuild: Primary key mismatch.
+Schema mismatch for table 'LoginSessions'. Rebuilding table.
+Renamed table 'LoginSessions' to 'LoginSessions_old_20251207001619'
+Created new table 'LoginSessions' with updated schema.
+Copied data from 'LoginSessions_old_20251207001619' to 'LoginSessions'.
+Dropped old table 'LoginSessions_old_20251207001619'.
+Validating table: User_Groups
+Table 'User_Groups' exists. Verifying schema.
+Reason for rebuild: Primary key mismatch.
+Schema mismatch for table 'User_Groups'. Rebuilding table.
+Renamed table 'User_Groups' to 'User_Groups_old_20251207001619'
+Created new table 'User_Groups' with updated schema.
+Copied data from 'User_Groups_old_20251207001619' to 'User_Groups'.
+Dropped old table 'User_Groups_old_20251207001619'.
+Validating table: User_Groups_Map
+Table 'User_Groups_Map' exists. Verifying schema.
+Validating table: PSWeb_Roles
+Table 'PSWeb_Roles' exists. Verifying schema.
+Validating table: AuthenticationMethods
+Table 'AuthenticationMethods' exists. Verifying schema.
+Reason for rebuild: Primary key mismatch.
+Schema mismatch for table 'AuthenticationMethods'. Rebuilding table.
+Renamed table 'AuthenticationMethods' to 'AuthenticationMethods_old_20251207001619'
+Created new table 'AuthenticationMethods' with updated schema.
+Copied data from 'AuthenticationMethods_old_20251207001619' to 'AuthenticationMethods'.
+Dropped old table 'AuthenticationMethods_old_20251207001619'.
+Validating table: CardSessions
+Table 'CardSessions' exists. Verifying schema.
+Reason for rebuild: Primary key mismatch.
+Schema mismatch for table 'CardSessions'. Rebuilding table.
+Renamed table 'CardSessions' to 'CardSessions_old_20251207001619'
+Created new table 'CardSessions' with updated schema.
+Copied data from 'CardSessions_old_20251207001619' to 'CardSessions'.
+Dropped old table 'CardSessions_old_20251207001619'.
+Validating table: auth_user_provider
+Table 'auth_user_provider' exists. Verifying schema.
+Validating table: LastLoginAttempt
+Table 'LastLoginAttempt' exists. Verifying schema.
+Reason for rebuild: Primary key mismatch.
+Schema mismatch for table 'LastLoginAttempt'. Rebuilding table.
+Renamed table 'LastLoginAttempt' to 'LastLoginAttempt_old_20251207001619'
+Created new table 'LastLoginAttempt' with updated schema.
+Copied data from 'LastLoginAttempt_old_20251207001619' to 'LastLoginAttempt'.
+Dropped old table 'LastLoginAttempt_old_20251207001619'.
+Validating table: account_email_confirmation
+Table 'account_email_confirmation' exists. Verifying schema.
+Reason for rebuild: Primary key mismatch.
+Schema mismatch for table 'account_email_confirmation'. Rebuilding table.
+Renamed table 'account_email_confirmation' to 'account_email_confirmation_old_20251207001619'
+Created new table 'account_email_confirmation' with updated schema.
+Copied data from 'account_email_confirmation_old_20251207001619' to 'account_email_confirmation'.
+Dropped old table 'account_email_confirmation_old_20251207001619'.
+Validating table: card_settings
+Table 'card_settings' exists. Verifying schema.
+Database schema validation complete.
+Init.ps1 completed after 4709.7019 milliseconds
+Write-Error: 
+Line |
+   2 |   . 'e:\sc\git\PsWebHost\WebHost.ps1' -Port $Port *>&1 |
+     |   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     | Failed to start listener. Error: System.Management.Automation.MethodInvocationException: Exception calling "Start" with "0" argument(s): "The parameter is incorrect."
+ ---> System.Net.HttpListenerException (87): The parameter is incorrect.
+   at System.Net.HttpListener.AddPrefixCore(String registeredPrefix)
+   at System.Net.HttpListener.AddAllPrefixes()
+   at System.Net.HttpListener.Start()
+   at CallSite.Target(Closure, CallSite, Object)
+   --- End of inner exception stack trace ---
+   at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference(FunctionContext funcContext, Exception exception)
+   at System.Management.Automation.Interpreter.ActionCallInstruction`2.Run(InterpretedFrame frame)
+   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)
+   at System.Management.Automation.Interpreter.EnterTryCatchFinallyInstruction.Run(InterpretedFrame frame)
+WebHost.ps1                 {Port=}   <No file>
+WebHost.ps1                 {Port=}   WebHost.ps1: line 96
+<ScriptBlock>               {}        <No file>
+

@@ -1,6 +1,6 @@
 param (
     [System.Net.HttpListenerContext]$Context,
-    [hashtable]$SessionData
+    $sessiondata
 )
 
 # In a real implementation, this would fetch user-specific profile data from the database.

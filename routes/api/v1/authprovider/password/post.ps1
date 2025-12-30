@@ -2,14 +2,14 @@ param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request=$Context.Request,
     [System.Net.HttpListenerResponse]$Response=$Context.Response,
-    [hashtable]$SessionData = $Global:PSWebSessions[$Context.Request.Cookies["PSWebSessionID"].Value]
+    $sessiondata = $Global:PSWebSessions[$Context.Request.Cookies["PSWebSessionID"].Value]
 )
+$MyTag = '[routes\api\v1\authprovider\password\post.ps1]'
 
 # Import required modules
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Authentication/PSWebHost_Authentication.psm1") -DisableNameChecking
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Support/PSWebHost_Support.psm1") -DisableNameChecking
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "system/auth/TestToken.ps1") -DisableNameChecking
+Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database") -DisableNameChecking 3>$null 4>$null
+Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Authentication") -DisableNameChecking 3>$null 4>$null
+Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Support") -DisableNameChecking 3>$null 4>$null
 
 # Helper function to create a JSON response
 function New-JsonResponse($status, $message) {
@@ -27,37 +27,34 @@ $password = $null
 $redirectTo = $null
 
 try {
-    if ($Request.HasEntityBody) {
-        $reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
-        $bodyContent = $reader.ReadToEnd()
-        $reader.Close()
-
-        $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
-        $email = $parsedBody["email"]
-        $password = $parsedBody["password"]
-        $redirectTo = $parsedBody["RedirectTo"]
-    }
+    Write-Host "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Processing Password authentication POST from $($ipAddress)"
+    $bodyContent = Get-RequestBody -Request $Request
+    $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
+    $email = $parsedBody["email"]
+    $password = $parsedBody["password"]
+    $redirectTo = $parsedBody["RedirectTo"]
 
     [string[]]$Fail = @()
     $IsEmailValid = Test-IsValidEmailAddress -Email $email
     if ([string]::IsNullOrEmpty($email)) {
-        $fail+='Email is required.'
+        $fail+='<p class="error">Email is required.</p>'
     } elseif (-not ($IsEmailValid.isValid)) {
-        $Fail += $IsEmailValid.Message
+        $Fail += "<p class=""error"">$($IsEmailValid.Message)</p>"
     }
 
     if ([string]::IsNullOrEmpty($password)) {
-        $fail+='Password is required.'
+        $fail+='<p class="error">Password is required.</p>'
     } else {
         $passwordValidation = Test-IsValidPassword -Password $password
         if (-not $passwordValidation.IsValid) {
-            $Fail += $passwordValidation.Message
+            $Fail += "<p class='error'>$($passwordValidation.Message)</p>"
         }
     }
 
     if ($Fail.count -ne 0) {
+        write-pswebhostlog -Severity 'Warning' -Category 'Auth' -Message "$MyTag Validation failed for Password auth POST from $ipAddress. Errors: $($Fail -join '; ')" -Data @{ IPAddress = $ipAddress; Body = $bodyContent } -WriteHost
         $jsonResponse = New-JsonResponse -status 'fail' -message ($Fail -join '<br>')
-        context_reponse -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
+        context_reponse -Response $Response -StatusCode 422 -String $jsonResponse -ContentType "application/json"
         return
     }
 
@@ -79,20 +76,12 @@ try {
         $user = Get-PSWebHostUser -Email $email
         $sessionID = $Context.Request.Cookies["PSWebSessionID"].Value
 
-        # Check if user has MFA enabled
-        $tokenProvider = Get-PSWebAuthProvider -UserID $user.UserID -Provider 'tokenauthenticator'
-
-        if ($tokenProvider.Enabled) {
-            # MFA is enabled. Set intermediate state and redirect to MFA challenge.
-            TestToken -SessionID $sessionID -UserID $user.UserID -AuthenticationState 'mfa_required'
-            $redirectUrl = "/api/v1/authprovider/tokenauthenticator/mfa.html?RedirectTo=$redirectTo"
-            context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
-        } else {
-            # MFA is not enabled. Complete the login directly.
-            TestToken -SessionID $sessionID -UserID $user.UserID -Completed
-            $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
-            context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
-        }
+        # MFA FLOW DISABLED - Completing login directly.
+        Write-Warning "MFA check has been temporarily disabled in this route."
+        Set-PSWebSession -SessionID $sessionID -UserID $user.UserID -Roles $user.Roles -Provider 'Password' -Request $Request
+        
+        $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
+        context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
 
     } else {
         # --- On Failure ---

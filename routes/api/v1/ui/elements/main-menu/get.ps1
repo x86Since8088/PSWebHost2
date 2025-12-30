@@ -69,7 +69,12 @@ if (-not (Test-Path $yamlPath)) {
 }
 
 # The powershell-yaml module is required by the project
-Import-Module powershell-yaml -ErrorAction Stop -DisableNameChecking
+$__err = $null
+Import-Module powershell-yaml -DisableNameChecking -ErrorAction SilentlyContinue -ErrorVariable __err
+if ($__err) {
+    Write-PSWebHostLog -Severity 'Error' -Category 'Modules' -Message "Failed to import 'powershell-yaml' module: $__err"
+    return context_reponse -Response $Response -StatusCode 500 -String "Server misconfiguration: missing powershell-yaml module"
+}
 
 $yamlContent = Get-Content -Path $yamlPath -Raw
 $menuData = $yamlContent | ConvertFrom-Yaml

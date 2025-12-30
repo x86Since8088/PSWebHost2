@@ -2,11 +2,11 @@ param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request = $Context.Request,
     [System.Net.HttpListenerResponse]$Response = $Context.Response,
-    [hashtable]$SessionData
+    $sessiondata
 )
 
 # Import required modules
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
+Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database") -DisableNameChecking
 
 $refGuid = $Request.QueryString["ref"]
 $responseIp = $Context.Request.RemoteEndPoint.Address.ToString()
@@ -17,7 +17,8 @@ if ([string]::IsNullOrEmpty($refGuid)) {
     return
 }
 
-$query = "SELECT * FROM account_email_confirmation WHERE email_request_guid = '$refGuid';"
+$safeRefGuid = Sanitize-SqlQueryString -String $refGuid
+$query = "SELECT * FROM account_email_confirmation WHERE email_request_guid = '$safeRefGuid';"
 $confirmationRequest = Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
 
 if (-not $confirmationRequest) {
@@ -39,8 +40,12 @@ if ($confirmationRequest.request_ip -ne $responseIp -or $confirmationRequest.req
 
 # All checks passed, update the record
 $responseDate = (Get-Date).ToString("s")
-$updateQuery = "UPDATE account_email_confirmation SET response_date = '$responseDate', response_ip = '$responseIp', response_session_id = '$responseSessionId' WHERE email_request_guid = '$refGuid';"
-Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query $updateQuery
+$updateData = @{
+    response_date = $responseDate
+    response_ip = $responseIp
+    response_session_id = $responseSessionId
+}
+Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'UPDATE' -TableName 'account_email_confirmation' -Data $updateData -Where "email_request_guid = '$safeRefGuid'"
 
 $successMessage = "Email confirmed successfully! You can now close this page."
 context_reponse -Response $Response -String $successMessage

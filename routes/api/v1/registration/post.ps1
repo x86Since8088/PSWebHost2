@@ -2,12 +2,12 @@ param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request = $Context.Request,
     [System.Net.HttpListenerResponse]$Response = $Context.Response,
-    [hashtable]$SessionData,
+    $sessiondata,
     [hashtable]$CardSettings
 )
 
 # Import required modules
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
+Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database") -DisableNameChecking
 
 # --- Helper Functions ---
 
@@ -25,7 +25,7 @@ function New-HtmlForm($page) {
     $html += "<form id='regForm'>"
     if ($page.form.hidden) {
         foreach ($field in $page.form.hidden) {
-            $html += "<input type='hidden' name='$($field.name)' value='$($field.value)'>"
+            $html += "<input type='hidden' name='$($field.name)' value='$($field.value)' >"
         }
     }
     if ($page.form.fields) {
@@ -49,13 +49,16 @@ function New-JsonResponse($status, $html) {
 # --- Main Logic ---
 
 # Read request body
-$reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
-$bodyContent = $reader.ReadToEnd()
-$reader.Close()
-$parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
-$pageName = $parsedBody["page"]
+try {
+    $bodyContent = Get-RequestBody -Request $Request
+    $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
+    $pageName = $parsedBody["page"]
+} catch {
+    context_reponse -Response $Response -StatusCode 400 -String "Invalid request body."
+    return
+}
 
-Write-Host "Processing page: $(($bodyContent) -split '\n' -join "`n`t")"
+Write-Verbose "Processing page: $(($bodyContent) -split '\n' -join "`n`t")"
 
 if ([string]::IsNullOrEmpty($pageName)) {
     # Initial request, serve the first page
@@ -107,7 +110,8 @@ if ($pageName -eq 'ProvideEmail') {
 if ($pageName -eq 'ConfirmEmail') {
     $email = $parsedBody["email"]
     
-    $query = "SELECT * FROM account_email_confirmation WHERE email = '$email' AND response_date IS NOT NULL;"
+    $safeEmail = Sanitize-SqlQueryString -String $email
+    $query = "SELECT * FROM account_email_confirmation WHERE email = '$safeEmail' AND response_date IS NOT NULL;"
     $confirmation = Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
     
     if ($confirmation) {

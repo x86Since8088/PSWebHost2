@@ -8,7 +8,7 @@
     FunctionsToExport = @(
         'Convert-ObjectToYaml',
         'Inspect-Object',
-        'Safe-WalkObject',
+        'Get-ObjectSafeWalk',
         'Test-Walkable'
     )
     RootModule = 'PSWebHost_Formatters.psm1'

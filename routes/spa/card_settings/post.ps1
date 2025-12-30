@@ -1,6 +1,6 @@
 param (
     [System.Net.HttpListenerContext]$Context,
-    [hashtable]$SessionData
+    $sessiondata
 )
 
 $body = Get-RequestBody -Request $Context.Request | ConvertFrom-Json

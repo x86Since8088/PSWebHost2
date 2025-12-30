@@ -1,6 +1,6 @@
 param (
     [System.Net.HttpListenerContext]$Context,
-    [hashtable]$SessionData
+    $sessiondata
 )
 
 $cardId = $Context.Request.QueryString["id"]

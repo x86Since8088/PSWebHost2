@@ -98,7 +98,7 @@ const UserCard = ({ element }) => {
     );
 };
 
-const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize }) => {
+const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isMaximized }) => {
     const elementId = element.Element_Id || element.id;
     const CardComponent = window.cardComponents[elementId];
     const [errorInfo, setErrorInfo] = useState(null);
@@ -119,12 +119,14 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize }) =
     const title = element.Title;
 
     return (
-        <div className="card" style={{height: '100%'}}>
+        <div className={`card ${isMaximized ? 'maximized' : ''}`} style={{height: '100%'}}>
             <div className="card-title-bar">
                 {element.icon && <img src={element.icon} className="card-icon" alt="icon" />}
                 <span>{title}</span>
                 <div className="spacer"></div>
-                <div className="maximize-icon" onClick={() => onMaximize(element.id)}>&#x26F6;</div>
+                <div className="maximize-icon" onClick={() => onMaximize(element.id)}>
+                    {isMaximized ? '🗗' : '🗖'}
+                </div>
                 <div className="settings-icon" onClick={() => onOpenSettings(element.id)}>&#9881;</div>
                 <div className="close-icon" onClick={() => onRemove(element.id)}>&times;</div>
             </div>
@@ -145,14 +147,14 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize }) =
     );
 };
 
-const Pane = ({ zone, cardIds, elements, onRemoveCard, onOpenSettings, onMaximize, onCardResize }) => {
+const Pane = ({ zone, cardIds, elements, onRemoveCard, onOpenSettings, onMaximize, onCardResize, maximizedCard }) => {
     if (!cardIds || cardIds.length === 0) return null;
 
     return (
         <div className={`pane-section ${zone}`}>
             {cardIds.map(id => {
                 if (id === 'user-card') return <UserCard key={id} element={{...elements[id], id: id}} />;
-                return <Card key={id} element={{...elements[id], id: id}} onRemove={onRemoveCard} onOpenSettings={onOpenSettings} onMaximize={onMaximize} onCardResize={onCardResize} />;
+                return <Card key={id} element={{...elements[id], id: id}} onRemove={onRemoveCard} onOpenSettings={onOpenSettings} onMaximize={onMaximize} onCardResize={onCardResize} isMaximized={maximizedCard === id} />;
             })}
         </div>
     );
@@ -210,6 +212,7 @@ const App = () => {
     const [settingsModal, setSettingsModal] = useState({ isOpen: false, cardId: null });
     const [maximizedCard, setMaximizedCard] = useState(null);
     const [layoutBeforeMaximize, setLayoutBeforeMaximize] = useState(null);
+    const [gridWidth, setGridWidth] = useState(1200);
     const gridRef = useRef(null);
     const GridLayout = window.ReactGridLayout;
 
@@ -402,6 +405,43 @@ const App = () => {
         });
     }, []);
 
+    // Responsive grid width observer
+    useEffect(() => {
+        const updateGridWidth = () => {
+            if (gridRef.current) {
+                const width = gridRef.current.offsetWidth;
+                if (width > 0) {
+                    console.log('Grid width updated:', width);
+                    setGridWidth(width);
+                }
+            }
+        };
+
+        // Initial width update after a short delay to ensure DOM is ready
+        const timeoutId = setTimeout(updateGridWidth, 100);
+
+        if (!gridRef.current) {
+            return () => clearTimeout(timeoutId);
+        }
+
+        const resizeObserver = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                const width = entry.contentRect.width;
+                if (width > 0) {
+                    console.log('ResizeObserver fired, new width:', width);
+                    setGridWidth(width);
+                }
+            }
+        });
+
+        resizeObserver.observe(gridRef.current);
+
+        return () => {
+            clearTimeout(timeoutId);
+            resizeObserver.disconnect();
+        };
+    }, [data.componentsReady, data.layout]);
+
     if (error) return <div>Error: {error.message}</div>;
     if (!data.componentsReady) return <div>Loading Components...</div>;
     if (!data.layout) return <div>Loading Layout...</div>;
@@ -415,14 +455,14 @@ const App = () => {
             <CardSettingsModal isOpen={settingsModal.isOpen} onClose={closeSettingsModal} cardLayout={currentCardLayout} onSave={handleSaveCardSettings} />
 
             <header className="title-pane">
-                <Pane zone="title-left" cardIds={layout.title.left} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} />
-                <Pane zone="title-content" cardIds={layout.title.content} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} />
-                <Pane zone="title-right" cardIds={layout.title.right} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} />
+                <Pane zone="title-left" cardIds={layout.title.left} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} maximizedCard={maximizedCard} />
+                <Pane zone="title-content" cardIds={layout.title.content} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} maximizedCard={maximizedCard} />
+                <Pane zone="title-right" cardIds={layout.title.right} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} maximizedCard={maximizedCard} />
             </header>
             <div className="center-body">
                 <aside className="left-pane" style={{ display: layout.leftPane.top.length === 0 && layout.leftPane.bottom.length === 0 ? 'none' : 'flex' }}>
-                    <Pane zone="left-pane-top" cardIds={layout.leftPane.top} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} />
-                    <Pane zone="left-pane-bottom" cardIds={layout.leftPane.bottom} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} />
+                    <Pane zone="left-pane-top" cardIds={layout.leftPane.top} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} maximizedCard={maximizedCard} />
+                    <Pane zone="left-pane-bottom" cardIds={layout.leftPane.bottom} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} maximizedCard={maximizedCard} />
                 </aside>
                 <main className="main-pane" ref={gridRef}>
                      <GridLayout
@@ -430,24 +470,26 @@ const App = () => {
                         layout={gridLayout}
                         cols={12}
                         rowHeight={15}
-                        width={1200}
+                        width={gridWidth}
                         onLayoutChange={handleLayoutChange}
                     >
                         {layout.mainPane.content.map(id => (
                             <div key={id}>
-                                <Card element={{...elements[id], id: id}} onRemove={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} />
+                                <Card element={{...elements[id], id: id}} onRemove={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} isMaximized={maximizedCard === id} />
                             </div>
                         ))}
                     </GridLayout>
                 </main>
                 <aside className="right-pane" style={{ display: layout.rightPane.content.length === 0 ? 'none' : 'flex' }}>
-                    <Pane zone="right-pane-content" cardIds={layout.rightPane.content} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} />
+                    <Pane zone="right-pane-content" cardIds={layout.rightPane.content} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} maximizedCard={maximizedCard} />
                 </aside>
             </div>
             <footer className="footer-pane">
-                <Pane zone="footer-left" cardIds={layout.footer.left} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} />
-                <Pane zone="footer-center" cardIds={layout.footer.center} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} />
-                <Pane zone="footer-right" cardIds={layout.footer.right} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} />
+                <Pane zone="footer-left" cardIds={layout.footer.left} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} maximizedCard={maximizedCard} />
+                <Pane zone="footer-center" cardIds={layout.footer.center} elements={elements} onRemoveCard={removeCard} onOpenSettings={openSettingsModal} onMaximize={handleMaximizeCard} onCardResize={handleCardResize} maximizedCard={maximizedCard} />
+                <div className="pane-section footer-right" style={{fontSize: '0.85em', color: 'var(--text-secondary)'}}>
+                    Grid Width: {gridWidth}px
+                </div>
             </footer>
         </div>
     );

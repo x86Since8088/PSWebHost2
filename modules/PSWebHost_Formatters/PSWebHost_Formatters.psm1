@@ -1,11 +1,12 @@
 function Convert-ObjectToYaml {
     [cmdletbinding()]
     param(
-        [Parameter(Mandatory=$true)]
         $InputObject,
-
-        [int]$Depth = 0
+        [int]$Depth = 0,
+        [int]$MaxDepth = 5 # Added MaxDepth to prevent infinite recursion
     )
+    if (-not $PSBoundParameters.ContainsKey('InputObject')) { Write-Error "The -InputObject parameter is required."; return }
+    if ($Depth -ge $MaxDepth) { return "[Max Depth Reached]`n" } # Added depth check
 
     $indent = "  " * $Depth
     $output = ""
@@ -16,12 +17,14 @@ function Convert-ObjectToYaml {
             $value = if ($InputObject -is [hashtable]) { $InputObject[$key] } else { $InputObject.$key }
             $output += "$indent$key`:
 "
-            $output += Convert-ObjectToYaml -InputObject $value -Depth ($Depth + 1)
+            # Pass MaxDepth down in recursive call
+            $output += Convert-ObjectToYaml -InputObject $value -Depth ($Depth + 1) -MaxDepth $MaxDepth
         }
     } elseif ($InputObject -is [array]) {
         foreach ($item in $InputObject) {
             $output += "$indent- "
-            $output += (Convert-ObjectToYaml -InputObject $item -Depth ($Depth + 1)).TrimStart()
+            # Pass MaxDepth down in recursive call
+            $output += (Convert-ObjectToYaml -InputObject $item -Depth ($Depth + 1) -MaxDepth $MaxDepth).TrimStart()
         }
     } elseif ($InputObject -is [string]) {
         $output += "$indent`"$InputObject`"`n"
@@ -38,14 +41,19 @@ function Convert-ObjectToYaml {
     return $output
 }
 
-function Safe-WalkObject {
+# NOTE: This function appears to be incomplete or obsolete. 
+# The main logic for recursively walking properties is commented out.
+# The Inspect-Object function provides similar, more robust functionality.
+function Get-ObjectSafeWalk {
     param(
-        [Parameter(Mandatory=$true)] $InputObject,
+        $InputObject,
         [int]$MaxDepth = 5,
         [int]$CurrentDepth = 0,
         [int]$MaxEnumerable = 20,
         [int]$MaxProperties = 60
     )
+    if (-not $PSBoundParameters.ContainsKey('InputObject')) { Write-Error "The -InputObject parameter is required."; return }
+
     # blacklist full names for types we don't want to record
     $blacklist = @(
         'System.IO.Stream', 'System.IO.FileStream', 'System.Management.Automation.PSObject',
@@ -70,7 +78,7 @@ function Safe-WalkObject {
         $count = 0
         foreach ($it in $InputObject) {
             if ($count -ge $MaxEnumerable) { $list += "[Truncated: more items]"; break }
-            $list += Safe-WalkObject -InputObject $it -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
+            $list += Get-ObjectSafeWalk -InputObject $it -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
             $count++
         }
         return $list
@@ -84,7 +92,7 @@ function Safe-WalkObject {
     foreach ($p in $props) {
         try {
             $val = $p.Value
-            #$o[$p.Name] = Safe-WalkObject -InputObject $val -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
+            #$o[$p.Name] = Get-ObjectSafeWalk -InputObject $val -MaxDepth $MaxDepth -CurrentDepth ($CurrentDepth+1) -MaxEnumerable $MaxEnumerable -MaxProperties $MaxProperties
         } catch {
             #$o[$p.Name] = "[ErrorReadingProperty: $($_.Exception.Message)]"
         }
@@ -94,7 +102,9 @@ function Safe-WalkObject {
 
 # Determine if an object should be walked further
 function Test-Walkable {
-    param([Parameter(Mandatory=$true)] $InputObject)
+    param($InputObject)
+    if (-not $PSBoundParameters.ContainsKey('InputObject')) { Write-Error "The -InputObject parameter is required."; return }
+
     if ($null -eq $InputObject) { return $false }
     try {
         $t = $InputObject.GetType()
@@ -109,14 +119,15 @@ function Test-Walkable {
     return $true
 }
 
-# Inspect-Object walks an object into a hashtable keyed by property/member names
 function Inspect-Object {
     param(
-        [Parameter(Mandatory=$true, ValueFromPipeline=$true)] $InputObject,
+        [Parameter(ValueFromPipeline=$true)] $InputObject,
         [int]$Depth = 3,
         [int]$MaxEnumerable = 20,
         [switch]$IncludeNull
     )
+    if (-not $PSBoundParameters.ContainsKey('InputObject')) { Write-Error "The -InputObject parameter is required."; return }
+
     if ($null -eq $InputObject) { return $null }
     if ($Depth -le 0) { return ($InputObject | Out-String).Trim() }
 
@@ -171,7 +182,11 @@ function Inspect-Object {
     # For POCOs, use Get-Member to discover properties (exclude methods and ParameterizedProperty)
     $members = @()
     if ($null -eq $InputObject) { return }
-    try { $members = ($InputObject | Get-Member -MemberType Property,NoteProperty,AliasProperty) } catch { $members = @() }
+    try {
+        [array]$members = ($InputObject | 
+            Where-Object{$null -ne $_} | 
+            Get-Member -MemberType Property,NoteProperty,AliasProperty -ErrorAction Ignore) 
+    } catch { $members = @() }
     $h = @{}
     foreach ($m in $members) {
         $name = $m.Name
@@ -196,4 +211,3 @@ function Inspect-Object {
     }
     return @{ Type = try { $t.Name } catch { 'Object' }; Value = $h }
 }
-

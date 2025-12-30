@@ -1,12 +1,15 @@
+[cmdletbinding()]
 param (
     [System.Net.HttpListenerContext]$Context,
+    $SessionData,
     [System.Net.HttpListenerRequest]$Request=$Context.Request,
     [System.Net.HttpListenerResponse]$Response=$Context.Response
 )
+$MyTag = '[routes\api\v1\authprovider\windows\post.ps1]'
 # Import required modules
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Authentication/PSWebHost_Authentication.psm1") -DisableNameChecking
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "system/auth/TestToken.ps1") -DisableNameChecking
+
+Import-Module PSWebHost_Authentication -DisableNameChecking
+Import-Module PSWebHost_Database -DisableNameChecking
 
 # Helper function to create a JSON response
 function New-JsonResponse($status, $message) {
@@ -24,20 +27,16 @@ $bodyContent = ""
 $username = $null
 $password = $null
 
-    if ($Request.HasEntityBody) {
-        $reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
-        $bodyContent = $reader.ReadToEnd()
-        $reader.Close()
+try {
+    Write-Host "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Processing Windows authentication POST from $($ipAddress)"
+    $bodyContent = Get-RequestBody -Request $Request
+    $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
+    $username = $parsedBody["username"]
+    $password = $parsedBody["password"]
 
-        $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
-        $username = $parsedBody["username"]
-        $password = $parsedBody["password"]
-
-        if ($username -like '*@localhost') {
-            $username = $username -replace '@localhost', ("@" + $Env:computername)
-        }
+    if ($username -like '*@localhost') {
+        $username = $username -replace '@localhost', ("@" + $Env:computername)
     }
-
 
     [string[]]$Fail = @()
     $IsUserNameValid = Test-IsValidEmailAddress -Email $username -AddCustomRegex '[a-zA-Z0-9._\+\-]+@[a-zA-Z0-9.\-]+'
@@ -58,6 +57,7 @@ $password = $null
     }
 
     if ($Fail.count -ne 0) {
+        write-pswebhostlog -Severity 'Warning' -Category 'Auth' -Message "$MyTag Validation failed for Windows auth POST from $ipAddress. Errors: $($Fail -join '; ')" -Data @{ IPAddress = $ipAddress; Body = $bodyContent } -WriteHost
         $jsonResponse = New-JsonResponse -status 'fail' -message ($Fail -join '<br>')
         context_reponse -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
         return
@@ -67,6 +67,12 @@ $password = $null
 
     # 2. Check for existing lockouts
     $lockoutStatus = Test-LoginLockout -IPAddress $ipAddress -Username $username
+    write-pswebhostlog -Severity 'Verbose' -Category 'Auth' -Message "$MyTag Lockout status for $username from $ipAddress`: LockedOut=$(($lockoutStatus).LockedOut); Message='$(($lockoutStatus).Message)'" -Data @{ 
+            IPAddress = $ipAddress; 
+            Username = $username 
+            lockoutStatus = $lockoutStatus
+            retryAfter = ($lockoutStatus).LockedUntil|Where-Object{$_}|ForEach-Object{$_.ToString("o")}
+        } -WriteHost
     if ($lockoutStatus.LockedOut) {
         $retryAfter = $lockoutStatus.LockedUntil.ToString("o")
         $jsonResponse = New-JsonResponse -status 'fail' -message "<p class='error'>$($lockoutStatus.Message)</p>"
@@ -78,35 +84,63 @@ $password = $null
     # 3. Attempt Authentication
     $credential = New-Object System.Management.Automation.PSCredential($username, (ConvertTo-SecureString $password -AsPlainText -Force))
     $AuthTestScript = Join-Path $global:PSWebServer.Project_Root.Path "\system\auth\Test-PSWebWindowsAuth.ps1"
+    Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Running '\system\auth\Test-PSWebWindowsAuth.ps1'" -Verbose
     $isAuthenticated = & $AuthTestScript -credential $credential
+    Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed '\system\auth\Test-PSWebWindowsAuth.ps1'" -Verbose
 
     if ($isAuthenticated) {
         # --- On Success ---
-        Write-Verbose "[windows/post.ps1] Authentication successful for $UserPrincipalName."
-        # Check if user has MFA enabled (conceptual query)
-        Write-Verbose "[windows/post.ps1] Checking for MFA status..."
-        $tokenProvider = Get-PSWebAuthProvider -UserID $UserPrincipalName -Provider 'tokenauthenticator'
-        Write-Verbose "[windows/post.ps1] Token provider query result: $($tokenProvider | ConvertTo-Json -Compress)"
+        Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Authentication successful for $($UserPrincipalName)."
 
-        if ($tokenProvider.Enabled) {
-            # MFA is enabled. Set intermediate state and redirect to MFA challenge.
-            Write-Verbose "[windows/post.ps1] MFA enabled. Setting state to 'mfa_required' for SessionID $sessionID."
-            TestToken -SessionID $sessionID -UserID $UserPrincipalName -AuthenticationState 'mfa_required'
-            $redirectUrl = "/api/v1/authprovider/tokenauthenticator/mfa.html?RedirectTo=$redirectTo"
-            context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
-        } else {
-            # MFA is not enabled. Complete the login directly.
-            Write-Verbose "[windows/post.ps1] MFA not enabled. Setting state to 'completed' for SessionID $sessionID."
-            TestToken -SessionID $sessionID -UserID $UserPrincipalName -Completed
-            Write-Verbose "[windows/post.ps1] State set. Redirecting to getaccesstoken."
-            $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
-            context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
+        # MFA FLOW DISABLED - Completing login directly.
+        Write-Warning "$MyTag MFA check has been temporarily disabled in this route."
+
+        # Look up user by Email (UPN) to get the actual UserID (GUID)
+        Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Looking up user by Email: $($UserPrincipalName)"
+        $user = Get-PSWebUser -Email $UserPrincipalName
+        if (-not $user) {
+            Write-Error "$($MyTag) User not found in database for Email: $($UserPrincipalName). User must be registered before Windows authentication."
+            $jsonResponse = New-JsonResponse -status 'fail' -message '<p class="error">User not found. Please contact administrator to register your Windows account.</p>'
+            context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
+            return
+        }
+        $actualUserID = $user.UserID
+        Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Found user with UserID: $($actualUserID)"
+
+        Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Set-PSWebSession -SessionID `$sessionID -UserID $($actualUserID) -Provider 'Windows' -Request `$Request"
+        Set-PSWebSession -SessionID $sessionID -UserID $actualUserID -Provider 'Windows' -Request $Request
+        Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Set-PSWebSession"
+
+        # Re-set the session cookie explicitly on the response to ensure browser will send it after redirect
+        try {
+            $cookie = New-Object System.Net.Cookie('PSWebSessionID', $sessionID)
+            $hostName = $Request.Url.HostName
+            if ($hostName -notmatch '^(localhost|(\d{1,3}\.){3}\d{1,3}|::1)$') { $cookie.Domain = $hostName }
+            $cookie.Path = '/'
+            $cookie.HttpOnly = $true
+            $cookie.Expires = (Get-Date).AddDays(7)
+            $cookie.Secure = $Request.IsSecureConnection
+            $Response.AppendCookie($cookie)
+            Write-Verbose "$($MyTag) Appended Set-Cookie for session on auth success: $($sessionID)"
+        } catch {
+            Write-Verbose "$($MyTag) Failed to append cookie on auth success: $($_)"
         }
 
+        $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
+        context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
     } else {
         # --- On Failure ---
+        Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: PSWebLogon -ProviderName ""Windows"" -Result ""Fail"" -Request `$Request -UserID $($username)"
         PSWebLogon -ProviderName "Windows" -Result "Fail" -Request $Request -UserID $username
+        Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: PSWebLogon"
         
         $jsonResponse = New-JsonResponse -status 'fail' -message '<p class="error">Authentication failed. Please check your credentials.</p>'
         context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
     }
+} catch {
+    write-pswebhostlog -Severity 'Error' -Category 'Auth' -Message "$($MyTag) Exception during Windows authentication POST: $($_.Exception.Message)" -Data @{ IPAddress = $ipAddress; Body = $bodyContent } -WriteHost
+    PSWebLogon -ProviderName "Windows" -Result "error" -Request $Request
+
+    $jsonResponse = New-JsonResponse -status 'fail' -message "An internal error occurred: $($_.Exception.Message)`n$($_.InvocationInfo.PositionMessage)"
+    context_reponse -Response $Response -StatusCode 500 -String $jsonResponse -ContentType "application/json"
+}

@@ -1,0 +1,65 @@
+{
+  "tables": [
+    {
+      "name": "WebRequestPerformance",
+      "columns": [
+        { "name": "RequestID", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "StartTime", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "EndTime", "type": "TEXT", "constraint": "" },
+        { "name": "FilePath", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "HttpMethod", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "UserID", "type": "TEXT", "constraint": "" },
+        { "name": "AuthenticationProvider", "type": "TEXT", "constraint": "" },
+        { "name": "ExecutionTimeMicroseconds", "type": "INTEGER", "constraint": "" },
+        { "name": "LogFileSizeBefore", "type": "INTEGER", "constraint": "" },
+        { "name": "LogFileSizeAfter", "type": "INTEGER", "constraint": "" },
+        { "name": "LogFileSizeDelta", "type": "INTEGER", "constraint": "" },
+        { "name": "StatusCode", "type": "INTEGER", "constraint": "" },
+        { "name": "StatusText", "type": "TEXT", "constraint": "" },
+        { "name": "IPAddress", "type": "TEXT", "constraint": "" },
+        { "name": "UserAgent", "type": "TEXT", "constraint": "" },
+        { "name": "SessionID", "type": "TEXT", "constraint": "" },
+        { "name": "Completed", "type": "INTEGER", "constraint": "DEFAULT 0" },
+        { "name": "CreatedAt", "type": "TEXT", "constraint": "DEFAULT (datetime('now'))" }
+      ],
+      "indexes": [
+        { "name": "idx_webrequest_starttime", "columns": ["StartTime"] },
+        { "name": "idx_webrequest_filepath", "columns": ["FilePath"] },
+        { "name": "idx_webrequest_userid", "columns": ["UserID"] },
+        { "name": "idx_webrequest_completed", "columns": ["Completed"] },
+        { "name": "idx_webrequest_exectime", "columns": ["ExecutionTimeMicroseconds"] }
+      ]
+    },
+    {
+      "name": "SystemPerformance",
+      "columns": [
+        { "name": "MetricID", "type": "INTEGER", "constraint": "PRIMARY KEY AUTOINCREMENT" },
+        { "name": "Timestamp", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "CPUPercent", "type": "REAL", "constraint": "" },
+        { "name": "MemoryUsedGB", "type": "REAL", "constraint": "" },
+        { "name": "MemoryPercentUsed", "type": "REAL", "constraint": "" },
+        { "name": "ProcessCount", "type": "INTEGER", "constraint": "" },
+        { "name": "ThreadCount", "type": "INTEGER", "constraint": "" },
+        { "name": "HandleCount", "type": "INTEGER", "constraint": "" },
+        { "name": "CreatedAt", "type": "TEXT", "constraint": "DEFAULT (datetime('now'))" }
+      ],
+      "indexes": [
+        { "name": "idx_sysperf_timestamp", "columns": ["Timestamp"] }
+      ]
+    }
+  ],
+  "views": [
+    {
+      "name": "vw_RequestPerformanceSummary",
+      "definition": "SELECT FilePath, COUNT(*) as RequestCount, AVG(ExecutionTimeMicroseconds) as AvgExecutionMicroseconds, MIN(ExecutionTimeMicroseconds) as MinExecutionMicroseconds, MAX(ExecutionTimeMicroseconds) as MaxExecutionMicroseconds, SUM(LogFileSizeDelta) as TotalLogGrowth, COUNT(DISTINCT UserID) as UniqueUsers FROM WebRequestPerformance WHERE Completed = 1 GROUP BY FilePath"
+    },
+    {
+      "name": "vw_UserPerformance",
+      "definition": "SELECT UserID, COUNT(*) as RequestCount, AVG(ExecutionTimeMicroseconds) as AvgExecutionMicroseconds, SUM(LogFileSizeDelta) as TotalLogGrowth FROM WebRequestPerformance WHERE Completed = 1 AND UserID IS NOT NULL GROUP BY UserID"
+    },
+    {
+      "name": "vw_SlowRequests",
+      "definition": "SELECT RequestID, StartTime, FilePath, UserID, ExecutionTimeMicroseconds, ExecutionTimeMicroseconds / 1000000.0 as ExecutionTimeSeconds FROM WebRequestPerformance WHERE Completed = 1 AND ExecutionTimeMicroseconds > 1000000 ORDER BY ExecutionTimeMicroseconds DESC"
+    }
+  ]
+}

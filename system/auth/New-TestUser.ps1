@@ -20,7 +20,7 @@ if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
 }
 
 # Import the authentication module
-Import-Module (Join-Path $modulesFolderPath "PSWebHost_Authentication/PSWebHost_Authentication.psm1") -Force
+Import-Module (Join-Path $modulesFolderPath "PSWebHost_Authentication") -Force
 
 Write-Host "Creating new user '$Email'..."
 
