@@ -79,13 +79,9 @@ foreach ($moduleSpec in $modulesToValidate) {
         [version]$VersionMIN = '0.0.0.0'
     }
 
-    # Check if module folder exists before iterating
-    if (-not (Test-Path $ModuleFolders)) {
-        Write-Verbose "Module folder not found: $ModuleFolders. Skipping version validation."
-        continue
-    }
-
-    foreach ($ModuleFolder in (Get-ChildItem $ModuleFolders -ErrorAction SilentlyContinue)){
+    # Check if module folder exists before iterating version folders
+    if (Test-Path $ModuleFolders) {
+        foreach ($ModuleFolder in (Get-ChildItem $ModuleFolders -ErrorAction SilentlyContinue)){
         foreach($Versionfolder in (Get-ChildItem $ModuleFolder.FullName|Where-Object{$_.Name -match '^[\d\.]+(|\.disabled)$'})) {
             [version]$version = FixVersionLength -version ($Versionfolder.Name -replace '\.disabled$')
             $ModulePath = join-path $moduleDownloadDir $ModuleFolder.Name
@@ -139,6 +135,9 @@ foreach ($moduleSpec in $modulesToValidate) {
                 }
             }
         }
+        }
+    } else {
+        Write-Verbose "Module folder not found: $ModuleFolders. Will check if download is needed."
     }
 
     try {Remove-Module -Name $moduleName -Force -ErrorAction Ignore}

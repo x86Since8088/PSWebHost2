@@ -26,11 +26,19 @@ begin{
 
                 # Combine machine and user paths, removing duplicates while preserving order
                 $combinedPath = ($machinePath, $userPath) -join ';'
-                $uniquePaths = [System.Collections.Generic.LinkedHashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+
+                # Use ArrayList for PowerShell 5.1 compatibility
+                $uniquePaths = New-Object System.Collections.ArrayList
+                $pathHash = @{}
 
                 foreach ($path in ($combinedPath -split ';')) {
-                    if (-not [string]::IsNullOrWhiteSpace($path)) {
-                        [void]$uniquePaths.Add($path.Trim())
+                    $trimmedPath = $path.Trim()
+                    if (-not [string]::IsNullOrWhiteSpace($trimmedPath)) {
+                        $lowerPath = $trimmedPath.ToLower()
+                        if (-not $pathHash.ContainsKey($lowerPath)) {
+                            [void]$uniquePaths.Add($trimmedPath)
+                            $pathHash[$lowerPath] = $true
+                        }
                     }
                 }
 
@@ -157,9 +165,18 @@ begin{
                     Write-Verbose "Attempting to install SQLite via Winget (skipping upgrade unless -Upgrade switch is provided)." -Verbose
                 }
 
-                $wingetResult = Invoke-Expression $wingetCommand
-                if ($LASTEXITCODE -eq 0) {
-                    Write-Verbose "SQLite operation completed successfully via Winget." -Verbose
+                $wingetResult = Invoke-Expression $wingetCommand 2>&1
+
+                # Check if it's already installed (common scenario on fresh installs after first run)
+                $alreadyInstalled = $wingetResult -match "already installed" -or $wingetResult -match "No newer package versions"
+
+                if ($LASTEXITCODE -eq 0 -or $alreadyInstalled) {
+                    if ($alreadyInstalled) {
+                        Write-Verbose "SQLite is already installed via Winget." -Verbose
+                    } else {
+                        Write-Verbose "SQLite operation completed successfully via Winget." -Verbose
+                    }
+
                     # Refresh PATH so sqlite3 command is immediately available
                     Update-EnvironmentPath
                     Write-Verbose "Verifying sqlite3 is now available..." -Verbose
