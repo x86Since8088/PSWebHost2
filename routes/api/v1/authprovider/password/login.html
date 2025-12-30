@@ -51,12 +51,22 @@
 
             const urlParams = new URLSearchParams(window.location.search);
             const redirectTo = urlParams.get('RedirectTo');
+            const state = urlParams.get('state');
             if (redirectTo) {
                 data.RedirectTo = redirectTo;
             }
 
+            // Build POST URL with query parameters
+            let postUrl = '/api/v1/authprovider/password';
+            const queryParams = new URLSearchParams();
+            if (state) queryParams.append('state', state);
+            if (redirectTo) queryParams.append('RedirectTo', redirectTo);
+            if (queryParams.toString()) {
+                postUrl += '?' + queryParams.toString();
+            }
+
             try {
-                const response = await fetch('/api/v1/authprovider/password', {
+                const response = await fetch(postUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
@@ -79,9 +89,10 @@
                 const result = await response.json();
 
                 if (response.ok) {
-                    statusDiv.innerHTML = `<p>${result.message}</p>`;
+                    statusDiv.innerHTML = `<p>${result.Message || result.message}</p>`;
                 } else {
-                    statusDiv.innerHTML = `<p class="error">${result.message || 'An error occurred.'}</p>`;
+                    // Message already contains HTML-formatted error paragraphs, display directly
+                    statusDiv.innerHTML = result.Message || result.message || '<p class="error">An error occurred.</p>';
                 }
             } catch (error) {
                 console.error('Error:', error);

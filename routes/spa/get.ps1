@@ -8,12 +8,13 @@ param (
 $projectRoot = $Global:PSWebServer.Project_Root.Path
 $indexPath = Join-Path $projectRoot "public\spa-shell.html"
 
-$sessionID = $Request.Cookies["PSWebSessionID"]
-if (!$sessionID) {
+$sessionCookie = if ($Request.Cookies) { $Request.Cookies["PSWebSessionID"] } else { $null }
+if (!$sessionCookie) {
     Write-Host "SPA GET No session ID"
     context_reponse -Response $Response -StatusCode 500 -String "No session ID" -ContentType "text/plain" -StatusDescription "Internal Server Error" -ForegroundColor Red
     return
 }
+$sessionID = $sessionCookie.Value
 $Session = Get-PSWebSessions -SessionID $sessionID
 if (-not $Session) {
     Write-Host "`t[routes\spa\get.ps1] Session ID Present, but No session." -ForegroundColor Red

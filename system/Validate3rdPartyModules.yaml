@@ -1,3 +1,13 @@
+- Name: LogError
+  Repository: PSGallery
+  # This module is used for error logging functionality.
+  Version: 1.0.0
+
+- Name: PSSQLite
+  Repository: PSGallery
+  # This module is required for SQLite database operations.
+  Version: 1.1.0
+
 - Name: OTP
   Repository: PSGallery
   # This module is used for MFA functionality, replacing the unavailable TOTP module.
@@ -12,7 +22,7 @@
 - Name: QRCodeGenerator
   Repository: PSGallery
   # This module is used to generate QR codes for MFA setup.
-  Version: 2.0.0
+  Version: 2.6.0
 
 - Name: PSScriptAnalyzer 
   Repository: PSGallery

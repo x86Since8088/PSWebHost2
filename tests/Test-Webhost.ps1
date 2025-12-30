@@ -1,6 +1,7 @@
 
-# temp_test.ps1
-$ProjectRoot = "e:\sc\git\PsWebHost"
+# Test-Webhost.ps1
+# Fix: Use current script location to find project root
+$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 Import-Module (Join-Path $ProjectRoot 'tests\helpers\Start-WebHostForTest.psm1')
 try {
     $web = . Start-WebHostForTest -ProjectRoot $ProjectRoot

@@ -147,26 +147,14 @@ function Start-WebHostForTest {
     $stdout = Join-Path $OutDir "webhost.$Port.out.txt"
     $stderr = Join-Path $OutDir "webhost.$Port.err.txt"
 
-    $argList = @('-NoProfile','-NoLogo','-ExecutionPolicy','Bypass','-Command', "$({
-            . '{{webHostScript}}' -Port $Port *>&1 | 
-                ForEach-Object {
-                    if ($_.GetType().Name -eq 'ErrorRecord') {
-                        Write-Host '=== Start Error ==='
-                        $_
-                        Write-Host '=== End Error ==='
-                        Write-Host '=== Start Call Stack ==='
-                        Get-PSCallStack
-                        Write-Host '=== End Call Stack ==='
-                    } else {
-                        $_ 
-                    }
-                }| 
-                tee-object -FilePath '{{stdout}}'
-        }.ToString().Replace('{{webHostScript}}', $webHostScript).Replace('{{stdout}}', $stdout))"
-    )
+    $argList = @('-NoProfile','-NoLogo','-ExecutionPolicy','Bypass','-File', "$webHostScript", '-Port', "$Port", '-Verbose')
 
-
-    $proc = Start-Process -FilePath $pwsh -ArgumentList $argList -WorkingDirectory $ProjectRoot -PassThru
+    $proc = Start-Process -FilePath $pwsh `
+        -ArgumentList $argList `
+        -WorkingDirectory $ProjectRoot `
+        -RedirectStandardOutput $stdout `
+        -RedirectStandardError $stderr `
+        -PassThru
     $baseUrl = "http://localhost:$Port/"
     Write-Host "Started WebHost process Id $($proc.Id) at $baseUrl (logs: $stdout, $stderr)"
     $deadline = (Get-Date).AddSeconds($StartupTimeoutSec)
@@ -174,8 +162,23 @@ function Start-WebHostForTest {
     while ((Get-Date) -lt $deadline -and (Get-Process -ErrorAction Ignore -Id $proc.Id)) {
         try {
             $r = Invoke-WebRequest -Uri $baseUrl -UseBasicParsing -TimeoutSec 2
-            if ($r.StatusCode -eq 200) { $ready = $true; break }
-        } catch { Start-Sleep -Seconds 1 }
+            if ($PSBoundParameters.Verbose.IsPresent) {
+                Write-Verbose "Received status $($r.StatusCode) from $baseUrl"
+            }
+            # Accept 200, 302 (redirect), or 503 (unauthenticated) as signs the server is running
+            if ($r.StatusCode -in @(200, 302, 503)) { $ready = $true; break }
+        } catch {
+            $statusCode = $null
+            if ($_.Exception.Response) {
+                $statusCode = [int]$_.Exception.Response.StatusCode
+            }
+            if ($PSBoundParameters.Verbose.IsPresent) {
+                Write-Verbose "Connection failed: $($_.Exception.Message) (Status: $statusCode)"
+            }
+            # If we got a 503 or 302 error, that means the server is responding
+            if ($statusCode -in @(503, 302)) { $ready = $true; break }
+            Start-Sleep -Seconds 1
+        }
     }
 
     return [pscustomobject]@{ Process = $proc; Url = $baseUrl; Ready = $ready; OutFiles = @{ StdOut = $stdout; StdErr = $stderr } }

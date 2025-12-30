@@ -9,7 +9,7 @@ function Get-PSWebSQLiteData {
     if (-not $Query) { Write-Error "The -Query parameter is required."; return }
 
     # Ensure the database file path is absolute
-    if (-not (Test-Path -Path $File -PathType Leaf)) {
+    if (-not [System.IO.Path]::IsPathRooted($File)) {
         $dbFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/$File"
     } else {
         $dbFilePath = $File
@@ -62,7 +62,7 @@ function Invoke-PSWebSQLiteNonQuery {
     if (-not $Query) { Write-Error "The -Query parameter is required."; return }
 
     # Ensure the database file path is absolute
-    if (-not (Test-Path -Path $File -PathType Leaf)) {
+    if (-not [System.IO.Path]::IsPathRooted($File)) {
         $dbFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/$File"
     } else {
         $dbFilePath = $File
@@ -73,6 +73,12 @@ function Invoke-PSWebSQLiteNonQuery {
     if (-not (Test-Path -Path $dbDir)) {
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Creating directory: '$dbDir'"
         New-Item -Path $dbDir -ItemType Directory -Force | Out-Null
+    }
+
+    # Create the database file if it doesn't exist
+    if (-not (Test-Path -Path $dbFilePath)) {
+        Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Creating database file: '$dbFilePath'"
+        [System.IO.File]::Create($dbFilePath).Dispose()
     }
 
     $connection = New-Object System.Data.SQLite.SQLiteConnection

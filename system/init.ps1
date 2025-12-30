@@ -45,6 +45,37 @@ if ($Global:PSWebServer.Config.GoogleMaps -and -not [string]::IsNullOrEmpty($Glo
     $Global:PSWebServer.Config.GoogleMaps.ApiKey = $null
 }
 
+# Initialize UserDataStorage if not present
+if (-not $Global:PSWebServer.Config.Data) {
+    $Global:PSWebServer.Config | Add-Member -MemberType NoteProperty -Name 'Data' -Value ([PSCustomObject]@{
+        UserDataStorage = @("PsWebHost_Data\UserData")
+    })
+    $configUpdated = $true
+}
+elseif (-not $Global:PSWebServer.Config.Data.UserDataStorage -or $Global:PSWebServer.Config.Data.UserDataStorage.Count -eq 0) {
+    $Global:PSWebServer.Config.Data | Add-Member -MemberType NoteProperty -Name 'UserDataStorage' -Value @("PsWebHost_Data\UserData") -Force
+    $configUpdated = $true
+}
+
+# Save config if updated
+if ($configUpdated) {
+    $Global:PSWebServer.Config | ConvertTo-Json -Depth 10 | Set-Content $Configfile
+    Write-Verbose "Initialized Data.UserDataStorage in configuration." -Verbose
+}
+
+# Ensure UserData directories exist
+foreach ($storagePath in $Global:PSWebServer.Config.Data.UserDataStorage) {
+    $fullPath = if ([System.IO.Path]::IsPathRooted($storagePath)) {
+        $storagePath
+    } else {
+        Join-Path $ProjectRoot $storagePath
+    }
+    if (-not (Test-Path $fullPath)) {
+        New-Item -Path $fullPath -ItemType Directory -Force | Out-Null
+        Write-Verbose "Created user data storage directory: $fullPath" -Verbose
+    }
+}
+
 # Add modules folder to PSModulePath
 $modulesFolderPath = Join-Path $Global:PSWebServer.Project_Root.Path "modules"
 if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
@@ -56,6 +87,12 @@ if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
 $global:PSWebHostLogQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $global:PSHostUIQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $Global:PSWebServer.LogFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/Logs/log.tsv"
+
+# --- Real-Time Event Stream Buffer ---
+# Initialize a thread-safe ring buffer for real-time log events
+$Global:PSWebServer.EventStreamBuffer = [System.Collections.Concurrent.ConcurrentQueue[PSCustomObject]]::new()
+$Global:PSWebServer.EventStreamMaxSize = 1000  # Maximum events to retain
+$Global:PSWebServer.EventStreamJobName = "PSWebHost_LogTail_EventStream"
 
 <#
 $global:StopLogging = $false

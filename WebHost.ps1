@@ -53,7 +53,7 @@ begin {
                     .{
                         $OutputItem = $_ 
                         if ($OutputItem -is [System.Management.Automation.ErrorRecord]) {
-                            $OutputItem.gettype()|ft
+                            $OutputItem.gettype()|Format-Table
                             $_
                             Get-PSCallStack | Select-Object Command, Arguments, Location,@{ 
                                     N='Source';
@@ -81,13 +81,13 @@ begin {
     
     # Check if running as admin
     $isAdmin = ([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
-    
-    # For non-admin users, try localhost first, then fall back to +
+
+    # Try localhost first (works without URL ACL), then fall back to + (requires URL ACL or admin)
     $prefixesToTry = @()
-    if (-not $isAdmin) {
-        $prefixesToTry += "http://localhost:$port/"
+    $prefixesToTry += "http://localhost:$port/"
+    if ($isAdmin) {
+        $prefixesToTry += "http://+:$port/"
     }
-    $prefixesToTry += "http://+:$port/"
     
     $listenerStarted = $false
     $lastError = $null
@@ -126,6 +126,68 @@ begin {
     }
 
     $script:ListenerInstance = $listener # Store for cleanup
+
+    # Start performance monitoring job
+    Write-Host "Starting performance monitoring job..."
+    $perfJobScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1"
+    if (Test-Path $perfJobScript) {
+        & $perfJobScript -StartJob
+        Write-Host "Performance monitoring job started."
+    } else {
+        Write-Warning "Performance monitoring script not found: $perfJobScript"
+    }
+
+    # Start log tail job for real-time event stream
+    Write-Host "Starting log tail job for event stream..."
+    $logPath = $Global:PSWebServer.LogFilePath
+
+    $tailScriptBlock = {
+        param($FilePath)
+
+        $fileStream = New-Object System.IO.FileStream(
+            $FilePath,
+            [System.IO.FileMode]::Open,
+            [System.IO.FileAccess]::Read,
+            [System.IO.FileShare]::ReadWrite
+        )
+
+        try {
+            # Seek to end of file to only show new lines
+            [void]$fileStream.Seek(0, [System.IO.SeekOrigin]::End)
+            $reader = New-Object System.IO.StreamReader($fileStream, [System.Text.Encoding]::UTF8)
+
+            $lineNumber = 0
+            while ($true) {
+                $line = $reader.ReadLine()
+
+                if ($null -ne $line) {
+                    $lineNumber++
+                    [PSCustomObject]@{
+                        Path = $FilePath
+                        Date = Get-Date
+                        LineNumber = $lineNumber
+                        Line = $line
+                    }
+                } else {
+                    Start-Sleep -Milliseconds 100
+                }
+            }
+        }
+        finally {
+            if ($reader) { $reader.Close() }
+            if ($fileStream) { $fileStream.Close() }
+        }
+    }
+
+    $jobName = "Log_Tail: $logPath"
+    $existingJob = Get-Job -Name $jobName -ErrorAction SilentlyContinue
+    if ($existingJob) {
+        Stop-Job -Job $existingJob -ErrorAction SilentlyContinue
+        Remove-Job -Job $existingJob -Force -ErrorAction SilentlyContinue
+    }
+
+    $job = Start-Job -Name $jobName -ScriptBlock $tailScriptBlock -ArgumentList $logPath
+    Write-Host "Log tail job started: $jobName (Job ID: $($job.Id))"
 }
 
 process {
@@ -332,6 +394,14 @@ end {
         $script:ListenerInstance.Stop()
         $script:ListenerInstance.Close()
         Write-Verbose "Listener stopped."
+    }
+
+    # Stop the performance monitoring job
+    Write-Host "Stopping performance monitoring job..."
+    $perfJobScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1"
+    if (Test-Path $perfJobScript) {
+        & $perfJobScript -StopJob
+        Write-Host "Performance monitoring job stopped."
     }
 
     # Stop the logging job

@@ -116,7 +116,7 @@ function Get-PSWebHostUsers {
     $MyTag = "[Get-PSWebHostUsers]"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $query = "SELECT Email FROM Users;"
-    writre-verbose "$MyTag Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
+    Write-Verbose "$MyTag Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
     $users = Get-PSWebSQLiteData -File $dbFile -Query $query
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved users: $(($users | Out-String).trim('\s') -split '\n' -join "`n`t")"
     if ($users) {
@@ -257,22 +257,29 @@ function Invoke-AuthenticationMethod {
                 Write-Warning "Authentication failed: No password set for user '$email'."
                 return $false
             }
-            # Parse the JSON to get the password
+            # Parse the JSON to get the password hash and salt
             $authData = $authMethod.data | ConvertFrom-Json
             $storedPasswordHash = $authData.Password
+            $storedSalt = $authData.Salt
+
+            if (-not $storedSalt) {
+                Write-Warning "Authentication failed: No salt found for user '$email'."
+                return $false
+            }
 
             # 3. Hash the provided password with the user's salt
-            $saltBytes = [System.Convert]::FromBase64String($user.Salt)
+            $saltBytes = [System.Convert]::FromBase64String($storedSalt)
             $pbkdf2 = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($password, $saltBytes, 10000)
             $providedPasswordHashBytes = $pbkdf2.GetBytes(20)
             $providedPasswordHash = [System.Convert]::ToBase64String($providedPasswordHashBytes)
 
             # 4. Compare the hashes
+            Write-Verbose "$MyTag Comparing hashes - Provided: $providedPasswordHash, Stored: $storedPasswordHash"
             if ($providedPasswordHash -eq $storedPasswordHash) {
                 Write-Verbose "Password authentication successful for user '$email'."
                 return $true
             } else {
-                Write-Warning "Password authentication failed for user '$email'."
+                Write-Warning "Password authentication failed for user '$email'. Hash mismatch."
                 return $false
             }
         }
@@ -311,7 +318,7 @@ function Test-IsValidEmailAddress {
     [cmdletbinding()]
     param(
         [string]$Email,
-        [string]$Regex = '^[a-zA-Z0-9._+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}',
+        [string]$Regex = '^[a-zA-Z0-9._+-]+@[a-zA-Z0-9\.-]+',
         [string]$AddCustomRegex
     )
 
@@ -326,14 +333,16 @@ function Test-IsValidEmailAddress {
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing high-risk unicode check for email: $Email"
     $InvalidCharacters = Test-StringForHighRiskUnicode -String $Email
     if ($InvalidCharacters.IsValid -eq $false) {
+        Write-PSWebHostLog -Severity Warning -Category Email_Conatins_High_Risk_Unicode "$MyTag Email_Conatins_High_Risk_Unicode: $InvalidCharacters" -WriteHost:$PSBoundParameters.Verbose -ForegroundColor yellow
         return $InvalidCharacters
     }
     if (-not ($Email -match $Regex)) {
-        return @{ isValid = $false; Message = "Email address format is invalid." }
+        $return = @{ isValid = $false; Message = "Email address format is invalid." }
+        Write-PSWebHostLog -Severity Warning -Category Email_Format_Invalid -message "$MyTag Invalid Characters: $($return|ConvertTo-Json -Compress)" -WriteHost:$PSBoundParameters.Verbose -ForegroundColor yellow
+        return $return
     }
     return @{ isValid = $true; Message = "Email address is valid." }
 }
-
 
 function Test-StringForHighRiskUnicode {
     [cmdletbinding()]
@@ -618,28 +627,40 @@ function Register-PSWebHostUser {
 
     # 2. Store user in database
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
-    $userData = @{
-        UserID = $userID
-        UserName = $UserName
-        Email = $Email
-        Phone = $Phone
-        Provider = $Provider
-    }
 
+    # Generate password hash based on provider type
+    $passwordHash = ""
     if ($Provider -eq "Password") {
         # 3. Generate Salt and Hash Password
         $saltBytes = New-Object byte[] 16
         $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
         $rng.GetBytes($saltBytes)
         $saltString = [System.Convert]::ToBase64String($saltBytes)
-        $userData.Salt = $saltString
 
         $pbkdf2 = New-Object System.Security.Cryptography.Rfc2898DeriveBytes($Password, $saltBytes, 10000)
         $passwordHashBytes = $pbkdf2.GetBytes(20) # 20 bytes for a 160-bit hash
         $passwordHash = [System.Convert]::ToBase64String($passwordHashBytes)
+
+        # Initialize ProviderData if null
+        if (-not $ProviderData) {
+            $ProviderData = @{}
+        }
         $ProviderData.Password = $passwordHash
+        $ProviderData.Salt = $saltString
+    } else {
+        # For non-password providers (Windows, etc), use empty password hash
+        $passwordHash = ""
     }
-    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) New-PSWebSQLiteData -File $dbFile -Table "Users" -Data `n`t$(($userData | Out-String).trim('\s') -split '\n' -join "`n`t")"
+
+    # Users table only has: ID, UserID, Email, PasswordHash
+    $userData = @{
+        ID = $userID
+        UserID = $userID
+        Email = $Email
+        PasswordHash = $passwordHash
+    }
+
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) New-PSWebSQLiteData -File $dbFile -Table 'Users' -Data `n`t$(($userData | Out-String).trim('\s') -split '\n' -join "`n`t")"
     New-PSWebSQLiteData -File $dbFile -Table "Users" -Data $userData
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: New-PSWebSQLiteData"
 
@@ -722,16 +743,42 @@ function PSWebLogon {
     $sessionID = $null
     if ($sessionCookie) { $sessionID = $sessionCookie.Value }
     $SessionData = $Global:PSWebSessions[$sessionID]
-    $now = Get-Date
+    [datetime]$now = Get-Date
 
     # Get existing login attempt data
     $lastAttempt = Get-LastLoginAttempt -IPAddress $ipAddress
 
     $userViolations = [int]$lastAttempt.UserViolationsCount
     $ipViolations = [int]$lastAttempt.IPViolationCount
-    $userNameLockedUntil = $lastAttempt.UserNameLockedUntil
-    $ipAddressLockedUntil = $lastAttempt.IPAddressLockedUntil
-    
+
+    # Convert lockout timestamps to datetime or null (using untyped variables to allow null)
+    $userNameLockedUntil = $null
+    $ipAddressLockedUntil = $null
+
+    # Check UserNameLockedUntil - handle null, empty, and DBNull
+    if ($lastAttempt.UserNameLockedUntil) {
+        $value = $lastAttempt.UserNameLockedUntil
+        if ($value -isnot [System.DBNull] -and ![string]::IsNullOrWhiteSpace($value)) {
+            try {
+                $userNameLockedUntil = [datetime]::FromFileTimeUtc([long]$value * 10000000 + 116444736000000000)
+            } catch {
+                $userNameLockedUntil = $null
+            }
+        }
+    }
+
+    # Check IPAddressLockedUntil - handle null, empty, and DBNull
+    if ($lastAttempt.IPAddressLockedUntil) {
+        $value = $lastAttempt.IPAddressLockedUntil
+        if ($value -isnot [System.DBNull] -and ![string]::IsNullOrWhiteSpace($value)) {
+            try {
+                $ipAddressLockedUntil = [datetime]::FromFileTimeUtc([long]$value * 10000000 + 116444736000000000)
+            } catch {
+                $ipAddressLockedUntil = $null
+            }
+        }
+    }
+
     if ($Result -eq "Fail") {
         $userViolations++
         $ipViolations++
@@ -752,7 +799,7 @@ function PSWebLogon {
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Login successful. Resetting violation counts for user '$UserID' and IP '$ipAddress'."
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing Set-LastLoginAttempt -IPAddress $ipAddress -Username $UserID -Time $now -UserViolationsCount 0 -IPViolationCount 0 -UserNameLockedUntil `$null -IPAddressLockedUntil `$null"
         try{
-            Set-LastLoginAttempt -IPAddress $ipAddress -Username $UserID -Time $now -UserViolationsCount 0 -IPViolationCount 0 -UserNameLockedUntil 0 -IPAddressLockedUntil 0
+            Set-LastLoginAttempt -IPAddress $ipAddress -Username $UserID -Time $now -UserViolationsCount 0 -IPViolationCount 0 -UserNameLockedUntil $null -IPAddressLockedUntil $null
         }
         catch{
             write-PSWebHostLog -Severity critical -Category Set-LastLoginAttempt -message "$MyTag Failed to reset login attempt data for user '$UserID' and IP '$ipAddress'. Error: $_"
@@ -761,7 +808,7 @@ function PSWebLogon {
         # Record successful login session
         if ($sessionID) {
             $logonExpires = $now.AddHours(8) # Example: Session expires in 8 hours
-            Set-LoginSession -SessionID $sessionID -UserID $UserID -Provider $ProviderName -AuthenticationTime -AuthenticationState 'Authenticated' $now -LogonExpires $logonExpires -UserAgent $Request.UserAgent 
+            Set-LoginSession -SessionID $sessionID -UserID $UserID -Provider $ProviderName -AuthenticationTime $now -AuthenticationState 'Authenticated' -LogonExpires $logonExpires -UserAgent $Request.UserAgent 
         }
         Write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Login successful for user '$UserID' from IP '$ipAddress' via '$ProviderName'." -Data @{ UserID = $UserID; IPAddress = $ipAddress; Provider = $ProviderName; Result = $Result }
     }
@@ -929,11 +976,23 @@ function Get-LoginSession {
     $MyTag = "[Get-LoginSession]"
     if (-not $SessionID) { Write-Error "$MyTag The -SessionID parameter is required."; return }
     $safeSessionID = Sanitize-SqlQueryString -String $SessionID
-    $query = "SELECT * FROM LoginSessions WHERE SessionID = '$safeSessionID';"
+    $query = "SELECT * FROM LoginSessions WHERE SessionID = '$safeSessionID' LIMIT 1;"
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     Write-PSWebHostLog -Message "$MyTag Calling: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query" -Severity 'info' -Category 'Auth'
-    $Session = Get-PSWebSQLiteData -File $dbFile -Query $query
-    Write-PSWebHostLog "$MyTag Completed Get-PSWebSQLiteData Session: $Session" -Severity 'info' -Category 'Auth'
+    $result = Get-PSWebSQLiteData -File $dbFile -Query $query
+    if (-not $result) {
+        Write-PSWebHostLog "$MyTag No session found for SessionID: $SessionID" -Severity 'info' -Category 'Auth'
+        return $null
+    }
+    # Get-PSWebSQLiteData returns an array even for single results, unwrap it
+    $Session = if ($result -is [System.Array]) {
+        Write-PSWebHostLog "$MyTag Result is array with $($result.Count) elements, unwrapping first element" -Severity 'info' -Category 'Auth'
+        $result[0]
+    } else {
+        Write-PSWebHostLog "$MyTag Result is single object, returning as-is" -Severity 'info' -Category 'Auth'
+        $result
+    }
+    Write-PSWebHostLog "$MyTag Completed Get-PSWebSQLiteData Session type: $($Session.GetType().FullName) Session: $Session" -Severity 'info' -Category 'Auth'
     return $Session
 }
 
@@ -943,7 +1002,7 @@ function Set-LoginSession {
         [string]$SessionID,
         [string]$UserID,
         [string]$Provider,
-        [datetime]$AuthenticationTime,
+        [datetime]$AuthenticationTime = (Get-Date),
         [string]$AuthenticationState,
         [datetime]$LogonExpires,
         [string]$UserAgent
@@ -1024,8 +1083,8 @@ function Set-LastLoginAttempt {
         [string]$IPAddress,
         [string]$Username,
         [datetime]$Time,
-        [datetime]$UserNameLockedUntil = $null,
-        [datetime]$IPAddressLockedUntil = $null,
+        $UserNameLockedUntil = $null,
+        $IPAddressLockedUntil = $null,
         [int]$UserViolationsCount,
         [int]$IPViolationCount
     )

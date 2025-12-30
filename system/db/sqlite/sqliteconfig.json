@@ -28,13 +28,20 @@
         { "name": "LogonExpires", "type": "INTEGER", "constraint": "NOT NULL" },
         { "name": "AuthenticationState", "type": "TEXT", "constraint": "" },
         { "name": "UserAgent", "type": "TEXT", "constraint": "" }
+      ],
+      "foreign_keys": [
+        {
+          "column": "UserID",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        }
       ]
     },
     {
       "name": "User_Groups",
       "columns": [
         { "name": "GroupID", "type": "TEXT", "constraint": "PRIMARY KEY" },
-        { "name": "Name", "type": "TEXT", "constraint": "UNIQUE" },
+        { "name": "Name", "type": "TEXT", "constraint": "UNIQUE NOT NULL" },
         { "name": "Updated", "type": "TEXT", "constraint": "" },
         { "name": "Created", "type": "TEXT", "constraint": "" }
       ]
@@ -45,85 +52,130 @@
         { "name": "UserID", "type": "TEXT", "constraint": "NOT NULL" },
         { "name": "GroupID", "type": "TEXT", "constraint": "NOT NULL" }
       ],
-      "primary_key": ["UserID", "GroupID"]
+      "primary_key": ["UserID", "GroupID"],
+      "foreign_keys": [
+        {
+          "column": "UserID",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        },
+        {
+          "column": "GroupID",
+          "references": "User_Groups(GroupID)",
+          "on_delete": "CASCADE"
+        }
+      ]
     },
     {
       "name": "PSWeb_Roles",
       "columns": [
         { "name": "PrincipalID", "type": "TEXT", "constraint": "NOT NULL" },
-        { "name": "PrincipalType", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "PrincipalType", "type": "TEXT", "constraint": "NOT NULL CHECK(PrincipalType IN ('User', 'Group'))" },
         { "name": "RoleName", "type": "TEXT", "constraint": "NOT NULL" }
       ],
       "primary_key": ["PrincipalID", "RoleName"]
     },
     {
-        "name": "AuthenticationMethods",
-        "columns": [
-            {"name": "ID", "type": "INTEGER", "constraint": "PRIMARY KEY AUTOINCREMENT"},
-            {"name": "UserID", "type": "TEXT", "constraint": "NOT NULL"},
-            {"name": "Authentication_Method", "type": "TEXT", "constraint": "NOT NULL"},
-            {"name": "Data", "type": "TEXT", "constraint": ""}
-        ]
+      "name": "AuthenticationMethods",
+      "columns": [
+        { "name": "ID", "type": "INTEGER", "constraint": "PRIMARY KEY AUTOINCREMENT" },
+        { "name": "UserID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Authentication_Method", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Data", "type": "TEXT", "constraint": "" }
+      ],
+      "foreign_keys": [
+        {
+          "column": "UserID",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        }
+      ]
     },
     {
-        "name": "CardSessions",
-        "columns": [
-            {"name": "CardGUID", "type": "TEXT", "constraint": "PRIMARY KEY"},
-            {"name": "SessionID", "type": "TEXT", "constraint": ""},
-            {"name": "UserID", "type": "TEXT", "constraint": ""},
-            {"name": "DataBackend", "type": "TEXT", "constraint": ""},
-            {"name": "CardDefinition", "type": "TEXT", "constraint": ""}
-        ]
+      "name": "CardSessions",
+      "columns": [
+        { "name": "CardGUID", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "SessionID", "type": "TEXT", "constraint": "" },
+        { "name": "UserID", "type": "TEXT", "constraint": "" },
+        { "name": "DataBackend", "type": "TEXT", "constraint": "" },
+        { "name": "CardDefinition", "type": "TEXT", "constraint": "" }
+      ],
+      "foreign_keys": [
+        {
+          "column": "SessionID",
+          "references": "LoginSessions(SessionID)",
+          "on_delete": "SET NULL"
+        },
+        {
+          "column": "UserID",
+          "references": "Users(UserID)",
+          "on_delete": "SET NULL"
+        }
+      ]
     },
     {
-        "name": "auth_user_provider",
-        "columns": [
-            {"name": "UserID", "type": "TEXT", "constraint": ""},
-            {"name": "UserName", "type": "TEXT", "constraint": ""},
-            {"name": "provider", "type": "TEXT", "constraint": ""},
-            {"name": "created", "type": "TEXT", "constraint": ""},
-            {"name": "locked_out", "type": "INTEGER", "constraint": ""},
-            {"name": "expires", "type": "TEXT", "constraint": ""},
-            {"name": "enabled", "type": "INTEGER", "constraint": ""},
-            {"name": "data", "type": "TEXT", "constraint": ""}
-        ],
-        "primary_key": ["UserID", "provider"]
+      "name": "auth_user_provider",
+      "columns": [
+        { "name": "UserID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "UserName", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "provider", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "created", "type": "TEXT", "constraint": "" },
+        { "name": "locked_out", "type": "INTEGER", "constraint": "DEFAULT 0" },
+        { "name": "expires", "type": "TEXT", "constraint": "" },
+        { "name": "enabled", "type": "INTEGER", "constraint": "DEFAULT 1" },
+        { "name": "data", "type": "TEXT", "constraint": "" }
+      ],
+      "primary_key": ["UserID", "provider"],
+      "foreign_keys": [
+        {
+          "column": "UserID",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        }
+      ]
     },
     {
-        "name": "LastLoginAttempt",
-        "columns": [
-            {"name": "IPAddress", "type": "TEXT", "constraint": "PRIMARY KEY"},
-            {"name": "Username", "type": "TEXT", "constraint": ""},
-            {"name": "Time", "type": "TEXT", "constraint": ""},
-            {"name": "UserNameLockedUntil", "type": "TEXT", "constraint": ""},
-            {"name": "IPAddressLockedUntil", "type": "TEXT", "constraint": ""},
-            {"name": "UserViolationsCount", "type": "INTEGER", "constraint": ""},
-            {"name": "IPViolationCount", "type": "INTEGER", "constraint": ""}
-        ]
+      "name": "LastLoginAttempt",
+      "columns": [
+        { "name": "IPAddress", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "Username", "type": "TEXT", "constraint": "" },
+        { "name": "Time", "type": "TEXT", "constraint": "" },
+        { "name": "UserNameLockedUntil", "type": "TEXT", "constraint": "" },
+        { "name": "IPAddressLockedUntil", "type": "TEXT", "constraint": "" },
+        { "name": "UserViolationsCount", "type": "INTEGER", "constraint": "DEFAULT 0" },
+        { "name": "IPViolationCount", "type": "INTEGER", "constraint": "DEFAULT 0" }
+      ]
     },
     {
-        "name": "account_email_confirmation",
-        "columns": [
-            {"name": "email_request_guid", "type": "TEXT", "constraint": "PRIMARY KEY"},
-            {"name": "email", "type": "TEXT", "constraint": ""},
-            {"name": "request_date", "type": "TEXT", "constraint": ""},
-            {"name": "response_date", "type": "TEXT", "constraint": ""},
-            {"name": "request_ip", "type": "TEXT", "constraint": ""},
-            {"name": "response_ip", "type": "TEXT", "constraint": ""},
-            {"name": "request_session_id", "type": "TEXT", "constraint": ""},
-            {"name": "response_session_id", "type": "TEXT", "constraint": ""}
-        ]
+      "name": "account_email_confirmation",
+      "columns": [
+        { "name": "email_request_guid", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "email", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "request_date", "type": "TEXT", "constraint": "" },
+        { "name": "response_date", "type": "TEXT", "constraint": "" },
+        { "name": "request_ip", "type": "TEXT", "constraint": "" },
+        { "name": "response_ip", "type": "TEXT", "constraint": "" },
+        { "name": "request_session_id", "type": "TEXT", "constraint": "" },
+        { "name": "response_session_id", "type": "TEXT", "constraint": "" }
+      ]
     },
     {
-        "name": "card_settings",
-        "columns": [
-            {"name": "endpoint_guid", "type": "TEXT", "constraint": ""},
-            {"name": "user_id", "type": "TEXT", "constraint": ""},
-            {"name": "created_date", "type": "TEXT", "constraint": ""},
-            {"name": "last_updated", "type": "TEXT", "constraint": ""},
-            {"name": "data", "type": "TEXT", "constraint": ""}
-        ],
-        "primary_key": ["endpoint_guid", "user_id"]
+      "name": "card_settings",
+      "columns": [
+        { "name": "endpoint_guid", "type": "TEXT", "constraint": "" },
+        { "name": "user_id", "type": "TEXT", "constraint": "" },
+        { "name": "created_date", "type": "TEXT", "constraint": "" },
+        { "name": "last_updated", "type": "TEXT", "constraint": "" },
+        { "name": "data", "type": "TEXT", "constraint": "" }
+      ],
+      "primary_key": ["endpoint_guid", "user_id"],
+      "foreign_keys": [
+        {
+          "column": "user_id",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        }
+      ]
     }
   ]
 }

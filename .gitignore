@@ -6,6 +6,9 @@
 # VS Code
 .vscode/
 
+# Claude Code
+.claude/
+
 # Configuration
 /config/settings.json
 

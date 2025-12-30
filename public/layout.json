@@ -6,7 +6,6 @@
             "display-close-icon": false
         },
         "main-menu": { "Type": "Menu", "Title": "Main Menu" },
-        "file-explorer": { "Type": "card", "Title": "Files" },
         "system-status": { "Type": "Log", "Title": "System Log" },
         "world-map": { "Type": "Map", "Title": "World Map" },
         "server-heatmap": { "Type": "Heatmap", "Title": "Server Load" },
@@ -26,7 +25,7 @@
             "bottom": []
         },
         "mainPane": {
-            "content": ["file-explorer", "server-heatmap","world-map","event-stream"]
+            "content": ["server-heatmap","event-stream"]
         },
         "rightPane": {
             "content": []

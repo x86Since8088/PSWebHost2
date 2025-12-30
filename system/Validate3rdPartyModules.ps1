@@ -40,6 +40,32 @@ function FixVersionLength {
     }
 }
 
+function Test-VersionInSpec {
+    param(
+        [version]$Version,
+        [version[]]$RequiredVersion,
+        [version]$VersionMIN,
+        [version]$VersionMAX
+    )
+
+    if (
+        ($RequiredVersion -and ($Version -in $RequiredVersion)) -or
+        (
+            (($VersionMIN -and ($Version -ge $VersionMIN)) -and
+            ($VersionMAX -and ($Version -le $VersionMAX))) -or
+
+            (!$VersionMIN -and
+            ($VersionMAX -and ($Version -le $VersionMAX))) -or
+
+            (($VersionMIN -and ($Version -ge $VersionMIN)) -and
+            !$VersionMAX)
+        )
+    ) {
+        return $true
+    }
+    return $false
+}
+
 # Disable module folders that are not in the specification.
 foreach ($moduleSpec in $modulesToValidate) {
     $ModuleFolders = Join-Path $moduleDownloadDir $moduleSpec.Name
@@ -52,60 +78,86 @@ foreach ($moduleSpec in $modulesToValidate) {
     if (!$requiredVersion -and !$VersionMIN -and !$VersionMAX) {
         [version]$VersionMIN = '0.0.0.0'
     }
-    foreach ($ModuleFolder in $ModuleFolders){
+
+    # Check if module folder exists before iterating
+    if (-not (Test-Path $ModuleFolders)) {
+        Write-Verbose "Module folder not found: $ModuleFolders. Skipping version validation."
+        continue
+    }
+
+    foreach ($ModuleFolder in (Get-ChildItem $ModuleFolders -ErrorAction SilentlyContinue)){
         foreach($Versionfolder in (Get-ChildItem $ModuleFolder.FullName|Where-Object{$_.Name -match '^[\d\.]+(|\.disabled)$'})) {
             [version]$version = FixVersionLength -version ($Versionfolder.Name -replace '\.disabled$')
+            $ModulePath = join-path $moduleDownloadDir $ModuleFolder.Name
+            $ModulePath = Join-Path $ModulePath $Versionfolder.Name
             $Disable = $false
             Write-Verbose "Validating module: $moduleName version $version..."
-            if (
-                ($requiredVersion -and ($Version -in $requiredVersion)) -or
-                (
-                    (($VersionMIN -and ($Version -ge $VersionMIN)) -and 
-                    ($VersionMAX -and ($Version -le $VersionMAX))) -or
 
-                    (!$VersionMIN -and
-                    ($VersionMAX -and ($Version -le $VersionMAX))) -or
-
-                    (($VersionMIN -and ($Version -ge $VersionMIN)) -and 
-                    !$VersionMAX)
-                )
-            ){
+            if (Test-VersionInSpec -Version $version -RequiredVersion $requiredVersion -VersionMIN $VersionMIN -VersionMAX $VersionMAX) {
                 Write-Verbose "	Module '$moduleName' is allowed to use version '$version' in versions '$($requiredVersion -join ', ')' VersionMin '$VersionMIN' VersionMax '$VersionMAX'."
             }
             ELSE {
-                Write-Warning "	Verion $version is not inside of the Module Specification:`n`t`t$(($moduleSpec|ConvertTo-Yaml).trim('
-').split('
-').join("`n`t`t"))"
+                Write-Warning "	Verion $version is not inside of the Module Specification:`n`t`t$(($moduleSpec|ConvertTo-Yaml).trim(@("`r","`n")) -split "\r*\n" -join "`n`t`t")"
                 $Disable = $true
             }
             if ($Disable -and $Versionfolder.name -notmatch '\.disabled$') {
-                Write-Warning "	Disabling '$(join-path $moduleDownloadDir ($ModuleFolder.Name)\\$($Versionfolder.Name))'."
+                Write-Warning "	Disabling '$($Versionfolder.FullName)'."
                 try {
-                    Remove-Module $ModuleFolder.Name -Force
+                    Remove-Module $ModuleFolder.Name -Force -ErrorAction SilentlyContinue
                 }
                 catch {
-                    Write-Error -Message "	Module removal failed for $(join-path $moduleDownloadDir ($ModuleFolder.Name)\\$($Versionfolder.Name))."
+                    Write-Verbose "	Module was not loaded, proceeding with rename."
                 }
-                Rename-Item $Versionfolder.FullName ($Versionfolder.Name + '.disabled')
+
+                # Retry rename with backoff if file is locked
+                $renamed = $false
+                for ($i = 0; $i -lt 3; $i++) {
+                    try {
+                        Rename-Item $Versionfolder.FullName ($Versionfolder.Name + '.disabled') -ErrorAction Stop
+                        $renamed = $true
+                        break
+                    }
+                    catch {
+                        if ($i -lt 2) {
+                            Write-Verbose "	Rename failed (attempt $($i+1)/3), retrying in 1 second..."
+                            Start-Sleep -Seconds 1
+                        }
+                        else {
+                            Write-Error "	Failed to disable module after 3 attempts: $($_.Exception.Message)"
+                        }
+                    }
+                }
             }
             elseif (!$Disable -and $Versionfolder.name -match '\.disabled$') {
-                Write-Warning "	Enabling previously disabled module '$(join-path $moduleDownloadDir ($ModuleFolder.Name)\\$($Versionfolder.Name))'."
-                Rename-Item $Versionfolder.FullName ($Versionfolder.Name -replace '\.disabled$')
-                Import-Module ($Versionfolder.FullName -replace '\.disabled$')
+                if (test-path ($Versionfolder.FullName -replace '\.disabled$')){
+                    Remove-Item -Recurse -Path $Versionfolder.FullName -Force
+                }
+                else {
+                    Write-Warning "	Enabling previously disabled module '$($Versionfolder.FullName)'."
+                    Rename-Item $Versionfolder.FullName ($Versionfolder.name -replace '\.disabled$')
+                    Import-Module ($Versionfolder.FullName -replace '\.disabled$')
+                }
             }
         }
     }
 
     try {Remove-Module -Name $moduleName -Force -ErrorAction Ignore}
     catch {}
-    # This command is more likeley to favor detecting the local module copy
-    $installedModule = (Get-Command -Module $moduleName|Select-Object -First 1).Module
-    # Failback to a more traditional method that will also find
+
+    # Primary: Check local ModuleDownload directory first
+    $installedModule = Get-Module -Name $moduleName -ListAvailable |
+        Where-Object{$_.Path -like "$moduleDownloadDir*"} |
+        Sort-Object -Property Version -Descending
+
+    # Secondary: Check for loaded module commands
     if (!$installedModule) {
-        $installedModule = Get-Module -Name $moduleName -ListAvailable|
-            Where-Object{$_.Path -like "$moduleDownloadDir*"}
+        $moduleCommand = Get-Command -Module $moduleName -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($moduleCommand) {
+            $installedModule = $moduleCommand.Module
+        }
     }
-    # Failback to detecting the system wide module.
+
+    # Tertiary: Fallback to system-wide modules
     if (!$installedModule) {
         $installedModule = Get-Module -Name $moduleName -ListAvailable
     }
@@ -116,20 +168,9 @@ foreach ($moduleSpec in $modulesToValidate) {
     } else {
         # If multiple versions are somehow present, take the highest one
         $installedVersion = FixVersionLength -version ($installedModule | Sort-Object -Property Version -Descending | Select-Object -First 1).Version
-        if (
-            ($requiredVersion -and ($InstalledVersion -in $requiredVersion)) -or
-            (
-                (($VersionMIN -and ($InstalledVersion -ge $VersionMIN)) -and 
-                ($VersionMAX -and ($InstalledVersion -le $VersionMAX))) -or
 
-                (!$VersionMIN -and
-                ($VersionMAX -and ($InstalledVersion -le $VersionMAX))) -or
-
-                (($VersionMIN -and ($InstalledVersion -ge $VersionMIN)) -and 
-                !$VersionMAX)
-            )
-        ) {
-            Write-Verbose "	Module '$moduleName' is allowed to use version $version in versions RequiredVersion '$($requiredVersion -join ', ')' VersionMin '$VersionMIN' VersionMax '$VersionMAX'."
+        if (Test-VersionInSpec -Version $installedVersion -RequiredVersion $requiredVersion -VersionMIN $VersionMIN -VersionMAX $VersionMAX) {
+            Write-Verbose "	Module '$moduleName' is allowed to use version $installedVersion in versions RequiredVersion '$($requiredVersion -join ', ')' VersionMin '$VersionMIN' VersionMax '$VersionMAX'."
         }
         else {
             Write-Warning "	Module '$moduleName' version mismatch. Found $($InstalledVersion), require '$($requiredVersion -join ', ')'. Scheduling for download."

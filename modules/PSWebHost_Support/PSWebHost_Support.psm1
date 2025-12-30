@@ -16,7 +16,7 @@ function Get-RequestBody {
             $reader = New-Object System.IO.StreamReader($Request.InputStream, $Request.ContentEncoding)
             return $reader.ReadToEnd()
         } catch {
-            Write-Error "$MyTag Failed to read request body. Error: $_ "
+            Write-Error "$($MyTag) Failed to read request body. Error: $($_) "
             return $null
         } finally {
             if ($reader) {
@@ -47,7 +47,7 @@ function ConvertTo-CompressedBase64 {
         $compressedBytes = $memStream.ToArray()
         [System.Convert]::ToBase64String($compressedBytes)
     } catch {
-        Write-Error "$MyTag Failed to compress string. Error: $_ "
+        Write-Error "$($MyTag) Failed to compress string. Error: $($_) "
         $null
     } finally {
         if ($gzipStream) { $gzipStream.Dispose() }
@@ -55,6 +55,93 @@ function ConvertTo-CompressedBase64 {
     }
 }
 
+function Resolve-RouteScriptPath {
+    param (
+        [string]$UrlPath,
+        [string]$HttpMethod,
+        [string]$BaseDirectory
+    )
+    $trimmedUrlPath = $UrlPath.Trim('/')
+    $potentialPath = Join-Path $BaseDirectory "$trimmedUrlPath/$HttpMethod.ps1"
+    Write-Verbose "$( $MyTag ) Checking for route script: $($potentialPath)"
+    if (Test-Path $potentialPath -PathType Leaf) { 
+        Write-Verbose "$( $MyTag ) Route script found: $($potentialPath)"
+        return $potentialPath 
+    } else { 
+        Write-Verbose "$( $MyTag ) Route script not found: $($potentialPath)"
+        return $null 
+    }
+}
+
+function Ensure-SessionCookie {
+    param(
+        [System.Net.HttpListenerRequest]$Request,
+        [System.Net.HttpListenerResponse]$Response
+    )
+    # Returns hashtable: @{ SessionID=..., SessionCookie=... }
+    $MyTag = '[Ensure-SessionCookie]'
+    try { Write-Verbose "$( $MyTag ) Incoming Cookie header: $($Request.Headers['Cookie'])" } catch {}
+    $sessionCookie = $Request.Cookies["PSWebSessionID"]
+    if ($sessionCookie) {
+        $sessionID = $sessionCookie.Value
+        Write-Verbose "$( $MyTag ) Session cookie found: $($sessionID)"
+    } else {
+        $sessionID = [Guid]::NewGuid().ToString()
+        Write-Verbose "$( $MyTag ) No session cookie found, creating new session: $($sessionID)"
+        $newCookie = New-Object System.Net.Cookie("PSWebSessionID", $sessionID)
+        $hostName = $Request.Url.HostName
+        if ($hostName -notmatch '^(localhost|(\d{1,3}\.){3}\d{1,3}|::1)$') {
+            $newCookie.Domain = $hostName
+        }
+        $newCookie.Expires = (Get-Date).AddDays(7)
+        $newCookie.Path = "/"
+        $newCookie.HttpOnly = $true
+        $newCookie.Secure = $Request.IsSecureConnection
+        $Response.AppendCookie($newCookie)
+        try { Write-Verbose "$( $MyTag ) Response Set-Cookie header after append: $($Response.Headers['Set-Cookie'])" } catch {}
+        $Request.Cookies.Add($newCookie)
+        $sessionCookie = $newCookie
+        Write-Verbose "$( $MyTag ) Session cookie appended to response: $($sessionID) (Secure=$($newCookie.Secure), HttpOnly=$($newCookie.HttpOnly))"
+    }
+    if ($sessionCookie) {
+        if ($Request.IsSecureConnection -ne $sessionCookie.Secure -or -not $sessionCookie.HttpOnly) {
+            $sessionCookie.Secure = $Request.IsSecureConnection
+            $sessionCookie.HttpOnly = $true
+            $sessionCookie.Path = "/"
+        }
+    }
+    return @{ SessionID = $sessionID; SessionCookie = $sessionCookie }
+}
+
+# Check whether the session satisfies security requirements for a route
+function Authorize-Request {
+    param(
+        $Session,
+        [string]$SecurityPath
+    )
+    $MyTag = '[Authorize-Request]'
+    # Ensure security file exists with sane default
+    if (-not (Test-Path $SecurityPath)) {
+        $defaultRoles = @('unauthenticated')
+        $securityContent = @{ Allowed_Roles = $defaultRoles } | ConvertTo-Json -Compress
+        Set-Content -Path $SecurityPath -Value $securityContent
+        Write-Verbose "$($MyTag) Auto-created default security file with roles: $($defaultRoles -join ', ')"
+    }
+
+    try {
+        $securityConfig = Get-Content $SecurityPath | ConvertFrom-Json
+    } catch {
+        Write-Verbose "$($MyTag) Failed to read security config: $($_)"
+        return $false
+    }
+
+    if (-not $securityConfig.Allowed_Roles) { return $false }
+    $userRoles = $Session.Roles
+    foreach ($allowedRole in $securityConfig.Allowed_Roles) {
+        if ($userRoles -contains $allowedRole) { return $true }
+    }
+    return $false
+}
 function Set-PSWebSession {
     [cmdletbinding()]
     param (
@@ -107,10 +194,10 @@ function Set-PSWebSession {
         if ($sessionData.AuthenticationState) { $sessionData.AuthenticationState = '' }
     }
 
-    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Set-LoginSession -SessionID '$SessionID' -UserID '$($sessionData.UserID)' -Provider '$($sessionData.Provider)' -AuthenticationTime '$($sessionData.LastUpdated)' -LogonExpires '$($sessionData.AuthTokenExpiration)' -UserAgent '$($sessionData.UserAgent)' | Out-Null"
+    Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Set-LoginSession -SessionID '$SessionID' -UserID '$($sessionData.UserID)' -Provider '$($sessionData.Provider)' -AuthenticationTime '$($sessionData.LastUpdated)' -LogonExpires '$($sessionData.AuthTokenExpiration)' -UserAgent '$($sessionData.UserAgent)' | Out-Null"
     Write-PSWebHostLog -Severity 'Info' -Category 'Session' -Message "Setting PSWeb session for SessionID '$SessionID', UserID '$($sessionData.UserID)'." -Data @{ SessionID = $SessionID; UserID = $sessionData.UserID; Provider = $sessionData.Provider; UserAgent = $sessionData.UserAgent; AuthTokenExpiration = $sessionData.AuthTokenExpiration } -WriteHost:$Verbose.ispresent
     Set-LoginSession -SessionID $SessionID -UserID $sessionData.UserID -Provider $sessionData.Provider -AuthenticationTime $sessionData.LastUpdated -LogonExpires $sessionData.AuthTokenExpiration  -AuthenticationState $sessionData.AuthenticationState -UserAgent $sessionData.UserAgent | Out-Null
-    Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Set-LoginSession" -Verbose
+    Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Set-LoginSession" -Verbose
 }
 
 function Get-PSWebSessions {
@@ -118,6 +205,13 @@ function Get-PSWebSessions {
         [string]$SessionID
     )
     $MyTag = '[Get-PSWebSessions]'
+
+    # Validate SessionID
+    if ([string]::IsNullOrWhiteSpace($SessionID)) {
+        Write-Warning "$MyTag SessionID is null or empty, returning empty session"
+        return [hashtable]::Synchronized(@{})
+    }
+
     if ($null -eq $global:PSWebSessions[$SessionID]) {
         # Try to load from DB
         $loginSession = Get-LoginSession -SessionID $SessionID
@@ -173,7 +267,9 @@ function Get-PSWebSessions {
     if ($Updates -ne 0) {
         $global:PSWebSessions[$SessionID].LastUpdated = Get-Date
     }
-    return $global:PSWebSessions[$SessionID]    
+    $returnValue = $global:PSWebSessions[$SessionID]
+    Write-Verbose "[Get-PSWebSessions] Returning session type: $($returnValue.GetType().FullName) IsArray: $($returnValue -is [System.Array])"
+    return $returnValue
 }
 
 function Remove-PSWebSession {
@@ -256,7 +352,7 @@ function Process-HttpRequest {
         try{$global:PSWebServer       = $using:global:PSWebServer      }catch{}
         try{$global:PSWebSessions     = $using:global:PSWebSessions    }catch{}
     }
-    Write-Verbose "$MyTag Starting processing request: $httpMethod $requestedPath from $($request.RemoteEndPoint)"
+    Write-Verbose "$($MyTag) Starting processing request: $($httpMethod) $($requestedPath) from $($request.RemoteEndPoint)"
 
     $request = $Context.Request
     $response = $Context.Response
@@ -279,30 +375,54 @@ function Process-HttpRequest {
         }
     }
 
-    Write-Verbose "$MyTag $(Get-Date -f 'yyyMMdd HH:mm:ss') Request received: $httpMethod $requestedPath from $($request.RemoteEndPoint)"
+    Write-Verbose "$($MyTag) $(Get-Date -f 'yyyMMdd HH:mm:ss') Request received: $($httpMethod) $($requestedPath) from $($request.RemoteEndPoint)"
     
+    # Log incoming Cookie header for debugging cookie flows
+    try { Write-Verbose "$($MyTag) Incoming Cookie header: $($request.Headers['Cookie'])" } catch {}
     $sessionCookie = $request.Cookies["PSWebSessionID"]
-    if ($sessionCookie) {
+    if ($sessionCookie -and -not [string]::IsNullOrWhiteSpace($sessionCookie.Value)) {
         $sessionID = $sessionCookie.Value
-        Write-Verbose "$MyTag Session cookie found: $sessionID"
-    
+        Write-Verbose "$($MyTag) Session cookie found: $($sessionID)"
+
     } else {
         $sessionID = [Guid]::NewGuid().ToString()
-        Write-Verbose "$MyTag No session cookie found, creating new session: $sessionID"
+        Write-Verbose "$($MyTag) No session cookie found or empty, creating new session: $($sessionID)"
+
+        # Create session in database and memory
+        $global:PSWebSessions[$sessionID] = [hashtable]::Synchronized(@{
+            UserID = ""
+            Provider = ""
+            UserAgent = $request.UserAgent
+            AuthTokenExpiration = (Get-Date)
+            LastUpdated = (Get-Date)
+            Roles = [System.Collections.ArrayList]@('unauthenticated')
+        })
+
+        # Save to database
+        Set-LoginSession -SessionID $sessionID -UserID "" -Provider "" -AuthenticationTime (Get-Date) -LogonExpires (Get-Date).AddDays(7) -AuthenticationState "unauthenticated" -UserAgent $request.UserAgent | Out-Null
+        Write-Verbose "$($MyTag) New session created in database: $($sessionID)"
+
+        # Set cookie
         $newCookie = New-Object System.Net.Cookie("PSWebSessionID", $sessionID)
-        $newCookie.Domain = $request.Url.HostName
+        # Only set Domain for non-localhost and non-IP hosts to avoid browser rejection for host-only cookies
+        $hostName = $request.Url.HostName
+        if ($hostName -notmatch '^(localhost|(\d{1,3}\.){3}\d{1,3}|::1)$') {
+            $newCookie.Domain = $hostName
+        }
         $newCookie.Expires = (Get-Date).AddDays(7)
         $newCookie.Path = "/"
         $newCookie.HttpOnly = $true
         # Only set the Secure flag if the connection is actually HTTPS
         $newCookie.Secure = $request.IsSecureConnection
-        
-        $response.AppendCookie($newCookie)
-        # Also add the cookie to the current request so it's available immediately
-        $request.Cookies.Add($newCookie)
-        $sessionCookie = $newCookie
-        Write-Verbose "$MyTag Session cookie appended to response: $sessionID (Secure=$($newCookie.Secure), HttpOnly=$($newCookie.HttpOnly))"
 
+        $response.AppendCookie($newCookie)
+        try { Write-Verbose "$($MyTag) Response Set-Cookie header after append: $($response.Headers['Set-Cookie'])" } catch {}
+        Write-Verbose "$($MyTag) Session cookie appended to response: $($sessionID) (Secure=$($newCookie.Secure), HttpOnly=$($newCookie.HttpOnly))"
+
+        # Redirect to the same page so the browser sends the cookie back
+        Write-Verbose "$($MyTag) Redirecting to same page to ensure cookie is sent: $($request.Url.AbsoluteUri)"
+        context_reponse -Response $response -StatusCode 302 -RedirectLocation $request.Url.AbsoluteUri
+        return
     }
     if ($sessionCookie) {
         if (
@@ -316,18 +436,18 @@ function Process-HttpRequest {
     }
 
     $session = Get-PSWebSessions -SessionID $sessionID
-    Write-Verbose "`t$MyTag $(Get-Date -f 'yyyMMdd HH:mm:ss') Session: $($sessionID) UserID: $($session.UserID)"
+    Write-Verbose "`t$($MyTag) $(Get-Date -f 'yyyMMdd HH:mm:ss') Session: $($sessionID) UserID: $($session.UserID)"
 
     if ($requestedPath.StartsWith("/public", [System.StringComparison]::OrdinalIgnoreCase)) {
-        Write-Verbose "$MyTag Handling public static file request: $requestedPath"
+            Write-Verbose "$($MyTag) Handling public static file request: $($requestedPath)"
         $handled = $true
         $sanitizedPath = Sanitize-FilePath -FilePath $requestedPath.trim('/') -BaseDirectory $projectRoot
         if ($sanitizedPath.Score -eq 'pass') {
-            Write-Verbose "$MyTag Static file sanitization passed, serving: $($sanitizedPath.Path)"
+            Write-Verbose "$($MyTag) Static file sanitization passed, serving: $($sanitizedPath.Path)"
             context_reponse -Response $response -Path $sanitizedPath.Path
             return
         } else {
-            Write-Verbose "$MyTag Static file sanitization failed: $($sanitizedPath.Message)"
+            Write-Verbose "$($MyTag) Static file sanitization failed: $($sanitizedPath.Message)"
             Write-PSWebHostLog -Message "`t$MyTag $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
             context_reponse -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
             return
@@ -335,61 +455,39 @@ function Process-HttpRequest {
     }
 
     if (-not $handled -and $requestedPath -eq "/" -and $httpMethod -eq "get") {
-        Write-Verbose "$MyTag Root path redirect: '/' -> '/spa'"
-        Write-PSWebHostLog -Severity 'Info' -Category 'Routing' -Message "$MyTag Redirecting '/' to '/spa'" -WriteHost:$Verbose.ispresent
+        Write-Verbose "$($MyTag) Root path redirect: '/' -> '/spa'"
+        Write-PSWebHostLog -Severity 'Info' -Category 'Routing' -Message "$($MyTag) Redirecting '/' to '/spa'" -WriteHost:$Verbose.ispresent
         context_reponse -Response $response -StatusCode 302 -RedirectLocation "/spa"
         $handled = $true
     }
 
     if (-not $handled) {
-        Write-Verbose "$MyTag No handler matched yet, attempting route resolution"
+        Write-Verbose "$($MyTag) No handler matched yet, attempting route resolution"
         $routeBaseDir = Join-Path $projectRoot "routes"
         $scriptPath = $null
-
-        function Resolve-RouteScriptPath {
-            param ([string]$UrlPath, [string]$HttpMethod, [string]$BaseDirectory)
-            $trimmedUrlPath = $UrlPath.Trim('/')
-            $potentialPath = Join-Path $BaseDirectory "$trimmedUrlPath/$HttpMethod.ps1"
-            Write-Verbose "$MyTag Checking for route script: $potentialPath"
-            if (Test-Path $potentialPath -PathType Leaf) { 
-                Write-Verbose "$MyTag Route script found!"
-                return $potentialPath 
-            } else { 
-                Write-Verbose "$MyTag Route script not found"
-                return $null 
-            }
-        }
 
         $scriptPath = Resolve-RouteScriptPath -UrlPath $requestedPath -HttpMethod $httpMethod -BaseDirectory $routeBaseDir
 
         if ($scriptPath) {
-            Write-Verbose "$MyTag Route script found: $scriptPath"
+            Write-Verbose "$($MyTag) Route script found: $($scriptPath)"
             $securityPath = [System.IO.Path]::ChangeExtension($scriptPath, ".security.json")
-            Write-Verbose "$MyTag Security config path: $securityPath"
+            Write-Verbose "$($MyTag) Security config path: $($securityPath)"
 
             if (-not (Test-Path $securityPath)) {
                 $defaultRoles = @("unauthenticated")
                 $securityContent = @{ Allowed_Roles = $defaultRoles } | ConvertTo-Json -Compress
                 Set-Content -Path $securityPath -Value $securityContent
-                Write-Verbose "$MyTag Auto-created default security file with roles: $($defaultRoles -join ', ')"
+                Write-Verbose "$($MyTag) Auto-created default security file with roles: $($defaultRoles -join ', ')"
                 Write-PSWebHostLog -Severity 'Info' -Category 'Security' -Message "Auto-created default security file for $requestedPath with roles: $($defaultRoles -join ', ')"
             }
 
             $isAuthorized = $false
             $securityConfig = Get-Content $securityPath | ConvertFrom-Json
-            Write-Verbose "$MyTag Security config loaded. Allowed roles: $($securityConfig.Allowed_Roles -join ', ')"
-            
-            if ($securityConfig.Allowed_Roles) {
-                $userRoles = $session.Roles
-                Write-Verbose "$MyTag User roles: $($userRoles -join ', ')"
-                foreach ($allowedRole in $securityConfig.Allowed_Roles) {
-                    if ($userRoles -contains $allowedRole) {
-                        $isAuthorized = $true
-                        Write-Verbose "$MyTag Authorization check passed for role: $allowedRole"
-                        break
-                    }
-                }
-            }
+            Write-Verbose "$($MyTag) Security config loaded. Allowed roles: $($securityConfig.Allowed_Roles -join ', ')"
+
+            Write-Verbose "$($MyTag) About to call Authorize-Request. Session type: $($session.GetType().FullName) IsArray: $($session -is [System.Array])"
+            $isAuthorized = Authorize-Request -Session $session -SecurityPath $securityPath
+            Write-Verbose "$($MyTag) Authorization result: $($isAuthorized)"
 
             if (-not $isAuthorized) {
                 Write-Verbose "$MyTag Authorization failed - user not in allowed roles"
@@ -403,7 +501,7 @@ function Process-HttpRequest {
                     Context = $Context
                     SessionData = $session
                 }
-                [string[]]$ScriptParamNames = (get-command -Name "E:\sc\git\PsWebHost\routes\api\v1\authprovider\windows\post.ps1").Parameters.keys
+                [string[]]$ScriptParamNames = (get-command -Name $scriptPath).Parameters.keys
                 ($scriptParams.Keys | Where-Object { $ScriptParamNames -notcontains $_ }) | ForEach-Object {
                     Write-Verbose "$MyTag Removing unexpected script parameter: $_"
                     $scriptParams.Remove($_)
@@ -449,6 +547,30 @@ function Process-HttpRequest {
                     }
                 }
 
+                # Performance tracking - Start
+                $requestID = [Guid]::NewGuid().ToString()
+                $perfStartTime = Get-Date
+                $logFilePath = $Global:PSWebServer.LogFilePath
+                $logFileSizeBefore = if (Test-Path $logFilePath) { (Get-Item $logFilePath).Length } else { 0 }
+
+                # Queue start record
+                if ($Global:PSWebPerfQueue) {
+                    & (Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1") -QueueData @{
+                        Type = 'WebRequest'
+                        Data = @{
+                            Action = 'Start'
+                            RequestID = $requestID
+                            StartTime = $perfStartTime.ToString('u')
+                            FilePath = $scriptPath
+                            HttpMethod = $httpMethod
+                            IPAddress = $request.RemoteEndPoint.Address.ToString()
+                            UserAgent = $request.UserAgent
+                            SessionID = $sessionID
+                            LogFileSizeBefore = $logFileSizeBefore
+                        }
+                    }
+                }
+
                 if ($Async.ispresent) {
                     Write-Verbose "$MyTag Executing route script asynchronously"
                     Invoke-ContextRunspace -Context $Context -ScriptPath $scriptPath -SessionID $sessionID
@@ -459,12 +581,41 @@ function Process-HttpRequest {
                     }
                     try{
                         & $scriptPath @scriptParams
+                        $scriptStatusCode = 200
                     }
                     catch{
                         Write-PSWebHostLog -Severity 'Error' -Category 'Routing' -Message "$MyTag Error executing route script: $($_.Exception.Message + "`n" + $_.InvocationInfo.PositionMessage)" -Data @{ ScriptPath = $scriptPath; SessionID = $sessionID; PositionMessage = $_.InvocationInfo.PositionMessage; Message = $_.Exception.Message } -WriteHost
                         context_reponse -Response $response -StatusCode 500 -StatusDescription "Internal Server Error" -String "Internal Server Error"
+                        $scriptStatusCode = 500
                     }
                     Write-Verbose "$MyTag Route script execution completed"
+                }
+
+                # Performance tracking - Complete
+                $perfEndTime = Get-Date
+                $executionTimeMicroseconds = [long](($perfEndTime - $perfStartTime).TotalMilliseconds * 1000)
+                $logFileSizeAfter = if (Test-Path $logFilePath) { (Get-Item $logFilePath).Length } else { 0 }
+
+                # Queue complete record
+                if ($Global:PSWebPerfQueue) {
+                    $finalStatusCode = if ($scriptStatusCode) { $scriptStatusCode } else { $response.StatusCode }
+                    $finalStatusText = if ($response.StatusDescription) { $response.StatusDescription } else { $null }
+
+                    & (Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1") -QueueData @{
+                        Type = 'WebRequest'
+                        Data = @{
+                            Action = 'Complete'
+                            RequestID = $requestID
+                            EndTime = $perfEndTime.ToString('u')
+                            UserID = if ($session.UserID) { $session.UserID } else { '' }
+                            AuthenticationProvider = if ($session.Provider) { $session.Provider } else { '' }
+                            ExecutionTimeMicroseconds = $executionTimeMicroseconds
+                            LogFileSizeBefore = $logFileSizeBefore
+                            LogFileSizeAfter = $logFileSizeAfter
+                            StatusCode = $finalStatusCode
+                            StatusText = $finalStatusText
+                        }
+                    }
                 }
                 $handled = $true
             }
@@ -513,7 +664,9 @@ function Write-PSWebHostLog {
             }
         }
     }
-    $date = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss.fff")
+    $date = Get-Date
+    $utcTime = $date.ToUniversalTime().ToString('o')
+    $localTime = $date.ToString('o')
     $escapedMessage = [regex]::Escape($Message)
     $dataString = ""
     if ($Data) {
@@ -531,7 +684,7 @@ function Write-PSWebHostLog {
             $dataString = $json
         }
     }
-    $logEntry = "$date`t$Severity`t$Category`t$escapedMessage`t$SessionID`t$UserID`t$dataString"
+    $logEntry = "$utcTime`t$localTime`t$Severity`t$Category`t$escapedMessage`t$SessionID`t$UserID`t$dataString"
     $global:PSWebHostLogQueue.Enqueue($logEntry)
 
     $eventGuid = [Guid]::NewGuid().ToString()

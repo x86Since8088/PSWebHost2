@@ -27,7 +27,7 @@ if (!$ConfigFile) {
 }
 
 # Import required modules
-Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database/PSWebHost_Database.psm1") -DisableNameChecking -Verbose:$False
+Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_Database") -DisableNameChecking -Verbose:$False
 
 if (-not (Test-Path $ConfigFile)) {
 
@@ -109,11 +109,13 @@ foreach ($table in $schema.tables) {
 
         # 2. Check for primary key differences
         if (-not $needsRebuild) {
-            $schemaPK = @($table.primary_key | Sort-Object)
-            $dbPK = @(($existingColumns | Where-Object { $_.pk -gt 0 } | Sort-Object -Property pk).name)
-            if ((Compare-Object $schemaPK $dbPK).Count -gt 0) {
-                $needsRebuild = $true
-                Write-Verbose "Reason for rebuild: Primary key mismatch."
+            $schemaPK = @(($table.columns | Where-Object{$_.constraint -match '\bprimary\b'}).Name | Sort-Object)
+            if ($schemaPK) {
+                $dbPK = @(($existingColumns | Where-Object { ($_.pk -band 1) -eq 1 } | Sort-Object -Property pk).name)
+                if ((Compare-Object $schemaPK $dbPK).Count -gt 0) {
+                    $needsRebuild = $true
+                    Write-Verbose "Reason for rebuild: Primary key mismatch."
+                }
             }
         }
 
@@ -175,6 +177,31 @@ foreach ($table in $schema.tables) {
                     Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $addColumnQuery
                 }
             }
+        }
+    }
+}
+
+# --- Validate and create views ---
+if ($schema.views) {
+    foreach ($view in $schema.views) {
+        $viewName = $view.name
+        Write-Verbose "Validating view: $viewName"
+
+        # Check if view exists
+        $checkViewQuery = "SELECT name FROM sqlite_master WHERE type='view' AND name='$viewName';"
+        $viewExists = Get-PSWebSQLiteData -File $DatabaseFile -Query $checkViewQuery
+
+        if (-not $viewExists) {
+            Write-Host "View '$viewName' not found. Creating it."
+            $createViewQuery = "CREATE VIEW `"$viewName`" AS $($view.definition);"
+            Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $createViewQuery
+        } else {
+            # View exists - drop and recreate to ensure it matches the definition
+            Write-Verbose "View '$viewName' exists. Recreating to ensure current definition."
+            $dropViewQuery = "DROP VIEW `"$viewName`";"
+            Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $dropViewQuery
+            $createViewQuery = "CREATE VIEW `"$viewName`" AS $($view.definition);"
+            Invoke-PSWebSQLiteNonQuery -File $DatabaseFile -Query $createViewQuery
         }
     }
 }
