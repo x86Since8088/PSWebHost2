@@ -15,6 +15,8 @@ begin{
         Write-Verbose "Added '$modulesFolderPath' to PSModulePath." -Verbose
     }
 
+    <#
+
     Write-Verbose -Message 'Validating required modules.'
     # Store the content of Requiredmodules.json for dumping
     $RequiredModulesJsonContent = Get-Content -Path "$ScriptFolder\Requiredmodules.json" | ConvertFrom-Json
@@ -42,13 +44,11 @@ begin{
             }
         }
     Write-Verbose -Message 'Validating required modules - complete.' -Verbose
+    #>
 
     Write-Verbose -Message 'Validating third-party modules...' -Verbose
     $thirdPartyValidatorScript = Join-Path $ScriptFolder "Validate3rdPartyModules.ps1"
-    if(!(Test-Path $thirdPartyValidatorScript)) {
-        Write-Warning -Message "thirdPartyValidatorScript not found. '$thirdPartyValidatorScript' will not be executed"
-    }
-    elseif (Test-Path $thirdPartyValidatorScript) {
+    if (Test-Path $thirdPartyValidatorScript) {
         & $thirdPartyValidatorScript
     } else {
         Write-Warning "Third-party module validator script not found at $thirdPartyValidatorScript."
