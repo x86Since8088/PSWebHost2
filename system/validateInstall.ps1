@@ -15,6 +15,30 @@ begin{
         Write-Verbose "Added '$modulesFolderPath' to PSModulePath." -Verbose
     }
 
+    try {
+        Import-Module PackageManagement
+    }
+    catch {
+        Install-Module PackageManagement
+        Import-Module PackageManagement
+    }
+    try {
+        Import-Module powershell-yaml
+    }
+    catch {
+        Install-Module powershell-yaml
+        Import-Module powershell-yaml
+    }
+
+    $WingetList = winget list
+    if (-not ($WingetList -match 'SQLite.SQLite')) {
+        winget install SQLite.SQLite
+    }
+
+    $Packages = Get-Package
+    if (-not ('LogError' -in $Packages.Name)) {install-package LogError -Force}
+    if (-not ('LogError' -in $Packages.Name)) {install-package LogError -Force}
+
     <#
 
     Write-Verbose -Message 'Validating required modules.'
