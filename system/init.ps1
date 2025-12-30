@@ -172,10 +172,28 @@ if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
     Write-Verbose "Added '$modulesFolderPath' to PSModulePath." -Verbose
 }
 
+# Add ModuleDownload folder to PSModulePath for third-party modules
+$moduleDownloadPath = Join-Path $Global:PSWebServer.Project_Root.Path "ModuleDownload"
+if (-not (Test-Path $moduleDownloadPath)) {
+    New-Item -Path $moduleDownloadPath -ItemType Directory -Force | Out-Null
+    Write-Verbose "Created ModuleDownload directory: $moduleDownloadPath" -Verbose
+}
+if (-not ($Env:PSModulePath -split ';' -contains $moduleDownloadPath)) {
+    $Env:PSModulePath = "$moduleDownloadPath;$($Env:PSModulePath)"
+    Write-Verbose "Added '$moduleDownloadPath' to PSModulePath." -Verbose
+}
+
 # --- Thread-Safe Logging Setup ---
 $global:PSWebHostLogQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $global:PSHostUIQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $Global:PSWebServer.LogFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/Logs/log.tsv"
+
+# Ensure the Logs directory exists
+$logDirectory = Split-Path $Global:PSWebServer.LogFilePath -Parent
+if (-not (Test-Path $logDirectory)) {
+    New-Item -Path $logDirectory -ItemType Directory -Force | Out-Null
+    Write-Verbose "Created logs directory: $logDirectory" -Verbose
+}
 
 # --- Real-Time Event Stream Buffer ---
 # Initialize a thread-safe ring buffer for real-time log events
@@ -261,7 +279,7 @@ if ($Global:PSWebServer.Config.roles) {
     foreach ($role in $configRoles) {
         if ($role -notin $dbRoles) {
             Write-Verbose "Registering role '$role' from config." -Verbose
-            New-PSWebHostRole -RoleName $role
+            Add-PSWebHostRole -RoleName $role
         }
     }
 }

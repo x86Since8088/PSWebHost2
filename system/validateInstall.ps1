@@ -77,7 +77,7 @@ begin{
             $WingetList = winget list
             if (-not ($WingetList -match 'SQLite.SQLite')) {
                 Write-Verbose "SQLite not found in winget list. Installing..." -Verbose
-                winget install SQLite.SQLite --accept-package-agreements --accept-source-agreements --silent
+                winget install SQLite.SQLite --source winget --accept-package-agreements --accept-source-agreements --silent
                 if ($LASTEXITCODE -eq 0) {
                     Update-EnvironmentPath
                 }
@@ -149,9 +149,9 @@ begin{
             if ($wingetCmd) {
                 Write-Verbose "Winget found." -Verbose
 
-                $wingetCommand = "winget install --id SQLite.SQLite --accept-package-agreements --accept-source-agreements --silent"
+                $wingetCommand = "winget install --id SQLite.SQLite --source winget --accept-package-agreements --accept-source-agreements --silent"
                 if ($Upgrade) {
-                    $wingetCommand = "winget upgrade --id SQLite.SQLite --accept-package-agreements --accept-source-agreements --silent"
+                    $wingetCommand = "winget upgrade --id SQLite.SQLite --source winget --accept-package-agreements --accept-source-agreements --silent"
                     Write-Verbose "Attempting to upgrade SQLite via Winget." -Verbose
                 } else {
                     Write-Verbose "Attempting to install SQLite via Winget (skipping upgrade unless -Upgrade switch is provided)." -Verbose
