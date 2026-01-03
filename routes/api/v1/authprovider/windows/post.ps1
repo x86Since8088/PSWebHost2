@@ -141,6 +141,8 @@ try {
     write-pswebhostlog -Severity 'Error' -Category 'Auth' -Message "$($MyTag) Exception during Windows authentication POST: $($_.Exception.Message)" -Data @{ IPAddress = $ipAddress; Body = $bodyContent } -WriteHost
     PSWebLogon -ProviderName "Windows" -Result "error" -Request $Request
 
-    $jsonResponse = New-JsonResponse -status 'fail' -message "An internal error occurred: $($_.Exception.Message)`n$($_.InvocationInfo.PositionMessage)"
-    context_reponse -Response $Response -StatusCode 500 -String $jsonResponse -ContentType "application/json"
+    # Generate detailed error report based on user role
+    $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
+
+    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

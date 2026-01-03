@@ -1,7 +1,9 @@
 [33;1mVERBOSE: Starting init.ps1...[0m
-[33;1mVERBOSE: Added 'C:\sc\PsWebHost\modules' to PSModulePath.[0m
+[33;1mVERBOSE: Added 'C:\SC\PsWebHost\modules' to PSModulePath.[0m
+[33;1mVERBOSE: Added 'C:\SC\PsWebHost\ModuleDownload' to PSModulePath.[0m
 [33;1mVERBOSE: Started background logging job.[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\Sanitization\Sanitization.psm1'.[0m
+[33;1mVERBOSE: Started log history collection job.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\modules\Sanitization\Sanitization.psm1'.[0m
 [33;1mVERBOSE: Exporting function 'Sanitize-HtmlInput'.[0m
 [33;1mVERBOSE: Exporting function 'Write-RequestSanitizationFail'.[0m
 [33;1mVERBOSE: Exporting function 'Sanitize-FilePath'.[0m
@@ -10,9 +12,9 @@
 [33;1mVERBOSE: The 'Sanitize-HtmlInput' command in the Sanitization' module was imported, but because its name does not include an approved verb, it might be difficult to find. For a list of approved verbs, type Get-Verb.[0m
 [33;1mVERBOSE: Importing function 'Sanitize-HtmlInput'.[0m
 [33;1mVERBOSE: Importing function 'Write-RequestSanitizationFail'.[0m
-[33;1mVERBOSE: Tracked module Sanitization from C:\sc\PsWebHost\modules\Sanitization\Sanitization.psm1[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\PSWebHost_Support\PSWebHost_Support.psd1'.[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\PSWebHost_Support\PSWebHost_Support.psm1'.[0m
+[33;1mVERBOSE: Tracked module Sanitization from C:\SC\PsWebHost\modules\Sanitization\Sanitization.psm1[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\modules\PSWebHost_Support\PSWebHost_Support.psd1'.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\modules\PSWebHost_Support\PSWebHost_Support.psm1'.[0m
 [33;1mVERBOSE: Exporting function 'Get-RequestBody'.[0m
 [33;1mVERBOSE: Exporting function 'ConvertTo-CompressedBase64'.[0m
 [33;1mVERBOSE: Exporting function 'Resolve-RouteScriptPath'.[0m
@@ -47,9 +49,9 @@
 [33;1mVERBOSE: The 'Validate-UserSession' command in the PSWebHost_Support' module was imported, but because its name does not include an approved verb, it might be difficult to find. For a list of approved verbs, type Get-Verb.[0m
 [33;1mVERBOSE: Importing function 'Validate-UserSession'.[0m
 [33;1mVERBOSE: Importing function 'Write-PSWebHostLog'.[0m
-[33;1mVERBOSE: Tracked module PSWebHost_Support from C:\sc\PsWebHost\modules\PSWebHost_Support\PSWebHost_Support.psd1[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\PSWebHost_Database\PSWebHost_Database.psd1'.[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\PSWebHost_Database\PSWebHost_Database.psm1'.[0m
+[33;1mVERBOSE: Tracked module PSWebHost_Support from C:\SC\PsWebHost\modules\PSWebHost_Support\PSWebHost_Support.psd1[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\modules\PSWebHost_Database\PSWebHost_Database.psd1'.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\modules\PSWebHost_Database\PSWebHost_Database.psm1'.[0m
 [33;1mVERBOSE: Exporting function 'Get-PSWebSQLiteData'.[0m
 [33;1mVERBOSE: Exporting function 'Invoke-PSWebSQLiteNonQuery'.[0m
 [33;1mVERBOSE: Exporting function 'New-PSWebSQLiteData'.[0m
@@ -67,9 +69,9 @@
 [33;1mVERBOSE: Importing function 'Sanitize-SqlQueryString'.[0m
 [33;1mVERBOSE: Importing function 'Set-PSWebHostRole'.[0m
 [33;1mVERBOSE: Importing function 'Set-PSWebUser'.[0m
-[33;1mVERBOSE: Tracked module PSWebHost_Database from C:\sc\PsWebHost\modules\PSWebHost_Database\PSWebHost_Database.psd1[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\PSWebHost_Authentication\PSWebHost_Authentication.psd1'.[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\PSWebHost_Authentication\PSWebHost_Authentication.psm1'.[0m
+[33;1mVERBOSE: Tracked module PSWebHost_Database from C:\SC\PsWebHost\modules\PSWebHost_Database\PSWebHost_Database.psd1[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\modules\PSWebHost_Authentication\PSWebHost_Authentication.psd1'.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\modules\PSWebHost_Authentication\PSWebHost_Authentication.psm1'.[0m
 [33;1mVERBOSE: Exporting function 'Get-AuthenticationMethod'.[0m
 [33;1mVERBOSE: Exporting function 'Get-AuthenticationMethodForm'.[0m
 [33;1mVERBOSE: Exporting function 'Get-PSWebHostUser'.[0m
@@ -100,6 +102,7 @@
 [33;1mVERBOSE: Exporting function 'Get-LastLoginAttempt'.[0m
 [33;1mVERBOSE: Exporting function 'Set-LastLoginAttempt'.[0m
 [33;1mVERBOSE: Exporting function 'Get-CardSettings'.[0m
+[33;1mVERBOSE: Exporting function 'Set-CardSettings'.[0m
 [33;1mVERBOSE: Exporting function 'Set-CardSession'.[0m
 [33;1mVERBOSE: Exporting function 'Remove-LoginSession'.[0m
 [33;1mVERBOSE: Importing function 'Add-PSWebHostGroup'.[0m
@@ -127,6 +130,7 @@
 [33;1mVERBOSE: Importing function 'Remove-PSWebHostRole'.[0m
 [33;1mVERBOSE: Importing function 'Remove-PSWebHostRoleAssignment'.[0m
 [33;1mVERBOSE: Importing function 'Set-CardSession'.[0m
+[33;1mVERBOSE: Importing function 'Set-CardSettings'.[0m
 [33;1mVERBOSE: Importing function 'Set-LastLoginAttempt'.[0m
 [33;1mVERBOSE: Importing function 'Set-LoginSession'.[0m
 [33;1mVERBOSE: Importing function 'Test-IsValidEmailAddress'.[0m
@@ -134,15 +138,119 @@
 [33;1mVERBOSE: Importing function 'Test-LoginLockout'.[0m
 [33;1mVERBOSE: Importing function 'Test-StringForHighRiskUnicode'.[0m
 [33;1mVERBOSE: Importing function 'Unprotect-String'.[0m
-[33;1mVERBOSE: Tracked module PSWebHost_Authentication from C:\sc\PsWebHost\modules\PSWebHost_Authentication\PSWebHost_Authentication.psd1[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\smtp\smtp.psd1'.[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\smtp\smtp.psm1'.[0m
+[33;1mVERBOSE: Tracked module PSWebHost_Authentication from C:\SC\PsWebHost\modules\PSWebHost_Authentication\PSWebHost_Authentication.psd1[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\modules\smtp\smtp.psd1'.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\modules\smtp\smtp.psm1'.[0m
 [33;1mVERBOSE: Exporting function 'Send-SmtpEmail'.[0m
 [33;1mVERBOSE: Importing function 'Send-SmtpEmail'.[0m
-[33;1mVERBOSE: Tracked module smtp from C:\sc\PsWebHost\modules\smtp\smtp.psd1[0m
-[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\PSSQLite\1.1.0\PSSQLite.psd1'.[0m
+[33;1mVERBOSE: Tracked module smtp from C:\SC\PsWebHost\modules\smtp\smtp.psd1[0m
+[33;1mVERBOSE: Initializing variables.[0m
+[33;1mVERBOSE: Detected OS: Windows=True, Linux=False, macOS=False[0m
+[33;1mVERBOSE: Loading module from path 'C:\program files\powershell\7\Modules\PackageManagement\PackageManagement.psd1'.[0m
+[33;1mVERBOSE: Loading 'FormatsToProcess' from path 'C:\program files\powershell\7\Modules\PackageManagement\PackageManagement.format.ps1xml'.[0m
+[33;1mVERBOSE: Loading module from path 'C:\program files\powershell\7\Modules\PackageManagement\PackageManagement.psm1'.[0m
+[33;1mVERBOSE: Loading module from path 'C:\program files\powershell\7\Modules\PackageManagement\coreclr\netstandard2.0\Microsoft.PackageManagement.dll'.[0m
+[33;1mVERBOSE: Loading module from path 'C:\program files\powershell\7\Modules\PackageManagement\coreclr\netstandard2.0\Microsoft.PowerShell.PackageManagement.dll'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Find-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Find-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Get-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Get-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Get-PackageSource'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Import-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Install-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Install-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Register-PackageSource'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Save-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Set-PackageSource'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Uninstall-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Unregister-PackageSource'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Find-Package'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Find-PackageProvider'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Get-Package'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Get-PackageProvider'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Get-PackageSource'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Import-PackageProvider'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Install-Package'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Install-PackageProvider'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Register-PackageSource'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Save-Package'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Set-PackageSource'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Uninstall-Package'.[0m
+[33;1mVERBOSE: Exporting cmdlet 'Unregister-PackageSource'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Find-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Find-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Get-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Get-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Get-PackageSource'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Import-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Install-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Install-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Register-PackageSource'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Save-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Set-PackageSource'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Uninstall-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Unregister-PackageSource'.[0m
+[33;1mVERBOSE: Loading module from path 'C:\program files\powershell\7\Modules\PackageManagement\PackageManagement.psd1'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Find-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Find-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Get-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Get-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Get-PackageSource'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Import-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Install-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Install-PackageProvider'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Register-PackageSource'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Save-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Set-PackageSource'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Uninstall-Package'.[0m
+[33;1mVERBOSE: Importing cmdlet 'Unregister-PackageSource'.[0m
+[33;1mVERBOSE: Acquiring providers for assembly: C:\program files\powershell\7\Modules\PackageManagement\coreclr\netstandard2.0\Microsoft.PackageManagement.ArchiverProviders.dll[0m
+[33;1mVERBOSE: Acquiring providers for assembly: C:\program files\powershell\7\Modules\PackageManagement\coreclr\netstandard2.0\Microsoft.PackageManagement.NuGetProvider.dll[0m
+[33;1mVERBOSE: Acquiring providers for assembly: C:\program files\powershell\7\Modules\PackageManagement\coreclr\netstandard2.0\Microsoft.PackageManagement.MetaProvider.PowerShell.dll[0m
+[33;1mVERBOSE: Acquiring providers for assembly: C:\program files\powershell\7\Modules\PackageManagement\coreclr\netstandard2.0\Microsoft.PackageManagement.CoreProviders.dll[0m
+[33;1mVERBOSE: Suppressed Warning Unknown category for 'NuGet'::'GetDynamicOptions': 'Provider'[0m
+[33;1mVERBOSE: Validating third-party modules...[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module powershell-yaml.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\ModuleDownload\powershell-yaml\0.4.2\Load-Assemblies.ps1'.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\ModuleDownload\powershell-yaml\0.4.2\powershell-yaml.psm1'.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module powershell-yaml.[0m
+[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\powershell-yaml\0.4.12\powershell-yaml.psm1'.[0m
+[33;1mVERBOSE: Exporting function 'Load-Assembly'.[0m
+[33;1mVERBOSE: Exporting function 'Initialize-Assemblies'.[0m
+[33;1mVERBOSE: Exporting function 'Get-YamlDocuments'.[0m
+[33;1mVERBOSE: Exporting function 'Convert-ValueToProperType'.[0m
+[33;1mVERBOSE: Exporting function 'Convert-YamlMappingToHashtable'.[0m
+[33;1mVERBOSE: Exporting function 'Convert-YamlSequenceToArray'.[0m
+[33;1mVERBOSE: Exporting function 'Convert-YamlDocumentToPSObject'.[0m
+[33;1mVERBOSE: Exporting function 'Convert-HashtableToDictionary'.[0m
+[33;1mVERBOSE: Exporting function 'Convert-OrderedHashtableToDictionary'.[0m
+[33;1mVERBOSE: Exporting function 'Convert-ListToGenericList'.[0m
+[33;1mVERBOSE: Exporting function 'Convert-PSCustomObjectToDictionary'.[0m
+[33;1mVERBOSE: Exporting function 'Convert-PSObjectToGenericObject'.[0m
+[33;1mVERBOSE: Exporting function 'ConvertFrom-Yaml'.[0m
+[33;1mVERBOSE: Exporting function 'Get-Serializer'.[0m
+[33;1mVERBOSE: Exporting function 'ConvertTo-Yaml'.[0m
+[33;1mVERBOSE: Exporting alias 'cfy'.[0m
+[33;1mVERBOSE: Exporting alias 'cty'.[0m
+[33;1mVERBOSE: Module folder not found: C:\SC\PsWebHost\ModuleDownload\LogError. Will check if download is needed.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module LogError.[0m
+[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\LogError\1.0.0\LogError.psd1'.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module LogError.[0m
+[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\LogError\1.0.0\LogError.psm1'.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module LogError.[0m
+[33;1mVERBOSE: Loading module from path 'C:\Program Files\WindowsPowerShell\Modules\LogError\1.0.0\LogError.psd1'.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module LogError.[0m
+[33;1mVERBOSE: Loading module from path 'C:\Program Files\WindowsPowerShell\Modules\LogError\1.0.0\LogError.psm1'.[0m
+[33;1mVERBOSE: Exporting function 'Write-logfile'.[0m
+[33;1mVERBOSE: Exporting function 'Write-ErrortoLogfile'.[0m
+[33;1mVERBOSE: Exporting function 'Write-ErrorLog'.[0m
+[33;1mVERBOSE: 	Module 'LogError' is allowed to use version 1.0.0.0 in versions RequiredVersion '1.0.0.0' VersionMin '' VersionMax ''.[0m
+[33;1mVERBOSE: 	Module 'LogError' is already up to date.[0m
+[33;1mVERBOSE: Module folder not found: C:\SC\PsWebHost\ModuleDownload\PSSQLite. Will check if download is needed.[0m
 [33;1mVERBOSE: Populating RepositorySourceLocation property for module PSSQLite.[0m
 [33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\PSSQLite\1.1.0\PSSQLite.psm1'.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module PSSQLite.[0m
+[33;1mVERBOSE: Loading module from path 'C:\Program Files\WindowsPowerShell\Modules\PSSQLite\1.1.0\PSSQLite.psm1'.[0m
 [33;1mVERBOSE: loading win-x64 core[0m
 [33;1mVERBOSE: is PS Core, loading dotnet core dll[0m
 [33;1mVERBOSE: Exporting function 'Invoke-SQLiteBulkCopy'.[0m
@@ -150,100 +258,30 @@
 [33;1mVERBOSE: Exporting function 'New-SQLiteConnection'.[0m
 [33;1mVERBOSE: Exporting function 'Out-DataTable'.[0m
 [33;1mVERBOSE: Exporting function 'Update-Sqlite'.[0m
-[33;1mVERBOSE: Importing function 'Invoke-SQLiteBulkCopy'.[0m
-[33;1mVERBOSE: Importing function 'Invoke-SqliteQuery'.[0m
-[33;1mVERBOSE: Importing function 'New-SQLiteConnection'.[0m
-[33;1mVERBOSE: Importing function 'Out-DataTable'.[0m
-[33;1mVERBOSE: Importing function 'Update-Sqlite'.[0m
-[33;1mVERBOSE: Initializing variables.[0m
-[33;1mVERBOSE: Validating required modules.[0m
-[33;1mVERBOSE: Populating RepositorySourceLocation property for module LogError.[0m
-[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\LogError\1.0.0\LogError.psd1'.[0m
-[33;1mVERBOSE: Populating RepositorySourceLocation property for module LogError.[0m
-[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\LogError\1.0.0\LogError.psm1'.[0m
-[33;1mVERBOSE: Module found: LogError version 1.0.0[0m
-[33;1mVERBOSE: Populating RepositorySourceLocation property for module PSSQLite.[0m
-[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\PSSQLite\1.1.0\PSSQLite.psm1'.[0m
-[33;1mVERBOSE: Module found: PSSQLite version 1.1.0[0m
-[33;1mVERBOSE: Populating RepositorySourceLocation property for module powershell-yaml.[0m
-[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\powershell-yaml\0.4.12\powershell-yaml.psm1'.[0m
-[33;1mVERBOSE: Module found: powershell-yaml version 0.4.12[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\Sanitization\Sanitization.psm1'.[0m
-[33;1mVERBOSE: Module found: Sanitization version 0.0.1[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\modules\PSWebHost_Support\PSWebHost_Support.psm1'.[0m
-[33;1mVERBOSE: Module found: PSWebHost_Support version 0.0.1[0m
-[33;1mVERBOSE: Validating required modules - complete.[0m
-[33;1mVERBOSE: Validating third-party modules...[0m
-[33;1mVERBOSE: Populating RepositorySourceLocation property for module powershell-yaml.[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\ModuleDownload\powershell-yaml\0.4.2\Load-Assemblies.ps1'.[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\ModuleDownload\powershell-yaml\0.4.2\powershell-yaml.psm1'.[0m
-[33;1mVERBOSE: Populating RepositorySourceLocation property for module powershell-yaml.[0m
-[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\powershell-yaml\0.4.12\powershell-yaml.psm1'.[0m
-[33;1mVERBOSE: Exporting function 'Load-Assembly'.[0m
-[33;1mVERBOSE: Exporting function 'Initialize-Assemblies'.[0m
-[33;1mVERBOSE: Exporting function 'Get-YamlDocuments'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-ValueToProperType'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-YamlMappingToHashtable'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-YamlSequenceToArray'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-YamlDocumentToPSObject'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-HashtableToDictionary'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-OrderedHashtableToDictionary'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-ListToGenericList'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-PSCustomObjectToDictionary'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-PSObjectToGenericObject'.[0m
-[33;1mVERBOSE: Exporting function 'ConvertFrom-Yaml'.[0m
-[33;1mVERBOSE: Exporting function 'Get-Serializer'.[0m
-[33;1mVERBOSE: Exporting function 'ConvertTo-Yaml'.[0m
-[33;1mVERBOSE: Exporting alias 'cfy'.[0m
-[33;1mVERBOSE: Exporting alias 'cty'.[0m
-[33;1mVERBOSE: Loaded private function: convertToBase32[0m
-[33;1mVERBOSE: Loaded private function: New-OTPAuthUri[0m
-[33;1mVERBOSE: Loaded private function: New-OTPQRCode[0m
-[33;1mVERBOSE: Loaded private function: OTP-PlatformUI[0m
-[33;1mVERBOSE: Loaded private function: OTP-UIManager[0m
-[33;1mVERBOSE: Loaded private function: readQRCode[0m
-[33;1mVERBOSE: Loaded private function: testWPFAvailable[0m
-[33;1mVERBOSE: Loaded private function: updateOtpCodes[0m
-[33;1mVERBOSE: Loaded public function: Get-OTPCode[0m
-[33;1mVERBOSE: Loaded public function: New-OTPSecret[0m
-[33;1mVERBOSE: Loaded public function: Read-OTPQRCode[0m
-[33;1mVERBOSE: Loaded WPF assembly: PresentationFramework[0m
-[33;1mVERBOSE: Loaded WPF assembly: PresentationCore[0m
-[33;1mVERBOSE: Loaded WPF assembly: WindowsBase[0m
-[33;1mVERBOSE: Loaded WPF assembly: System.Xaml[0m
-[33;1mVERBOSE: 	Module 'OTP' is allowed to use version  in versions RequiredVersion '0.1.1.0' VersionMin '' VersionMax ''.[0m
+[33;1mVERBOSE: 	Module 'PSSQLite' is allowed to use version 1.1.0.0 in versions RequiredVersion '1.1.0.0' VersionMin '' VersionMax ''.[0m
+[33;1mVERBOSE: 	Module 'PSSQLite' is already up to date.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module OTP.[0m
+[33;1mVERBOSE: 	Module 'OTP' is allowed to use version 0.1.1.0 in versions RequiredVersion '0.1.1.0' VersionMin '' VersionMax ''.[0m
 [33;1mVERBOSE: 	Module 'OTP' is already up to date.[0m
 [33;1mVERBOSE: Removing the imported "ConvertFrom-Yaml" function.[0m
 [33;1mVERBOSE: Removing the imported "ConvertTo-Yaml" function.[0m
 [33;1mVERBOSE: Removing the imported "cfy" alias.[0m
 [33;1mVERBOSE: Removing the imported "cty" alias.[0m
-[33;1mVERBOSE: The source code was already compiled and loaded.[0m
-[33;1mVERBOSE: Exporting function 'Load-Assembly'.[0m
-[33;1mVERBOSE: Exporting function 'Initialize-Assemblies'.[0m
-[33;1mVERBOSE: Exporting function 'Get-YamlDocuments'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-ValueToProperType'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-YamlMappingToHashtable'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-YamlSequenceToArray'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-YamlDocumentToPSObject'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-HashtableToDictionary'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-OrderedHashtableToDictionary'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-ListToGenericList'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-PSCustomObjectToDictionary'.[0m
-[33;1mVERBOSE: Exporting function 'Convert-PSObjectToGenericObject'.[0m
-[33;1mVERBOSE: Exporting function 'ConvertFrom-Yaml'.[0m
-[33;1mVERBOSE: Exporting function 'Get-Serializer'.[0m
-[33;1mVERBOSE: Exporting function 'ConvertTo-Yaml'.[0m
-[33;1mVERBOSE: Exporting alias 'cfy'.[0m
-[33;1mVERBOSE: Exporting alias 'cty'.[0m
-[33;1mVERBOSE: 	Module 'powershell-yaml' is allowed to use version  in versions RequiredVersion '0.4.2.0' VersionMin '' VersionMax ''.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module powershell-yaml.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\ModuleDownload\powershell-yaml\0.4.2\Load-Assemblies.ps1'.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\ModuleDownload\powershell-yaml\0.4.2\powershell-yaml.psm1'.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module powershell-yaml.[0m
+[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\powershell-yaml\0.4.12\powershell-yaml.psm1'.[0m
+[33;1mVERBOSE: 	Module 'powershell-yaml' is allowed to use version 0.4.2.0 in versions RequiredVersion '0.4.2.0' VersionMin '' VersionMax ''.[0m
 [33;1mVERBOSE: 	Module 'powershell-yaml' is already up to date.[0m
-[33;1mVERBOSE: 	Module 'QRCodeGenerator' is allowed to use version  in versions RequiredVersion '2.0.0.0' VersionMin '' VersionMax ''.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module QRCodeGenerator.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\ModuleDownload\QRCodeGenerator\2.6.0\loader.psm1'.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module QRCodeGenerator.[0m
+[33;1mVERBOSE: Loading module from path 'C:\SC\PsWebHost\ModuleDownload\QRCodeGenerator\2.0\loader.psm1'.[0m
+[33;1mVERBOSE: 	Module 'QRCodeGenerator' is allowed to use version 2.6.0.0 in versions RequiredVersion '2.6.0.0' VersionMin '' VersionMax ''.[0m
 [33;1mVERBOSE: 	Module 'QRCodeGenerator' is already up to date.[0m
-[33;1mVERBOSE: Loading module from path 'C:\sc\PsWebHost\ModuleDownload\PSScriptAnalyzer\1.24.0\PSv7\Microsoft.Windows.PowerShell.ScriptAnalyzer.dll'.[0m
-[33;1mVERBOSE: Importing cmdlet 'Get-ScriptAnalyzerRule'.[0m
-[33;1mVERBOSE: Importing cmdlet 'Invoke-Formatter'.[0m
-[33;1mVERBOSE: Importing cmdlet 'Invoke-ScriptAnalyzer'.[0m
-[33;1mVERBOSE: 	Module 'PSScriptAnalyzer' is allowed to use version  in versions RequiredVersion '' VersionMin '0.0.0.0' VersionMax ''.[0m
+[33;1mVERBOSE: Populating RepositorySourceLocation property for module PSScriptAnalyzer.[0m
+[33;1mVERBOSE: 	Module 'PSScriptAnalyzer' is allowed to use version 1.24.0.0 in versions RequiredVersion '' VersionMin '0.0.0.0' VersionMax ''.[0m
 [33;1mVERBOSE: 	Module 'PSScriptAnalyzer' is already up to date.[0m
 [33;1mVERBOSE: Third-party module validation complete.[0m
 [33;1mVERBOSE: Validating third-party modules - complete.[0m
@@ -253,225 +291,51 @@
 [33;1mVERBOSE: Validating database schema...[0m
 [33;1mVERBOSE: Validating table: Users[0m
 [33;1mVERBOSE: Table 'Users' exists. Verifying schema.[0m
-[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
-Schema mismatch for table 'Users'. Rebuilding table.
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: ALTER TABLE "Users" RENAME TO "Users_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: ALTER TABLE "Users" RENAME TO "Users_old_20251229024224";[0m
-[33;1mVERBOSE: Renamed table 'Users' to 'Users_old_20251229024224'[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: CREATE TABLE "Users" ("ID" TEXT PRIMARY KEY, "UserID" TEXT UNIQUE NOT NULL, "Email" TEXT UNIQUE NOT NULL, "PasswordHash" TEXT NOT NULL);[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: CREATE TABLE "Users" ("ID" TEXT PRIMARY KEY, "UserID" TEXT UNIQUE NOT NULL, "Email" TEXT UNIQUE NOT NULL, "PasswordHash" TEXT NOT NULL);[0m
-[33;1mVERBOSE: Created new table 'Users' with updated schema.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: INSERT INTO "Users" ("ID", "UserID", "Email", "PasswordHash") SELECT "ID", "UserID", "Email", "PasswordHash" FROM "Users_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: INSERT INTO "Users" ("ID", "UserID", "Email", "PasswordHash") SELECT "ID", "UserID", "Email", "PasswordHash" FROM "Users_old_20251229024224";[0m
-[33;1mVERBOSE: Copied data from 'Users_old_20251229024224' to 'Users'.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: DROP TABLE "Users_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: DROP TABLE "Users_old_20251229024224";[0m
-[33;1mVERBOSE: Dropped old table 'Users_old_20251229024224'.[0m
 [33;1mVERBOSE: Validating table: User_Data[0m
 [33;1mVERBOSE: Table 'User_Data' exists. Verifying schema.[0m
 [33;1mVERBOSE: Validating table: LoginSessions[0m
 [33;1mVERBOSE: Table 'LoginSessions' exists. Verifying schema.[0m
-[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
-Schema mismatch for table 'LoginSessions'. Rebuilding table.
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: ALTER TABLE "LoginSessions" RENAME TO "LoginSessions_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: ALTER TABLE "LoginSessions" RENAME TO "LoginSessions_old_20251229024224";[0m
-[33;1mVERBOSE: Renamed table 'LoginSessions' to 'LoginSessions_old_20251229024224'[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: CREATE TABLE "LoginSessions" ("SessionID" TEXT PRIMARY KEY, "UserID" TEXT NOT NULL, "Provider" TEXT , "AuthenticationTime" INTEGER NOT NULL, "LogonExpires" INTEGER NOT NULL, "AuthenticationState" TEXT , "UserAgent" TEXT );[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: CREATE TABLE "LoginSessions" ("SessionID" TEXT PRIMARY KEY, "UserID" TEXT NOT NULL, "Provider" TEXT , "AuthenticationTime" INTEGER NOT NULL, "LogonExpires" INTEGER NOT NULL, "AuthenticationState" TEXT , "UserAgent" TEXT );[0m
-[33;1mVERBOSE: Created new table 'LoginSessions' with updated schema.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: INSERT INTO "LoginSessions" ("SessionID", "UserID", "Provider", "AuthenticationTime", "LogonExpires", "AuthenticationState", "UserAgent") SELECT "SessionID", "UserID", "Provider", "AuthenticationTime", "LogonExpires", "AuthenticationState", "UserAgent" FROM "LoginSessions_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: INSERT INTO "LoginSessions" ("SessionID", "UserID", "Provider", "AuthenticationTime", "LogonExpires", "AuthenticationState", "UserAgent") SELECT "SessionID", "UserID", "Provider", "AuthenticationTime", "LogonExpires", "AuthenticationState", "UserAgent" FROM "LoginSessions_old_20251229024224";[0m
-[33;1mVERBOSE: Copied data from 'LoginSessions_old_20251229024224' to 'LoginSessions'.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: DROP TABLE "LoginSessions_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: DROP TABLE "LoginSessions_old_20251229024224";[0m
-[33;1mVERBOSE: Dropped old table 'LoginSessions_old_20251229024224'.[0m
 [33;1mVERBOSE: Validating table: User_Groups[0m
 [33;1mVERBOSE: Table 'User_Groups' exists. Verifying schema.[0m
-[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
-Schema mismatch for table 'User_Groups'. Rebuilding table.
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: ALTER TABLE "User_Groups" RENAME TO "User_Groups_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: ALTER TABLE "User_Groups" RENAME TO "User_Groups_old_20251229024224";[0m
-[33;1mVERBOSE: Renamed table 'User_Groups' to 'User_Groups_old_20251229024224'[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: CREATE TABLE "User_Groups" ("GroupID" TEXT PRIMARY KEY, "Name" TEXT UNIQUE, "Updated" TEXT , "Created" TEXT );[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: CREATE TABLE "User_Groups" ("GroupID" TEXT PRIMARY KEY, "Name" TEXT UNIQUE, "Updated" TEXT , "Created" TEXT );[0m
-[33;1mVERBOSE: Created new table 'User_Groups' with updated schema.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: INSERT INTO "User_Groups" ("GroupID", "Name", "Updated", "Created") SELECT "GroupID", "Name", "Updated", "Created" FROM "User_Groups_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: INSERT INTO "User_Groups" ("GroupID", "Name", "Updated", "Created") SELECT "GroupID", "Name", "Updated", "Created" FROM "User_Groups_old_20251229024224";[0m
-[33;1mVERBOSE: Copied data from 'User_Groups_old_20251229024224' to 'User_Groups'.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: DROP TABLE "User_Groups_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: DROP TABLE "User_Groups_old_20251229024224";[0m
-[33;1mVERBOSE: Dropped old table 'User_Groups_old_20251229024224'.[0m
 [33;1mVERBOSE: Validating table: User_Groups_Map[0m
 [33;1mVERBOSE: Table 'User_Groups_Map' exists. Verifying schema.[0m
 [33;1mVERBOSE: Validating table: PSWeb_Roles[0m
 [33;1mVERBOSE: Table 'PSWeb_Roles' exists. Verifying schema.[0m
 [33;1mVERBOSE: Validating table: AuthenticationMethods[0m
 [33;1mVERBOSE: Table 'AuthenticationMethods' exists. Verifying schema.[0m
-[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
-Schema mismatch for table 'AuthenticationMethods'. Rebuilding table.
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: ALTER TABLE "AuthenticationMethods" RENAME TO "AuthenticationMethods_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: ALTER TABLE "AuthenticationMethods" RENAME TO "AuthenticationMethods_old_20251229024224";[0m
-[33;1mVERBOSE: Renamed table 'AuthenticationMethods' to 'AuthenticationMethods_old_20251229024224'[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: CREATE TABLE "AuthenticationMethods" ("ID" INTEGER PRIMARY KEY AUTOINCREMENT, "UserID" TEXT NOT NULL, "Authentication_Method" TEXT NOT NULL, "Data" TEXT );[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: CREATE TABLE "AuthenticationMethods" ("ID" INTEGER PRIMARY KEY AUTOINCREMENT, "UserID" TEXT NOT NULL, "Authentication_Method" TEXT NOT NULL, "Data" TEXT );[0m
-[33;1mVERBOSE: Created new table 'AuthenticationMethods' with updated schema.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: INSERT INTO "AuthenticationMethods" ("ID", "UserID", "Authentication_Method", "Data") SELECT "ID", "UserID", "Authentication_Method", "Data" FROM "AuthenticationMethods_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: INSERT INTO "AuthenticationMethods" ("ID", "UserID", "Authentication_Method", "Data") SELECT "ID", "UserID", "Authentication_Method", "Data" FROM "AuthenticationMethods_old_20251229024224";[0m
-[33;1mVERBOSE: Copied data from 'AuthenticationMethods_old_20251229024224' to 'AuthenticationMethods'.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: DROP TABLE "AuthenticationMethods_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: DROP TABLE "AuthenticationMethods_old_20251229024224";[0m
-[33;1mVERBOSE: Dropped old table 'AuthenticationMethods_old_20251229024224'.[0m
 [33;1mVERBOSE: Validating table: CardSessions[0m
 [33;1mVERBOSE: Table 'CardSessions' exists. Verifying schema.[0m
-[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
-Schema mismatch for table 'CardSessions'. Rebuilding table.
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: ALTER TABLE "CardSessions" RENAME TO "CardSessions_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: ALTER TABLE "CardSessions" RENAME TO "CardSessions_old_20251229024224";[0m
-[33;1mVERBOSE: Renamed table 'CardSessions' to 'CardSessions_old_20251229024224'[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: CREATE TABLE "CardSessions" ("CardGUID" TEXT PRIMARY KEY, "SessionID" TEXT , "UserID" TEXT , "DataBackend" TEXT , "CardDefinition" TEXT );[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: CREATE TABLE "CardSessions" ("CardGUID" TEXT PRIMARY KEY, "SessionID" TEXT , "UserID" TEXT , "DataBackend" TEXT , "CardDefinition" TEXT );[0m
-[33;1mVERBOSE: Created new table 'CardSessions' with updated schema.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: INSERT INTO "CardSessions" ("CardGUID", "SessionID", "UserID", "DataBackend", "CardDefinition") SELECT "CardGUID", "SessionID", "UserID", "DataBackend", "CardDefinition" FROM "CardSessions_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: INSERT INTO "CardSessions" ("CardGUID", "SessionID", "UserID", "DataBackend", "CardDefinition") SELECT "CardGUID", "SessionID", "UserID", "DataBackend", "CardDefinition" FROM "CardSessions_old_20251229024224";[0m
-[33;1mVERBOSE: Copied data from 'CardSessions_old_20251229024224' to 'CardSessions'.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: DROP TABLE "CardSessions_old_20251229024224";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:24 Executing query: DROP TABLE "CardSessions_old_20251229024224";[0m
-[33;1mVERBOSE: Dropped old table 'CardSessions_old_20251229024224'.[0m
 [33;1mVERBOSE: Validating table: auth_user_provider[0m
 [33;1mVERBOSE: Table 'auth_user_provider' exists. Verifying schema.[0m
 [33;1mVERBOSE: Validating table: LastLoginAttempt[0m
 [33;1mVERBOSE: Table 'LastLoginAttempt' exists. Verifying schema.[0m
-[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
-Schema mismatch for table 'LastLoginAttempt'. Rebuilding table.
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: ALTER TABLE "LastLoginAttempt" RENAME TO "LastLoginAttempt_old_20251229024225";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Executing query: ALTER TABLE "LastLoginAttempt" RENAME TO "LastLoginAttempt_old_20251229024225";[0m
-[33;1mVERBOSE: Renamed table 'LastLoginAttempt' to 'LastLoginAttempt_old_20251229024225'[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: CREATE TABLE "LastLoginAttempt" ("IPAddress" TEXT PRIMARY KEY, "Username" TEXT , "Time" TEXT , "UserNameLockedUntil" TEXT , "IPAddressLockedUntil" TEXT , "UserViolationsCount" INTEGER , "IPViolationCount" INTEGER );[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Executing query: CREATE TABLE "LastLoginAttempt" ("IPAddress" TEXT PRIMARY KEY, "Username" TEXT , "Time" TEXT , "UserNameLockedUntil" TEXT , "IPAddressLockedUntil" TEXT , "UserViolationsCount" INTEGER , "IPViolationCount" INTEGER );[0m
-[33;1mVERBOSE: Created new table 'LastLoginAttempt' with updated schema.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: INSERT INTO "LastLoginAttempt" ("IPAddress", "Username", "Time", "UserNameLockedUntil", "IPAddressLockedUntil", "UserViolationsCount", "IPViolationCount") SELECT "IPAddress", "Username", "Time", "UserNameLockedUntil", "IPAddressLockedUntil", "UserViolationsCount", "IPViolationCount" FROM "LastLoginAttempt_old_20251229024225";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Executing query: INSERT INTO "LastLoginAttempt" ("IPAddress", "Username", "Time", "UserNameLockedUntil", "IPAddressLockedUntil", "UserViolationsCount", "IPViolationCount") SELECT "IPAddress", "Username", "Time", "UserNameLockedUntil", "IPAddressLockedUntil", "UserViolationsCount", "IPViolationCount" FROM "LastLoginAttempt_old_20251229024225";[0m
-[33;1mVERBOSE: Copied data from 'LastLoginAttempt_old_20251229024225' to 'LastLoginAttempt'.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: DROP TABLE "LastLoginAttempt_old_20251229024225";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Executing query: DROP TABLE "LastLoginAttempt_old_20251229024225";[0m
-[33;1mVERBOSE: Dropped old table 'LastLoginAttempt_old_20251229024225'.[0m
 [33;1mVERBOSE: Validating table: account_email_confirmation[0m
 [33;1mVERBOSE: Table 'account_email_confirmation' exists. Verifying schema.[0m
-[33;1mVERBOSE: Reason for rebuild: Primary key mismatch.[0m
-Schema mismatch for table 'account_email_confirmation'. Rebuilding table.
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: ALTER TABLE "account_email_confirmation" RENAME TO "account_email_confirmation_old_20251229024225";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Executing query: ALTER TABLE "account_email_confirmation" RENAME TO "account_email_confirmation_old_20251229024225";[0m
-[33;1mVERBOSE: Renamed table 'account_email_confirmation' to 'account_email_confirmation_old_20251229024225'[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: CREATE TABLE "account_email_confirmation" ("email_request_guid" TEXT PRIMARY KEY, "email" TEXT , "request_date" TEXT , "response_date" TEXT , "request_ip" TEXT , "response_ip" TEXT , "request_session_id" TEXT , "response_session_id" TEXT );[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Executing query: CREATE TABLE "account_email_confirmation" ("email_request_guid" TEXT PRIMARY KEY, "email" TEXT , "request_date" TEXT , "response_date" TEXT , "request_ip" TEXT , "response_ip" TEXT , "request_session_id" TEXT , "response_session_id" TEXT );[0m
-[33;1mVERBOSE: Created new table 'account_email_confirmation' with updated schema.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: INSERT INTO "account_email_confirmation" ("email_request_guid", "email", "request_date", "response_date", "request_ip", "response_ip", "request_session_id", "response_session_id") SELECT "email_request_guid", "email", "request_date", "response_date", "request_ip", "response_ip", "request_session_id", "response_session_id" FROM "account_email_confirmation_old_20251229024225";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Executing query: INSERT INTO "account_email_confirmation" ("email_request_guid", "email", "request_date", "response_date", "request_ip", "response_ip", "request_session_id", "response_session_id") SELECT "email_request_guid", "email", "request_date", "response_date", "request_ip", "response_ip", "request_session_id", "response_session_id" FROM "account_email_confirmation_old_20251229024225";[0m
-[33;1mVERBOSE: Copied data from 'account_email_confirmation_old_20251229024225' to 'account_email_confirmation'.[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Started
-	File: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db
-	Query: DROP TABLE "account_email_confirmation_old_20251229024225";[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Opening database connection: C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db[0m
-[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20251229 02:42:25 Executing query: DROP TABLE "account_email_confirmation_old_20251229024225";[0m
-[33;1mVERBOSE: Dropped old table 'account_email_confirmation_old_20251229024225'.[0m
 [33;1mVERBOSE: Validating table: card_settings[0m
 [33;1mVERBOSE: Table 'card_settings' exists. Verifying schema.[0m
 [33;1mVERBOSE: Database schema validation complete.[0m
-[33;1mVERBOSE: [Get-PSWebHostRole] 20251229 02:42:25 Executing: Get-PSWebSQLiteData -File C:\sc\PsWebHost\PsWebHost_Data\pswebhost.db -Query 
+[33;1mVERBOSE: Loading module from path 'C:\Users\test\Documents\PowerShell\Modules\PSSQLite\1.1.0\PSSQLite.psd1'.[0m
+[33;1mVERBOSE: Importing function 'Invoke-SQLiteBulkCopy'.[0m
+[33;1mVERBOSE: Importing function 'Invoke-SqliteQuery'.[0m
+[33;1mVERBOSE: Importing function 'New-SQLiteConnection'.[0m
+[33;1mVERBOSE: Importing function 'Out-DataTable'.[0m
+[33;1mVERBOSE: Importing function 'Update-Sqlite'.[0m
+[33;1mVERBOSE: [Get-PSWebHostRole] 20260103 14:32:02 Executing: Get-PSWebSQLiteData -File C:\SC\PsWebHost\PsWebHost_Data\pswebhost.db -Query 
 	SELECT DISTINCT RoleName FROM PSWeb_Roles;[0m
-[33;1mVERBOSE: [Get-PSWebHostRole] 20251229 02:42:25 Retrieved roles: 
+[33;1mVERBOSE: [Get-PSWebHostRole] 20260103 14:32:02 Retrieved roles: 
 	RoleName
 	--------
-	authenticated
+	Debug
+	Admin
 	site_admin
+	authenticated
 	system_admin
 	unauthenticated
 	user
 	vault_admin
 	
 	[0m
-Init.ps1 completed after 1475.3349 milliseconds
+Init.ps1 completed after 2636.4786 milliseconds
 [33;1mVERBOSE: Creating HttpListener object...[0m
 [33;1mVERBOSE: HttpListener object created.[0m
 [33;1mVERBOSE: Adding prefix: http://localhost:8888/[0m
@@ -480,4 +344,57 @@ Init.ps1 completed after 1475.3349 milliseconds
 [33;1mVERBOSE: AuthenticationSchemes set.[0m
 [33;1mVERBOSE: Starting listener with prefix: http://localhost:8888/[0m
 [33;1mVERBOSE: Listener started successfully on http://localhost:8888/[0m
+Starting performance monitoring job...
+[33;1mVERBOSE: Validating performance database schema...[0m
+[33;1mVERBOSE: Validating table: WebRequestPerformance[0m
+[33;1mVERBOSE: Table 'WebRequestPerformance' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: SystemPerformance[0m
+[33;1mVERBOSE: Table 'SystemPerformance' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating view: vw_RequestPerformanceSummary[0m
+[33;1mVERBOSE: View 'vw_RequestPerformanceSummary' exists. Recreating to ensure current definition.[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Started
+	File: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db
+	Query: DROP VIEW "vw_RequestPerformanceSummary";[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Opening database connection: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Executing query: DROP VIEW "vw_RequestPerformanceSummary";[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Started
+	File: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db
+	Query: CREATE VIEW "vw_RequestPerformanceSummary" AS SELECT FilePath, COUNT(*) as RequestCount, AVG(ExecutionTimeMicroseconds) as AvgExecutionMicroseconds, MIN(ExecutionTimeMicroseconds) as MinExecutionMicroseconds, MAX(ExecutionTimeMicroseconds) as MaxExecutionMicroseconds, SUM(LogFileSizeDelta) as TotalLogGrowth, COUNT(DISTINCT UserID) as UniqueUsers FROM WebRequestPerformance WHERE Completed = 1 GROUP BY FilePath;[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Opening database connection: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Executing query: CREATE VIEW "vw_RequestPerformanceSummary" AS SELECT FilePath, COUNT(*) as RequestCount, AVG(ExecutionTimeMicroseconds) as AvgExecutionMicroseconds, MIN(ExecutionTimeMicroseconds) as MinExecutionMicroseconds, MAX(ExecutionTimeMicroseconds) as MaxExecutionMicroseconds, SUM(LogFileSizeDelta) as TotalLogGrowth, COUNT(DISTINCT UserID) as UniqueUsers FROM WebRequestPerformance WHERE Completed = 1 GROUP BY FilePath;[0m
+[33;1mVERBOSE: Validating view: vw_UserPerformance[0m
+[33;1mVERBOSE: View 'vw_UserPerformance' exists. Recreating to ensure current definition.[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Started
+	File: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db
+	Query: DROP VIEW "vw_UserPerformance";[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Opening database connection: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Executing query: DROP VIEW "vw_UserPerformance";[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Started
+	File: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db
+	Query: CREATE VIEW "vw_UserPerformance" AS SELECT UserID, COUNT(*) as RequestCount, AVG(ExecutionTimeMicroseconds) as AvgExecutionMicroseconds, SUM(LogFileSizeDelta) as TotalLogGrowth FROM WebRequestPerformance WHERE Completed = 1 AND UserID IS NOT NULL GROUP BY UserID;[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Opening database connection: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Executing query: CREATE VIEW "vw_UserPerformance" AS SELECT UserID, COUNT(*) as RequestCount, AVG(ExecutionTimeMicroseconds) as AvgExecutionMicroseconds, SUM(LogFileSizeDelta) as TotalLogGrowth FROM WebRequestPerformance WHERE Completed = 1 AND UserID IS NOT NULL GROUP BY UserID;[0m
+[33;1mVERBOSE: Validating view: vw_SlowRequests[0m
+[33;1mVERBOSE: View 'vw_SlowRequests' exists. Recreating to ensure current definition.[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Started
+	File: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db
+	Query: DROP VIEW "vw_SlowRequests";[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Opening database connection: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Executing query: DROP VIEW "vw_SlowRequests";[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Started
+	File: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db
+	Query: CREATE VIEW "vw_SlowRequests" AS SELECT RequestID, StartTime, FilePath, UserID, ExecutionTimeMicroseconds, ExecutionTimeMicroseconds / 1000000.0 as ExecutionTimeSeconds FROM WebRequestPerformance WHERE Completed = 1 AND ExecutionTimeMicroseconds > 1000000 ORDER BY ExecutionTimeMicroseconds DESC;[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Opening database connection: C:\SC\PsWebHost\PsWebHost_Data\pswebhost_perf.db[0m
+[33;1mVERBOSE: [Invoke-PSWebSQLiteNonQuery] 20260103 14:32:02 Executing query: CREATE VIEW "vw_SlowRequests" AS SELECT RequestID, StartTime, FilePath, UserID, ExecutionTimeMicroseconds, ExecutionTimeMicroseconds / 1000000.0 as ExecutionTimeSeconds FROM WebRequestPerformance WHERE Completed = 1 AND ExecutionTimeMicroseconds > 1000000 ORDER BY ExecutionTimeMicroseconds DESC;[0m
+[33;1mVERBOSE: Database schema validation complete.[0m
+[33;1mVERBOSE: Performance database schema validated.[0m
+Performance monitoring job started (Job ID: 1)
+
+[32;1mId    [0m[32;1m Name           [0m[32;1m PSJobTypeName  [0m[32;1m State        [0m[32;1m HasMoreData    [0m[32;1m Location            [0m[32;1m Command[0m
+[32;1m--    [0m [32;1m----           [0m [32;1m-------------  [0m [32;1m-----        [0m [32;1m-----------    [0m [32;1m--------            [0m [32;1m-------[0m
+1      Job1            BackgroundJob   Running       True            localhost            .
+Performance monitoring job started.
+Starting log tail job for event stream...
+Selected log file: log_2026-01-03T003943_9422231-0600.tsv
+Log tail job started: Log_Tail:C:\SC\PsWebHost\PsWebHost_Data\Logs\log_2026-01-03T003943_9422231-0600.tsv (Job ID: 3)
 [33;1mVERBOSE: Entering listener loop.[0m

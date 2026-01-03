@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error Modal Demo - PSWebHost</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            background: #f5f5f5;
+        }
+
+        h1 {
+            color: #333;
+            border-bottom: 3px solid #f44336;
+            padding-bottom: 10px;
+        }
+
+        .demo-section {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .demo-section h2 {
+            margin-top: 0;
+            color: #555;
+        }
+
+        .demo-section p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .demo-button {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            margin-right: 12px;
+            margin-bottom: 12px;
+            transition: background 0.2s;
+        }
+
+        .demo-button:hover {
+            background: #d32f2f;
+        }
+
+        .demo-button.secondary {
+            background: #2196f3;
+        }
+
+        .demo-button.secondary:hover {
+            background: #1976d2;
+        }
+
+        .info-box {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 4px;
+        }
+
+        .info-box h3 {
+            margin-top: 0;
+            color: #1565c0;
+        }
+
+        code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚨 Error Modal System Demonstration</h1>
+
+    <div class="info-box">
+        <h3>About This Demo</h3>
+        <p>
+            This page demonstrates the three levels of error reporting modals in PSWebHost.
+            Each modal type corresponds to a different user access level:
+        </p>
+        <ul>
+            <li><strong>Admin/Debug Modal</strong> - Full diagnostics with call stack, variables, and request details</li>
+            <li><strong>Basic Modal</strong> - Error details with helpful guidance (localhost users)</li>
+            <li><strong>Minimal Modal</strong> - Generic error message (remote users)</li>
+        </ul>
+    </div>
+
+    <div class="demo-section">
+        <h2>1. Admin/Debug User Modal</h2>
+        <p>
+            This modal is shown to users with <code>Admin</code>, <code>Debug</code>, <code>site_admin</code>,
+            or <code>system_admin</code> roles. It provides complete diagnostic information including:
+        </p>
+        <ul>
+            <li>Full error message and type</li>
+            <li>Complete call stack with file paths and line numbers</li>
+            <li>All variables in scope at error time</li>
+            <li>Request details (method, URL, query parameters, headers)</li>
+            <li>Request body (for POST/PUT/PATCH)</li>
+        </ul>
+        <button class="demo-button" onclick="showAdminModal()">
+            Show Admin Error Modal
+        </button>
+    </div>
+
+    <div class="demo-section">
+        <h2>2. Basic User Modal (Localhost)</h2>
+        <p>
+            This modal is shown to localhost users who don't have admin privileges. It provides:
+        </p>
+        <ul>
+            <li>Error message and type</li>
+            <li>Error location in code</li>
+            <li>Basic request information</li>
+            <li>Helpful guidance on how to get more details</li>
+        </ul>
+        <button class="demo-button secondary" onclick="showBasicModal()">
+            Show Basic Error Modal
+        </button>
+    </div>
+
+    <div class="demo-section">
+        <h2>3. Minimal Modal (Remote Users)</h2>
+        <p>
+            This modal is shown to remote users for security. It provides:
+        </p>
+        <ul>
+            <li>Generic error message</li>
+            <li>Timestamp</li>
+            <li>Request ID for support correlation</li>
+        </ul>
+        <button class="demo-button secondary" onclick="showMinimalModal()">
+            Show Minimal Error Modal
+        </button>
+    </div>
+
+    <div class="demo-section">
+        <h2>4. Real Error Simulation</h2>
+        <p>
+            Test the error reporting with a real API call that will trigger an error:
+        </p>
+        <button class="demo-button" onclick="triggerRealError()">
+            Trigger Test Error
+        </button>
+        <p style="font-size: 14px; color: #666;">
+            This will call <code>/api/v1/debug/test-error</code> which deliberately throws an error.
+            The modal type you see depends on your current user role.
+        </p>
+    </div>
+
+    <!-- Load the error modal system from the SPA -->
+    <script src="/public/psweb_spa.js"></script>
+
+    <script>
+        // Demo data for Admin modal
+        function showAdminModal() {
+            const adminErrorData = {
+                showModal: true,
+                modalTitle: "Error Report (Admin)",
+                modalType: "error-admin",
+                timestamp: new Date().toISOString(),
+                userID: "demo-admin-user",
+                roles: ["authenticated", "site_admin"],
+                request: {
+                    Method: "GET",
+                    URL: "http://localhost:8080/api/v1/ui/elements/system-log?lines=100",
+                    RawUrl: "/api/v1/ui/elements/system-log?lines=100",
+                    QueryString: {
+                        lines: "100"
+                    },
+                    Headers: {
+                        "Host": "localhost:8080",
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                        "Accept": "application/json"
+                    },
+                    RequestBody: null
+                },
+                error: {
+                    Message: "Cannot convert the \"System.Collections.Hashtable\" value of type \"System.Collections.Hashtable\" to type \"System.Net.HttpListenerResponse\".",
+                    Type: "System.Management.Automation.RuntimeException",
+                    StackTrace: "at System.Management.Automation.ExceptionHandlingOps.CheckActionPreference...",
+                    PositionMessage: "At C:\\sc\\PsWebHost\\routes\\api\\v1\\ui\\elements\\system-log\\get.ps1:44 char:22\n+ … ogFiles = @($logFiles | Select-Object Name, LastWriteTime, @{N='Size' …"
+                },
+                callStack: [
+                    {
+                        Command: "<ScriptBlock>",
+                        Location: "get.ps1: line 44",
+                        ScriptName: "C:\\sc\\PsWebHost\\routes\\api\\v1\\ui\\elements\\system-log\\get.ps1",
+                        ScriptLineNumber: 44,
+                        FunctionName: "<ScriptBlock>"
+                    },
+                    {
+                        Command: "<ScriptBlock>",
+                        Location: "WebHost.ps1: line 256",
+                        ScriptName: "C:\\sc\\PsWebHost\\WebHost.ps1",
+                        ScriptLineNumber: 256,
+                        FunctionName: "<ScriptBlock>"
+                    },
+                    {
+                        Command: "Invoke-Command",
+                        Location: "WebHost.ps1: line 198",
+                        ScriptName: "C:\\sc\\PsWebHost\\WebHost.ps1",
+                        ScriptLineNumber: 198,
+                        FunctionName: "Invoke-Command"
+                    }
+                ],
+                variables: {
+                    logsDir: "C:\\SC\\PsWebHost\\PsWebHost_Data\\Logs",
+                    currentLogFile: "C:\\SC\\PsWebHost\\PsWebHost_Data\\Logs\\log_2026-01-01T052250_1205918-0600.tsv",
+                    lines: 100,
+                    filter: "$null",
+                    logFiles: "[Array with 18 items]",
+                    responseData: "[Hashtable with 3 entries]",
+                    Request: "[HttpListenerRequest]",
+                    Response: "[HttpListenerResponse]"
+                }
+            };
+
+            window.showErrorModal(adminErrorData);
+        }
+
+        // Demo data for Basic modal
+        function showBasicModal() {
+            const basicErrorData = {
+                showModal: true,
+                modalTitle: "Error Occurred",
+                modalType: "error-basic",
+                timestamp: new Date().toISOString(),
+                error: {
+                    message: "Cannot convert the \"System.Collections.Hashtable\" value of type \"System.Collections.Hashtable\" to type \"System.Net.HttpListenerResponse\".",
+                    type: "System.Management.Automation.RuntimeException",
+                    position: "At C:\\sc\\PsWebHost\\routes\\api\\v1\\ui\\elements\\system-log\\get.ps1:44 char:22\n+ … ogFiles = @($logFiles | Select-Object Name, LastWriteTime, @{N='Size' …"
+                },
+                request: {
+                    method: "GET",
+                    url: "http://localhost:8080/api/v1/ui/elements/system-log?lines=100"
+                },
+                guidance: "You are accessing from localhost. For detailed diagnostics including call stack and variable enumeration, please use an account with Admin or Debug role."
+            };
+
+            window.showErrorModal(basicErrorData);
+        }
+
+        // Demo data for Minimal modal
+        function showMinimalModal() {
+            const minimalErrorData = {
+                showModal: true,
+                modalTitle: "Error",
+                modalType: "error-minimal",
+                timestamp: new Date().toISOString(),
+                error: "An internal error occurred. Please contact the administrator.",
+                requestId: "a7f3e9d1-4b2c-4a8e-9f1d-3e7b9c2d8f1a"
+            };
+
+            window.showErrorModal(minimalErrorData);
+        }
+
+        // Trigger a real error from the test endpoint
+        async function triggerRealError() {
+            try {
+                const response = await fetch('/api/v1/debug/test-error');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    if (errorData.showModal) {
+                        window.showErrorModal(errorData);
+                    } else {
+                        alert('Error occurred but no modal instruction received. Check console for details.');
+                        console.log('Error response:', errorData);
+                    }
+                }
+            } catch (error) {
+                alert('Failed to fetch: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

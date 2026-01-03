@@ -39,7 +39,6 @@
     "gridLayout": [
         { "i": "default", "w": 6, "h": 12 },
         { "i": "server-heatmap", "x": 0, "y": 0, "w": 6, "h": 12 },
-        { "i": "world-map", "x": 6, "y": 0, "w": 6, "h": 12 },
         { "i": "file-explorer", "x": 0, "y": 2, "w": 6, "h": 12 },
         { "i": "event-stream", "x": 0, "y": 4, "w": 12, "h": 12 }
     ]

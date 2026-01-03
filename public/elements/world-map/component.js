@@ -1,36 +1,33 @@
 const { useState, useEffect, useRef } = React;
 
 const WorldMapCard = ({ onError }) => {
-    const mapRef = useRef(null);
+    const containerRef = useRef(null);
     const [pins, setPins] = useState([]);
-    const [map, setMap] = useState(null);
+    const [mapDef, setMapDef] = useState(null);
+    const [imageLoaded, setImageLoaded] = useState(false);
 
-    // Load Google Maps script and initialize map
+    // Load map definition
     useEffect(() => {
         let isMounted = true;
 
-        async function initMap() {
-            if (!mapRef.current || !isMounted) return;
-
-            try {
-                const { Map } = await google.maps.importLibrary("maps");
-                const newMap = new Map(mapRef.current, {
-                    zoom: 2,
-                    center: { lat: 20, lng: 0 },
-                    // You can add other map options here
-                });
-                if (isMounted) {
-                    setMap(newMap);
+        fetch('/public/elements/world-map/map-definition.json')
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`Failed to load map definition: ${res.status}`);
                 }
-            } catch (error) {
-                console.error("Error loading Google Maps:", error);
+                return res.json();
+            })
+            .then(data => {
                 if (isMounted) {
-                    onError({ message: "Google Maps could not be loaded.", status: "API Error", statusText: error.message });
+                    setMapDef(data);
                 }
-            }
-        }
-
-        initMap();
+            })
+            .catch(err => {
+                if (isMounted) {
+                    console.error("Error loading map definition:", err);
+                    onError({ message: "Map definition could not be loaded.", status: "Error", statusText: err.message });
+                }
+            });
 
         return () => {
             isMounted = false;
@@ -42,7 +39,7 @@ const WorldMapCard = ({ onError }) => {
         let isMounted = true;
 
         const fetchData = () => {
-            psweb_fetchWithAuthHandling('/api/v1/ui/elements/world-map')
+            window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/world-map')
                 .then(res => {
                     if (!res.ok) {
                         if (isMounted) {
@@ -61,8 +58,6 @@ const WorldMapCard = ({ onError }) => {
                 .catch(err => {
                     if (err.name !== 'Unauthorized' && isMounted) {
                         console.error("WorldMapCard fetch error:", err);
-                        // The onError is likely already called by the response check, but this is a fallback.
-                        // onError({ message: err.message, name: err.name });
                     }
                 });
         };
@@ -72,52 +67,119 @@ const WorldMapCard = ({ onError }) => {
         return () => {
             isMounted = false;
         };
-    }, [onError]); // Add onError to dependency array
+    }, [onError]);
 
-    // Render pins when map and pin data are ready
-    useEffect(() => {
-        if (map && pins.length > 0) {
-            // We need to make sure the 'marker' library is loaded to create markers
-            google.maps.importLibrary("marker").then(({ Marker }) => {
-                const statusColors = {
-                    Operational: 'green',
-                    Degraded: 'orange',
-                    Outage: 'red'
-                };
+    // Convert lat/lng to pixel coordinates
+    const latLngToPixel = (lat, lng) => {
+        if (!mapDef) return { x: 0, y: 0 };
 
-                pins.forEach(pin => {
-                    const marker = new Marker({
-                        position: { lat: pin.lat, lng: pin.lng },
-                        map: map,
-                        title: pin.title,
-                        icon: {
-                            path: google.maps.SymbolPath.CIRCLE,
-                            fillColor: statusColors[pin.status] || 'gray',
-                            fillOpacity: 0.9,
-                            scale: 7,
-                            strokeColor: 'white',
-                            strokeWeight: 1,
-                        }
-                    });
+        const { topLeft, bottomRight, imageWidth, imageHeight, euclideanCurvature } = mapDef;
 
-                    // InfoWindow doesn't need a separate library import
-                    const infoWindow = new google.maps.InfoWindow({
-                        content: `<h4>${pin.title}</h4><p>Status: ${pin.status}</p>`
-                    });
+        // Calculate normalized position (0 to 1)
+        const normalizedX = (lng - topLeft.lng) / (bottomRight.lng - topLeft.lng);
+        const normalizedY = (lat - topLeft.lat) / (bottomRight.lat - topLeft.lat);
 
-                    marker.addListener("click", () => {
-                        infoWindow.open(map, marker);
-                    });
-                });
-            }).catch(e => {
-                console.error("Failed to load marker library", e);
-                onError({ message: "Could not load map markers.", status: "API Error", statusText: e.message });
-            });
+        // Apply curvature adjustment if specified
+        // For euclideanCurvature = 0, this is a simple linear mapping
+        // For non-zero values, apply spherical adjustment
+        let adjustedY = normalizedY;
+        if (euclideanCurvature !== 0) {
+            // Apply curvature correction (simplified spherical adjustment)
+            const latRadians = (lat * Math.PI) / 180;
+            const topLatRadians = (topLeft.lat * Math.PI) / 180;
+            const bottomLatRadians = (bottomRight.lat * Math.PI) / 180;
+            adjustedY = (Math.sin(latRadians) - Math.sin(topLatRadians)) /
+                       (Math.sin(bottomLatRadians) - Math.sin(topLatRadians));
         }
-    }, [map, pins, onError]);
+
+        return {
+            x: normalizedX * imageWidth,
+            y: adjustedY * imageHeight
+        };
+    };
+
+    // Render the map and pins
+    useEffect(() => {
+        if (!containerRef.current || !mapDef || !imageLoaded) return;
+
+        const container = containerRef.current;
+        const svg = container.querySelector('svg');
+        if (!svg) return;
+
+        // Clear existing pins
+        const existingPins = svg.querySelectorAll('.map-pin');
+        existingPins.forEach(pin => pin.remove());
+
+        // Render pins
+        const statusColors = {
+            Operational: '#4CAF50',
+            Degraded: '#FF9800',
+            Outage: '#F44336'
+        };
+
+        pins.forEach(pin => {
+            const pos = latLngToPixel(pin.lat, pin.lng);
+            const color = statusColors[pin.status] || '#999999';
+
+            // Create pin marker
+            const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            circle.setAttribute('class', 'map-pin');
+            circle.setAttribute('cx', pos.x);
+            circle.setAttribute('cy', pos.y);
+            circle.setAttribute('r', '8');
+            circle.setAttribute('fill', color);
+            circle.setAttribute('stroke', 'white');
+            circle.setAttribute('stroke-width', '2');
+            circle.setAttribute('style', 'cursor: pointer;');
+            circle.setAttribute('data-title', pin.title);
+            circle.setAttribute('data-status', pin.status);
+
+            // Add click handler for tooltip
+            circle.addEventListener('click', (e) => {
+                alert(`${pin.title}\nStatus: ${pin.status}`);
+            });
+
+            svg.appendChild(circle);
+        });
+    }, [pins, mapDef, imageLoaded]);
+
+    if (!mapDef) {
+        return <div style={{ padding: '20px', textAlign: 'center' }}>Loading map...</div>;
+    }
 
     return (
-        <div ref={mapRef} style={{ width: '100%', height: '400px' }}></div>
+        <div
+            ref={containerRef}
+            style={{
+                width: '100%',
+                height: '100%',
+                position: 'relative',
+                overflow: 'hidden',
+                backgroundColor: '#e0e0e0'
+            }}
+        >
+            <svg
+                width="100%"
+                height="100%"
+                viewBox={`0 0 ${mapDef.imageWidth} ${mapDef.imageHeight}`}
+                preserveAspectRatio="xMidYMid meet"
+            >
+                <image
+                    href={`/public/elements/world-map/${mapDef.imageFile}`}
+                    width={mapDef.imageWidth}
+                    height={mapDef.imageHeight}
+                    onLoad={() => setImageLoaded(true)}
+                    onError={(e) => {
+                        console.error("Failed to load map image");
+                        onError({
+                            message: "Map image could not be loaded. Please ensure world-map.png exists in /public/elements/world-map/",
+                            status: "Image Error",
+                            statusText: "File not found"
+                        });
+                    }}
+                />
+            </svg>
+        </div>
     );
 };
 

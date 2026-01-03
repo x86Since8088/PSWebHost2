@@ -784,10 +784,17 @@ function context_reponse {
         [Parameter()] [System.Collections.IDictionary]$Headers,
         [Parameter()] [System.Net.CookieCollection]$Cookies,
         [Parameter()] [string]$RedirectLocation,
-        [Parameter()] [System.Text.Encoding]$ContentEncoding = [System.Text.Encoding]::UTF8
+        [Parameter()] [System.Text.Encoding]$ContentEncoding = [System.Text.Encoding]::UTF8,
+        [Parameter()] [int]$CacheDuration = 0
     )
 
     try {
+        # Check if the response is already closed or client disconnected
+        if ($null -eq $Response -or $null -eq $Response.OutputStream) {
+            Write-Verbose "Response object is null or output stream is closed, client may have disconnected"
+            return
+        }
+
         $Response.StatusCode = $StatusCode
         if ($PSBoundParameters.ContainsKey('StatusDescription')) { $Response.StatusDescription = $StatusDescription }
         if ($PSBoundParameters.ContainsKey('Headers')) { foreach ($key in $Headers.Keys) { $Response.AddHeader($key, $Headers[$key]) } }
@@ -795,6 +802,22 @@ function context_reponse {
         if ($PSBoundParameters.ContainsKey('RedirectLocation')) {
             Write-Verbose "Redirecting to: $($RedirectLocation) with status code $($StatusCode)"
             $Response.Redirect($RedirectLocation)
+        }
+
+        # Add cache control headers if CacheDuration is specified
+        if ($CacheDuration -gt 0) {
+            $cacheControl = "public, max-age=$CacheDuration, stale-while-revalidate=$([math]::Min($CacheDuration * 2, 1800)), stale-if-error=$([math]::Min($CacheDuration * 3, 3600))"
+            $Response.AddHeader("Cache-Control", $cacheControl)
+            $expiresDate = (Get-Date).AddSeconds($CacheDuration).ToUniversalTime().ToString("r")
+            $Response.AddHeader("Expires", $expiresDate)
+            # Add ETag for cache validation
+            $etag = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$StatusCode-$((Get-Date).Ticks)"))
+            $Response.AddHeader("ETag", "`"$etag`"")
+        } elseif ($CacheDuration -eq 0) {
+            # Explicitly disable caching
+            $Response.AddHeader("Cache-Control", "no-store, no-cache, must-revalidate")
+            $Response.AddHeader("Pragma", "no-cache")
+            $Response.AddHeader("Expires", "0")
         }
 
         $finalContentType = $ContentType
@@ -834,14 +857,40 @@ function context_reponse {
         } else {
             $Response.ContentLength64 = 0
         }
+    } catch [System.Net.HttpListenerException] {
+        # Client disconnected or network error - this is expected, just log and return
+        $errorCode = $_.Exception.ErrorCode
+        if ($errorCode -eq 64 -or $errorCode -eq 1229) {
+            # Error 64 = "The specified network name is no longer available"
+            # Error 1229 = "An operation was attempted on a nonexistent network connection"
+            Write-Verbose "Client disconnected during response: $($_.Exception.Message)"
+        } else {
+            Write-PSWebHostLog -Severity 'Warning' -Category 'Response' -Message "Network error during response: $($_.Exception.Message) (ErrorCode: $errorCode)"
+        }
+    } catch [System.InvalidOperationException] {
+        # Response already sent or stream closed
+        if ($_.Exception.Message -match 'response has been submitted|stream.*closed') {
+            Write-Verbose "Response already sent or stream closed: $($_.Exception.Message)"
+        } else {
+            Write-PSWebHostLog -Severity 'Error' -Category 'Response' -Message "Invalid operation in context_reponse: $($_.Exception.Message)"
+        }
     } catch {
-        Write-Error "Failed to build response. Error: $_ "
-        if (-not $Response.HeadersSent) {
-            $Response.StatusCode = 500
-            $Response.StatusDescription = "Internal Server Error"
-            $errorBytes = [System.Text.Encoding]::UTF8.GetBytes("Internal Server Error: $_ ")
-            $Response.ContentLength64 = $errorBytes.Length
-            $Response.OutputStream.Write($errorBytes, 0, $errorBytes.Length)
+        # Other errors - try to send error response only if possible
+        $errorMessage = "Failed to build response. Error: $_ "
+        Write-PSWebHostLog -Severity 'Error' -Category 'Response' -Message $errorMessage
+
+        try {
+            # Only attempt to send error response if headers haven't been sent and stream is available
+            if (-not $Response.HeadersSent -and $null -ne $Response.OutputStream) {
+                $Response.StatusCode = 500
+                $Response.StatusDescription = "Internal Server Error"
+                $errorBytes = [System.Text.Encoding]::UTF8.GetBytes("Internal Server Error: $_ ")
+                $Response.ContentLength64 = $errorBytes.Length
+                $Response.OutputStream.Write($errorBytes, 0, $errorBytes.Length)
+            }
+        } catch {
+            # If we can't send the error response, just log it
+            Write-Verbose "Unable to send error response (client may have disconnected): $($_.Exception.Message)"
         }
     }
 }

@@ -8,7 +8,64 @@ param (
     [switch]$ReloadOnScriptUpdate,
     [switch]$StopOnScriptUpdate
 )
+
 begin {
+
+# ============================================================================
+# PowerShell Version Check - Require PowerShell 7 or later
+# ============================================================================
+    if ($PSVersionTable.PSVersion.Major -lt 7) {
+        Write-Host "`n========================================================================================================" -ForegroundColor Red
+        Write-Host "  ERROR: PowerShell 7 or later is required to run PSWebHost" -ForegroundColor Red
+        Write-Host "========================================================================================================" -ForegroundColor Red
+        Write-Host "`nCurrent version: PowerShell $($PSVersionTable.PSVersion.ToString())" -ForegroundColor Yellow
+        Write-Host "Required version: PowerShell 7.0 or later`n" -ForegroundColor Yellow
+
+        Write-Host "Installation Instructions:" -ForegroundColor Cyan
+        Write-Host "-------------------------`n" -ForegroundColor Cyan
+
+        # Use built-in OS detection variables (available in PowerShell 6+)
+        # Note: These are read-only automatic variables, don't assign to them
+        if ($IsWindows) {
+            Write-Host "Windows - Option 1 (Recommended): Using Winget" -ForegroundColor Green
+            Write-Host "  winget install --id Microsoft.Powershell --source winget`n" -ForegroundColor White
+
+            Write-Host "Windows - Option 2: Using MSI Installer" -ForegroundColor Green
+            Write-Host "  Download from: https://aka.ms/powershell-release?tag=stable`n" -ForegroundColor White
+
+            Write-Host "Windows - Option 3: Using Windows Package Manager" -ForegroundColor Green
+            Write-Host "  Install from Microsoft Store: search for 'PowerShell'`n" -ForegroundColor White
+        } elseif ($IsLinux) {
+            Write-Host "Linux - Detect your distribution and use the appropriate command:`n" -ForegroundColor Green
+
+            Write-Host "Ubuntu/Debian:" -ForegroundColor Cyan
+            Write-Host "  sudo apt-get update" -ForegroundColor White
+            Write-Host "  sudo apt-get install -y wget apt-transport-https software-properties-common" -ForegroundColor White
+            Write-Host "  wget -q https://packages.microsoft.com/config/ubuntu/22.04/packages-microsoft-prod.deb" -ForegroundColor White
+            Write-Host "  sudo dpkg -i packages-microsoft-prod.deb" -ForegroundColor White
+            Write-Host "  sudo apt-get update" -ForegroundColor White
+            Write-Host "  sudo apt-get install -y powershell`n" -ForegroundColor White
+
+            Write-Host "RHEL/CentOS/Fedora:" -ForegroundColor Cyan
+            Write-Host "  sudo dnf install -y powershell`n" -ForegroundColor White
+
+            Write-Host "Arch Linux:" -ForegroundColor Cyan
+            Write-Host "  yay -S powershell-bin`n" -ForegroundColor White
+        } elseif ($IsMacOS) {
+            Write-Host "macOS - Using Homebrew:" -ForegroundColor Green
+            Write-Host "  brew install --cask powershell`n" -ForegroundColor White
+        }
+
+        Write-Host "After installation, run this script again using:" -ForegroundColor Yellow
+        Write-Host "  pwsh $($MyInvocation.MyCommand.Path)`n" -ForegroundColor White
+
+        Write-Host "For more information, visit:" -ForegroundColor Cyan
+        Write-Host "  https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell`n" -ForegroundColor White
+
+        Write-Host "========================================================================================================`n" -ForegroundColor Red
+        exit 1
+    }
+
     Write-Verbose 'Starting init.ps1...'
     $Start = Get-Date
     . (Join-Path $PSScriptRoot 'system/init.ps1')
@@ -139,7 +196,30 @@ begin {
 
     # Start log tail job for real-time event stream
     Write-Host "Starting log tail job for event stream..."
-    $logPath = $Global:PSWebServer.LogFilePath
+
+    # Use improved log selection to find most recent log file
+    $logsDir = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\Logs"
+    $LogBaseNames = (Get-ChildItem $logsDir -ErrorAction SilentlyContinue |
+        Where-Object { $_.basename -match '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}' }) -replace '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}', '*' |
+        Sort-Object -Unique
+
+    if ($LogBaseNames) {
+        $mostRecentLog = Get-ChildItem $LogBaseNames |
+            Where-Object { $_.basename -match '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+
+        if ($mostRecentLog) {
+            $logPath = $mostRecentLog.FullName
+            Write-Host "Selected log file: $($mostRecentLog.Name)"
+        } else {
+            $logPath = $Global:PSWebServer.LogFilePath
+            Write-Warning "No timestamped log files found, using configured path: $logPath"
+        }
+    } else {
+        $logPath = $Global:PSWebServer.LogFilePath
+        Write-Warning "No timestamped log files found, using configured path: $logPath"
+    }
 
     $tailScriptBlock = {
         param($FilePath)
@@ -179,8 +259,10 @@ begin {
         }
     }
 
-    $jobName = "Log_Tail: $logPath"
-    $existingJob = Get-Job -Name $jobName -ErrorAction SilentlyContinue
+    $jobName = "Log_Tail:$logPath"
+
+    # Check for existing job (suppress all errors)
+    $existingJob = Get-Job | Where-Object { $_.Name -eq $jobName }
     if ($existingJob) {
         Stop-Job -Job $existingJob -ErrorAction SilentlyContinue
         Remove-Job -Job $existingJob -Force -ErrorAction SilentlyContinue
@@ -188,12 +270,6 @@ begin {
 
     $job = Start-Job -Name $jobName -ScriptBlock $tailScriptBlock -ArgumentList $logPath
     Write-Host "Log tail job started: $jobName (Job ID: $($job.Id))"
-}
-
-process {
-    # This block is typically for pipeline input, but for a continuous listener,
-    # we'll use a while loop here.
-    # The actual listening loop is handled in the end block for proper cleanup.
 }
 
 end {
@@ -242,16 +318,16 @@ end {
     $lastSessionSync = Get-Date
     
     function ProcessLogQueue {
-        $LogEnd = $PSWebHostLogQueue.count
-        if ($LogEnd -lt $Logpos) {
-            $Logpos = 0
+        $LogEnd = $global:PSWebHostLogQueue.count
+        if ($LogEnd -lt $script:Logpos) {
+            $script:Logpos = 0
         }
-        if ([int]$Logpos -lt $LogEnd) {
-            [array]$logEntries = $LogPos .. ($LogEnd -1)|ForEach-Object{$PSWebHostLogQueue[$_]}
+        if ([int]$script:Logpos -lt $LogEnd) {
+            [array]$logEntries = $script:Logpos .. ($LogEnd -1)|ForEach-Object{$global:PSWebHostLogQueue[$_]}
             if ($logEntries.Count) {
                 $logEntries|Tee-Object -FilePath $global:PSWebServer.LogFilePath -Append|ForEach-Object{Write-Host "`tLogging: $_"}
             }
-            $Logpos = $LogEnd
+            $script:Logpos = $LogEnd
         }
     }
 

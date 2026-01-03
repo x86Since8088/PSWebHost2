@@ -9,7 +9,7 @@ const MainMenu = ({ searchTerm, onError }) => {
         const pswebFetchMenu = async () => {
             setIsLoading(true);
             try {
-                const response = await psweb_fetchWithAuthHandling(`/api/v1/ui/elements/main-menu?search=${searchTerm}`);
+                const response = await window.psweb_fetchWithAuthHandling(`/api/v1/ui/elements/main-menu?search=${searchTerm}`);
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
                 if (isMounted) setMenuData(Array.isArray(data) ? data : (data ? [data] : []));

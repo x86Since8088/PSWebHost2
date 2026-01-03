@@ -1,0 +1,16 @@
+{
+  "imageFile": "world-map.png",
+  "imageWidth": 2048,
+  "imageHeight": 1024,
+  "topLeft": {
+    "lat": 85.0511,
+    "lng": -180.0
+  },
+  "bottomRight": {
+    "lat": -85.0511,
+    "lng": 180.0
+  },
+  "euclideanCurvature": 0.0,
+  "projection": "equirectangular",
+  "description": "Static world map with equirectangular projection. Curvature=0 indicates flat/linear coordinate mapping."
+}

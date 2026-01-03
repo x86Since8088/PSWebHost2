@@ -10,6 +10,7 @@
         'Inspect-Object',
         'Get-ObjectSafeWalk',
         'Test-Walkable'
+        'New-JsonResponse'
     )
     RootModule = 'PSWebHost_Formatters.psm1'
     RequiredModules = @()

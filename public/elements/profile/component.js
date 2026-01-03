@@ -6,7 +6,7 @@ const ProfileComponent = () => {
     const [message, setMessage] = useState('');
 
     useEffect(() => {
-        psweb_fetchWithAuthHandling('/api/v1/config/profile')
+        window.psweb_fetchWithAuthHandling('/api/v1/config/profile')
             .then(response => response.json())
             .then(data => {
                 setProfile(data);
@@ -27,7 +27,7 @@ const ProfileComponent = () => {
         setMessage('');
         setError(null);
 
-        psweb_fetchWithAuthHandling('/api/v1/config/profile', {
+        window.psweb_fetchWithAuthHandling('/api/v1/config/profile', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

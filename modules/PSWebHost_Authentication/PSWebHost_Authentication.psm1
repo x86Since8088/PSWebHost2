@@ -1144,6 +1144,52 @@ function Get-CardSettings {
     return $null
 }
 
+function Set-CardSettings {
+    param(
+        [string]$EndpointGuid,
+        [string]$UserId,
+        [string]$Data
+    )
+    $MyTag = "[Set-CardSettings]"
+    if (-not $EndpointGuid) { Write-Error "$MyTag The -EndpointGuid parameter is required."; return }
+    if (-not $UserId) { Write-Error "$MyTag The -UserId parameter is required."; return }
+    if (-not $Data) { Write-Error "$MyTag The -Data parameter is required."; return }
+
+    $safeGuid = Sanitize-SqlQueryString -String $EndpointGuid
+    $safeUser = Sanitize-SqlQueryString -String $UserId
+    $safeData = Sanitize-SqlQueryString -String $Data
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+
+    $now = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+    # Use INSERT OR REPLACE to handle both insert and update
+    $query = @"
+INSERT OR REPLACE INTO card_settings (endpoint_guid, user_id, data, created_date, last_updated)
+VALUES (
+    '$safeGuid',
+    '$safeUser',
+    '$safeData',
+    COALESCE((SELECT created_date FROM card_settings WHERE endpoint_guid = '$safeGuid' AND user_id = '$safeUser'), '$now'),
+    '$now'
+);
+"@
+
+    write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: $query"
+    Write-Host "$MyTag Saving card settings - EndpointGuid: $safeGuid, UserId: $safeUser, DataLength: $($safeData.Length)"
+    try {
+        Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query -ErrorAction Stop
+        write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Card settings saved successfully"
+        Write-Host "$MyTag Card settings saved successfully" -ForegroundColor Green
+        return $true
+    } catch {
+        $errorMsg = "$MyTag Failed to save card settings: $($_.Exception.Message)"
+        Write-PSWebHostLog -Severity Error -Category 'SQLData' -message $errorMsg -WriteHost -ForegroundColor Red
+        Write-Host "$MyTag SQL Query was: $query" -ForegroundColor Red
+        Write-Host "$MyTag Exception Details: $($_.Exception | Format-List -Force | Out-String)" -ForegroundColor Red
+        return $false
+    }
+}
+
 function Set-CardSession {
     param(
         [string]$SessionID,
