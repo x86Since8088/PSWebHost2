@@ -3,6 +3,25 @@ const { useState, useEffect, useCallback, lazy, Suspense, useRef } = React;
 // --- Global Helper for Fetching ---
 async function psweb_fetchWithAuthHandling(url, options) {
     const response = await fetch(url, options);
+
+    // Check for error responses that should show a modal
+    if (!response.ok && response.status >= 400) {
+        try {
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                const errorData = await response.clone().json();
+
+                // If backend instructed to show modal, display it
+                if (errorData.showModal) {
+                    window.showErrorModal(errorData);
+                }
+            }
+        } catch (parseError) {
+            // If we can't parse the error response, that's okay - continue with normal error handling
+            console.warn('Could not parse error response for modal:', parseError);
+        }
+    }
+
     if (response.status === 401) {
         // The caller is responsible for handling 401.
     }
@@ -46,6 +65,377 @@ window.addEventListener('unhandledrejection', (event) => {
         promise: event.promise
     });
 });
+
+// --- Global Error Modal Handler ---
+window.showErrorModal = function(errorData) {
+    // Create modal container if it doesn't exist
+    let modalContainer = document.getElementById('error-modal-container');
+    if (!modalContainer) {
+        modalContainer = document.createElement('div');
+        modalContainer.id = 'error-modal-container';
+        document.body.appendChild(modalContainer);
+    }
+
+    // Render the modal using React
+    const ErrorModal = ({ errorData, onClose }) => {
+        const formatErrorContent = () => {
+            if (errorData.modalType === 'error-admin') {
+                // Admin view - show detailed information in readable format
+                return React.createElement('div', { className: 'error-modal-content error-admin' },
+                    React.createElement('div', { className: 'error-section' },
+                        React.createElement('h3', null, 'Error Details'),
+                        React.createElement('div', { className: 'error-field' },
+                            React.createElement('strong', null, 'Message: '),
+                            React.createElement('span', null, errorData.error.Message)
+                        ),
+                        React.createElement('div', { className: 'error-field' },
+                            React.createElement('strong', null, 'Type: '),
+                            React.createElement('code', null, errorData.error.Type)
+                        ),
+                        React.createElement('div', { className: 'error-field' },
+                            React.createElement('strong', null, 'Position: '),
+                            React.createElement('pre', null, errorData.error.PositionMessage)
+                        )
+                    ),
+                    React.createElement('div', { className: 'error-section' },
+                        React.createElement('h3', null, 'Request Information'),
+                        React.createElement('div', { className: 'error-field' },
+                            React.createElement('strong', null, 'Method: '),
+                            React.createElement('span', null, errorData.request.Method)
+                        ),
+                        React.createElement('div', { className: 'error-field' },
+                            React.createElement('strong', null, 'URL: '),
+                            React.createElement('code', null, errorData.request.URL)
+                        ),
+                        errorData.request.QueryString && Object.keys(errorData.request.QueryString).length > 0 &&
+                            React.createElement('div', { className: 'error-field' },
+                                React.createElement('strong', null, 'Query Parameters: '),
+                                React.createElement('pre', null, JSON.stringify(errorData.request.QueryString, null, 2))
+                            )
+                    ),
+                    errorData.callStack && errorData.callStack.length > 0 &&
+                        React.createElement('div', { className: 'error-section' },
+                            React.createElement('h3', null, 'Call Stack'),
+                            React.createElement('ol', { className: 'call-stack' },
+                                errorData.callStack.map((frame, idx) =>
+                                    React.createElement('li', { key: idx },
+                                        React.createElement('div', null,
+                                            React.createElement('strong', null, frame.Command),
+                                            ' at ',
+                                            React.createElement('code', null, frame.Location)
+                                        )
+                                    )
+                                )
+                            )
+                        ),
+                    errorData.variables && Object.keys(errorData.variables).length > 0 &&
+                        React.createElement('div', { className: 'error-section' },
+                            React.createElement('h3', null, 'Variables in Scope'),
+                            React.createElement('table', { className: 'variables-table' },
+                                React.createElement('thead', null,
+                                    React.createElement('tr', null,
+                                        React.createElement('th', null, 'Variable'),
+                                        React.createElement('th', null, 'Value')
+                                    )
+                                ),
+                                React.createElement('tbody', null,
+                                    Object.entries(errorData.variables).map(([key, value]) =>
+                                        React.createElement('tr', { key: key },
+                                            React.createElement('td', null, React.createElement('code', null, '$' + key)),
+                                            React.createElement('td', null, React.createElement('code', null, String(value)))
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                );
+            } else if (errorData.modalType === 'error-basic') {
+                // Basic view - show error with guidance
+                return React.createElement('div', { className: 'error-modal-content error-basic' },
+                    React.createElement('div', { className: 'error-section' },
+                        React.createElement('div', { className: 'error-field' },
+                            React.createElement('strong', null, 'Error: '),
+                            React.createElement('span', null, errorData.error.message)
+                        ),
+                        React.createElement('div', { className: 'error-field' },
+                            React.createElement('strong', null, 'Type: '),
+                            React.createElement('code', null, errorData.error.type)
+                        ),
+                        errorData.error.position &&
+                            React.createElement('div', { className: 'error-field' },
+                                React.createElement('strong', null, 'Location: '),
+                                React.createElement('pre', null, errorData.error.position)
+                            )
+                    ),
+                    errorData.guidance &&
+                        React.createElement('div', { className: 'error-section guidance' },
+                            React.createElement('p', null, '💡 ', errorData.guidance)
+                        )
+                );
+            } else {
+                // Minimal view - just the error message
+                return React.createElement('div', { className: 'error-modal-content error-minimal' },
+                    React.createElement('div', { className: 'error-section' },
+                        React.createElement('p', null, errorData.error),
+                        errorData.requestId &&
+                            React.createElement('p', { className: 'request-id' },
+                                'Request ID: ',
+                                React.createElement('code', null, errorData.requestId)
+                            )
+                    )
+                );
+            }
+        };
+
+        return React.createElement('div', {
+            className: 'error-modal-overlay',
+            onClick: onClose
+        },
+            React.createElement('div', {
+                className: 'error-modal',
+                onClick: (e) => e.stopPropagation()
+            },
+                React.createElement('div', { className: 'error-modal-header' },
+                    React.createElement('h2', null, errorData.modalTitle || 'Error'),
+                    React.createElement('button', {
+                        className: 'error-modal-close',
+                        onClick: onClose,
+                        'aria-label': 'Close'
+                    }, '×')
+                ),
+                formatErrorContent(),
+                React.createElement('div', { className: 'error-modal-footer' },
+                    errorData.timestamp &&
+                        React.createElement('span', { className: 'timestamp' },
+                            'Occurred at: ', new Date(errorData.timestamp).toLocaleString()
+                        ),
+                    React.createElement('button', {
+                        className: 'btn-primary',
+                        onClick: onClose
+                    }, 'Close')
+                )
+            )
+        );
+    };
+
+    // Render the modal
+    const root = ReactDOM.createRoot(modalContainer);
+    const handleClose = () => {
+        root.unmount();
+        modalContainer.remove();
+    };
+
+    root.render(React.createElement(ErrorModal, { errorData, onClose: handleClose }));
+};
+
+// Add CSS for error modal
+if (!document.getElementById('error-modal-styles')) {
+    const style = document.createElement('style');
+    style.id = 'error-modal-styles';
+    style.textContent = `
+        .error-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            animation: fadeIn 0.2s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .error-modal {
+            background: white;
+            border-radius: 8px;
+            max-width: 900px;
+            max-height: 90vh;
+            width: 90%;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .error-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f44336;
+            color: white;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .error-modal-header h2 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .error-modal-close {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 32px;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .error-modal-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .error-modal-content {
+            padding: 24px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .error-section {
+            margin-bottom: 24px;
+        }
+
+        .error-section h3 {
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #f44336;
+            padding-bottom: 8px;
+        }
+
+        .error-field {
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+
+        .error-field strong {
+            color: #555;
+        }
+
+        .error-field code,
+        .error-field pre {
+            background: #f5f5f5;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .error-field pre {
+            display: block;
+            margin: 8px 0;
+            padding: 12px;
+            overflow-x: auto;
+            border-left: 3px solid #f44336;
+        }
+
+        .call-stack {
+            margin: 0;
+            padding-left: 24px;
+        }
+
+        .call-stack li {
+            margin-bottom: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .variables-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .variables-table th {
+            background: #f5f5f5;
+            padding: 8px 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .variables-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .variables-table tr:hover {
+            background: #fafafa;
+        }
+
+        .guidance {
+            background: #e3f2fd;
+            padding: 16px;
+            border-radius: 4px;
+            border-left: 4px solid #2196f3;
+        }
+
+        .guidance p {
+            margin: 0;
+            color: #1565c0;
+        }
+
+        .request-id {
+            color: #666;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .error-modal-footer {
+            padding: 16px 24px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #fafafa;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .btn-primary {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 8px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: #d32f2f;
+        }
+    `;
+    document.head.appendChild(style);
+}
 
 // --- Global Component Registry ---
 window.cardComponents = {};
@@ -118,6 +508,37 @@ const UserCard = ({ element }) => {
     }
 
     const userIcon = userData.icon || '/public/icon/Tank1_32x32.png';
+    const displayName = userData.Email || userData.UserID;
+    const userRoles = userData.Roles || [];
+
+    const handleRefreshToken = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch('/api/v1/auth/getaccesstoken');
+            if (response.ok) {
+                alert('Access token refreshed successfully!');
+                window.location.reload();
+            } else {
+                alert('Failed to refresh token');
+            }
+        } catch (error) {
+            alert('Error refreshing token: ' + error.message);
+        }
+    };
+
+    const handleLogoff = async (e) => {
+        e.preventDefault();
+        try {
+            const response = await fetch('/api/v1/auth/logoff');
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert('Failed to log off');
+            }
+        } catch (error) {
+            alert('Error logging off: ' + error.message);
+        }
+    };
 
     return (
         <div className="user-card">
@@ -125,10 +546,32 @@ const UserCard = ({ element }) => {
             {isMenuOpen && (
                 <div className="floating-card">
                     <div className="floating-card-content">
-                        <div>Welcome, {userData.UserID}</div>
+                        <div style={{fontWeight: 'bold', marginBottom: '8px', borderBottom: '1px solid #ddd', paddingBottom: '8px'}}>
+                            Welcome, {displayName}
+                        </div>
+                        {userRoles.length > 0 && (
+                            <div style={{fontSize: '12px', color: '#666', marginBottom: '12px'}}>
+                                <div style={{fontWeight: '500', marginBottom: '4px'}}>Roles:</div>
+                                {userRoles.map((role, idx) => (
+                                    <span key={idx} style={{
+                                        display: 'inline-block',
+                                        background: '#e3f2fd',
+                                        color: '#1976d2',
+                                        padding: '2px 8px',
+                                        borderRadius: '12px',
+                                        fontSize: '11px',
+                                        marginRight: '4px',
+                                        marginBottom: '4px'
+                                    }}>
+                                        {role}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                         <a href="#" onClick={(e) => { e.preventDefault(); window.openComponentInModal('profile'); }}>Profile</a>
+                        <a href="#" onClick={handleRefreshToken}>Refresh Token &#8635;</a>
                         <a href="/settings">Settings &#9881;</a>
-                        <a href="/api/v1/auth/logoff">Logoff</a>
+                        <a href="#" onClick={handleLogoff}>Logoff</a>
                     </div>
                 </div>
             )}

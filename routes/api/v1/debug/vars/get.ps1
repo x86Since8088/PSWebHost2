@@ -263,9 +263,10 @@ try {
     context_reponse -Response $Response -StatusCode 400 -String $json -ContentType "application/json"
 
 } catch {
-    # Catch any fatal error in the script
-    $errorMessage = "An error occurred in /api/v1/debug/vars: $($_.Exception.Message)"
-    Write-PSWebHostLog -Severity 'Error' -Category 'DebugVars' -Message $errorMessage
-    $errorResponse = @{ error = $errorMessage } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
+    Write-PSWebHostLog -Severity 'Error' -Category 'DebugVars' -Message "Error in /api/v1/debug/vars: $($_.Exception.Message)"
+
+    # Generate detailed error report based on user role
+    $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
+
+    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

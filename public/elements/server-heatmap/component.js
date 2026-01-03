@@ -40,7 +40,19 @@ const ServerHeatmapCard = ({ onError }) => {
         };
     }, [autoRefresh]);
 
+    const isError = (value) => {
+        return value === "Error" || value === "error";
+    };
+
+    const formatValue = (value, suffix = '') => {
+        if (isError(value)) {
+            return <span style={{color: '#ef4444', fontWeight: 'bold'}}>Error</span>;
+        }
+        return `${value}${suffix}`;
+    };
+
     const getColorForPercent = (percent) => {
+        if (isError(percent)) return '#ef4444'; // red for errors
         if (percent < 50) return '#4ade80'; // green
         if (percent < 75) return '#fbbf24'; // yellow
         if (percent < 90) return '#fb923c'; // orange
@@ -70,6 +82,7 @@ const ServerHeatmapCard = ({ onError }) => {
         .info-box { padding: 8px; background: var(--title-bar-color); border-radius: 3px; text-align: center; }
         .info-value { font-size: 1.3em; font-weight: bold; color: var(--accent-primary); }
         .info-label { font-size: 0.8em; color: var(--text-secondary); margin-top: 3px; }
+        .error-value { color: #ef4444; font-weight: bold; }
     `;
 
     if (!systemData) {
@@ -100,7 +113,9 @@ const ServerHeatmapCard = ({ onError }) => {
                             {metrics.cpu.map((core, idx) => (
                                 <div key={idx} className="cpu-core" style={{backgroundColor: getColorForPercent(core.value)}}>
                                     <div style={{fontSize: '0.7em', opacity: 0.8}}>{core.name}</div>
-                                    <div style={{fontWeight: 'bold'}}>{core.value}%</div>
+                                    <div style={{fontWeight: 'bold'}}>
+                                        {isError(core.value) ? <span className="error-value">Error</span> : `${core.value}%`}
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -112,13 +127,18 @@ const ServerHeatmapCard = ({ onError }) => {
                     <div className="stats-section">
                         <div className="section-title">Memory</div>
                         <div className="metric-bar">
-                            <div className="metric-label">{metrics.memory.used} / {metrics.memory.total} GB</div>
+                            <div className="metric-label">
+                                {formatValue(metrics.memory.used, ' ')} / {formatValue(metrics.memory.total, ' GB')}
+                            </div>
                             <div className="metric-progress">
                                 <div className="metric-fill" style={{
-                                    width: `${metrics.memory.percentUsed}%`,
+                                    width: isError(metrics.memory.percentUsed) ? '100%' : `${metrics.memory.percentUsed}%`,
                                     backgroundColor: getColorForPercent(metrics.memory.percentUsed)
                                 }}>
-                                    {metrics.memory.percentUsed}%
+                                    {isError(metrics.memory.percentUsed) ?
+                                        <span className="error-value">Error</span> :
+                                        `${metrics.memory.percentUsed}%`
+                                    }
                                 </div>
                             </div>
                         </div>
@@ -131,13 +151,18 @@ const ServerHeatmapCard = ({ onError }) => {
                         <div className="section-title">Disk Usage</div>
                         {metrics.disk.map((disk, idx) => (
                             <div key={idx} className="metric-bar">
-                                <div className="metric-label">{disk.name} {disk.used}/{disk.total} GB</div>
+                                <div className="metric-label">
+                                    {disk.name} {formatValue(disk.used)}/{formatValue(disk.total, ' GB')}
+                                </div>
                                 <div className="metric-progress">
                                     <div className="metric-fill" style={{
-                                        width: `${disk.percentUsed}%`,
+                                        width: isError(disk.percentUsed) ? '100%' : `${disk.percentUsed}%`,
                                         backgroundColor: getColorForPercent(disk.percentUsed)
                                     }}>
-                                        {disk.percentUsed}%
+                                        {isError(disk.percentUsed) ?
+                                            <span className="error-value">Error</span> :
+                                            `${disk.percentUsed}%`
+                                        }
                                     </div>
                                 </div>
                             </div>
@@ -151,15 +176,22 @@ const ServerHeatmapCard = ({ onError }) => {
                         <div className="section-title">System Info</div>
                         <div className="info-grid">
                             <div className="info-box">
-                                <div className="info-value">{metrics.uptime.days}d {metrics.uptime.hours}h</div>
+                                <div className="info-value" style={{color: isError(metrics.uptime.days) ? '#ef4444' : 'var(--accent-primary)'}}>
+                                    {isError(metrics.uptime.days) ?
+                                        'Error' :
+                                        `${metrics.uptime.days}d ${metrics.uptime.hours}h`
+                                    }
+                                </div>
                                 <div className="info-label">Uptime</div>
                             </div>
                             <div className="info-box">
-                                <div className="info-value">{metrics.system.processes}</div>
+                                <div className="info-value">{formatValue(metrics.system.processes)}</div>
                                 <div className="info-label">Processes</div>
                             </div>
                             <div className="info-box">
-                                <div className="info-value">{metrics.system.threads}</div>
+                                <div className="info-value" style={{color: isError(metrics.system.threads) ? '#ef4444' : 'var(--accent-primary)'}}>
+                                    {formatValue(metrics.system.threads)}
+                                </div>
                                 <div className="info-label">Threads</div>
                             </div>
                         </div>
@@ -173,7 +205,14 @@ const ServerHeatmapCard = ({ onError }) => {
                         {metrics.network.slice(0, 3).map((iface, idx) => (
                             <div key={idx} className="metric-bar">
                                 <div className="metric-label" style={{fontSize: '0.75em'}}>{iface.name}</div>
-                                <div style={{fontWeight: 'bold', minWidth: '60px', textAlign: 'right'}}>{iface.value} {iface.unit}</div>
+                                <div style={{
+                                    fontWeight: 'bold',
+                                    minWidth: '60px',
+                                    textAlign: 'right',
+                                    color: isError(iface.value) ? '#ef4444' : 'inherit'
+                                }}>
+                                    {isError(iface.value) ? 'Error' : `${iface.value} ${iface.unit}`}
+                                </div>
                             </div>
                         ))}
                     </div>

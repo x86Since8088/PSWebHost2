@@ -42,13 +42,15 @@
     - system
     - log
 - Name: Site Admin Menu
-  roles: site_admin
+  roles:
+  - site_admin
   children:
   - Name: User Management
     url: /api/v1/ui/elements/admin/users-management
     hover_description: Administer site users.
 - Name: System Admin Menu
-  roles: system_admin
+  roles:
+  - system_admin
   children:
   - url: /api/v1/status/logging
     Name: Logging Status
@@ -59,6 +61,41 @@
     - authenticated
     - unauthenticated
     hover_description: View logging health and status.
+- Name: Admin Tools
+  hover_description: Administrative and debugging tools.
+  roles:
+  - admin
+  - debug
+  - site_admin
+  - system_admin
+  children:
+  - Name: Test Error Modals
+    url: /public/error-modal-demo.html
+    hover_description: Test the error modal system with different user roles.
+    tags:
+    - debug
+    - testing
+    - errors
+  - Name: Trigger Test Error
+    url: /api/v1/debug/test-error
+    hover_description: Deliberately trigger an error to test error reporting.
+    tags:
+    - debug
+    - testing
+    - errors
+  - Name: Debug Variables
+    url: /api/v1/debug/vars
+    hover_description: View all global variables in the server.
+    tags:
+    - debug
+    - variables
+  - Name: Job Status
+    url: /api/v1/ui/elements/job-status
+    hover_description: View background job status and details.
+    tags:
+    - debug
+    - jobs
+    - monitoring
 - Name: Pending Review
   hover_description: Endpoints that need review.
   roles:
@@ -105,7 +142,7 @@
     platform: linux
     tags: tasks, cron
   - Name: Linux Services
-    url: /spa/LinuxServices<
+    url: /spa/LinuxServices
     hover_description: Manage Linux services.
     platform: linux
     tags: services, linux
@@ -136,9 +173,9 @@
     url: /public/elements/user-card/element.html
 - Name: Not Implemented
   hover_description: Endpoints that are not implemented.
-  children:
   roles:
   - authenticated
   - unauthenticated
   - site_admin
   - system_admin
+  children: []

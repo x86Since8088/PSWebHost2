@@ -44,22 +44,28 @@ function Convert-To-Menu-Format {
         [string[]]$Searchables = $item.description,
             $item.Name,
             $item.hover_description,
-            $item.tags 
+            $item.tags
         $Unmatched_Terms = $SearchRegexArr | Where-Object{!($Searchables -match $_)}
+
+        # Add default roles if none specified
         if ($item.roles.count -eq 0) { $item.roles += 'unauthenticated','authenticated'}
-        elseif (!($item.roles|Where-Object{$_ -in $Roles})) { continue}
-        elseif ($Unmatched_Terms.Count -gt 0) { continue }
-        else {
-            $newItem = @{
+
+        # Check if user has required role
+        if (!($item.roles|Where-Object{$_ -in $Roles})) { continue }
+
+        # Check search terms
+        if ($Unmatched_Terms.Count -gt 0) { continue }
+
+        # Item passes all checks, include it
+        $newItem = @{
                 text = $item.Name
                 url = $item.url
                 hover_description = $item.hover_description
             }
-            if ($item.children) {
-                $newItem.children = @(Convert-To-Menu-Format -items $item.children -Roles $Roles -Tags $Tags -SearchRegexArr $SearchRegexArr)
-            }
-            $newItem
+        if ($item.children) {
+            $newItem.children = @(Convert-To-Menu-Format -items $item.children -Roles $Roles -Tags $Tags -SearchRegexArr $SearchRegexArr)
         }
+        $newItem
     }
 }
 

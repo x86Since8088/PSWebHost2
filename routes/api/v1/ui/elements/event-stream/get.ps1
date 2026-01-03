@@ -96,6 +96,9 @@ try {
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'EventStream' -Message "Error processing event stream: $($_.Exception.Message)"
-    $jsonResponse = New-JsonResponse -status 'fail' -message "Failed to retrieve events: $($_.Exception.Message)"
-    context_reponse -Response $Response -StatusCode 500 -String $jsonResponse -ContentType "application/json"
+
+    # Generate detailed error report based on user role
+    $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
+
+    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

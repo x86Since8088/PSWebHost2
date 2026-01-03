@@ -258,6 +258,11 @@ function Get-PSWebHostErrorReport {
             $report.variables = @{ "_error" = "Could not enumerate variables: $($_.Exception.Message)" }
         }
 
+        # Add modal instruction for frontend
+        $report.showModal = $true
+        $report.modalTitle = "Error Report (Admin)"
+        $report.modalType = "error-admin"
+
         return @{
             statusCode = 500
             contentType = 'application/json'
@@ -282,6 +287,11 @@ function Get-PSWebHostErrorReport {
             guidance = "You are accessing from localhost. For detailed diagnostics including call stack and variable enumeration, please use an account with Admin or Debug role."
         }
 
+        # Add modal instruction for frontend
+        $basicReport.showModal = $true
+        $basicReport.modalTitle = "Error Occurred"
+        $basicReport.modalType = "error-basic"
+
         return @{
             statusCode = 500
             contentType = 'application/json'
@@ -296,6 +306,11 @@ function Get-PSWebHostErrorReport {
         error = "An internal error occurred. Please contact the administrator."
         requestId = if ($Context) { [guid]::NewGuid().ToString() } else { 'N/A' }
     }
+
+    # Add modal instruction for frontend
+    $minimalReport.showModal = $true
+    $minimalReport.modalTitle = "Error"
+    $minimalReport.modalType = "error-minimal"
 
     return @{
         statusCode = 500
