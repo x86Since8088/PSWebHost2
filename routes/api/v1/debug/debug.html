@@ -58,23 +58,34 @@ width: auto; /* Allow Value column to take remaining space */
       <select id="filterType" title="Filter by variable type">
         <option value="">All types</option>
       </select>
+      <select id="viewMode" title="View mode">
+        <option value="list">List (Fast)</option>
+        <option value="table">Table View</option>
+        <option value="detailed">Detailed (Slow)</option>
+      </select>
       <button id="refresh" class="btn small">Refresh</button>
       <button id="create" class="btn small">New Variable</button>
     </div>
 
-    <div class="muted">Click header to sort. Non-string values shown as pretty JSON. Inline edit preserves original type. JSON validation on save.</div>
+    <div class="muted">Click header to sort. List mode shows names/types only. Use Table or Detailed for values. Inline edit preserves original type.</div>
 
-    <table id="varsTable" aria-live="polite">
-      <thead>
-        <tr>
-          <th data-key="Name">Name</th>
-          <th data-key="Type" class="type-header">Type</th>
-          <th data-key="Value">Value</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+    <div id="tableView">
+      <table id="varsTable" aria-live="polite">
+        <thead>
+          <tr>
+            <th data-key="Name">Name</th>
+            <th data-key="Type" class="type-header">Type</th>
+            <th data-key="Value">Value</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div id="textView" style="display: none;">
+      <pre id="textOutput" style="background: #f5f5f5; padding: 12px; border: 1px solid #ccc; overflow: auto; max-height: 80vh;"></pre>
+    </div>
   </div>
 
 <script>
@@ -86,6 +97,10 @@ width: auto; /* Allow Value column to take remaining space */
   const tbody = document.querySelector('#varsTable tbody');
   const searchBox = document.getElementById('search');
   const filterType = document.getElementById('filterType');
+  const viewMode = document.getElementById('viewMode');
+  const tableView = document.getElementById('tableView');
+  const textView = document.getElementById('textView');
+  const textOutput = document.getElementById('textOutput');
 
   function typeHint(type){
     if(!type) return 'unknown';
@@ -195,45 +210,101 @@ width: auto; /* Allow Value column to take remaining space */
   function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;').replace(/&/g,'&amp;'); }
 
   async function loadVars(){
-    const r = await fetch(apiVars);
+    const mode = viewMode.value;
+
+    // --- Table View Mode ---
+    if (mode === 'table') {
+      tableView.style.display = 'none';
+      textView.style.display = 'block';
+      textOutput.textContent = 'Loading table view...';
+
+      const r = await fetch(apiVars + '?format=table');
+      if (!r.ok) {
+        const txt = await r.text().catch(()=>'<no body>');
+        textOutput.textContent = 'Failed to load: ' + r.status + ' ' + r.statusText + '\n' + txt;
+        return;
+      }
+
+      const result = await r.json();
+      if (result.status === 'timeout') {
+        textOutput.textContent = 'TIMEOUT: ' + result.message + '\n\n' + (result.output || '');
+      } else {
+        textOutput.textContent = result.output || 'No data';
+      }
+      return;
+    }
+
+    // --- List or Detailed View Mode ---
+    tableView.style.display = 'block';
+    textView.style.display = 'none';
+
+    const format = mode === 'detailed' ? 'detailed' : 'list';
+    const r = await fetch(apiVars + '?format=' + format);
+
     if (!r.ok) {
       const txt = await r.text().catch(()=>'<no body>');
       alert('Failed to load variables: ' + r.status + ' ' + r.statusText + '\n' + txt);
       return;
     }
-    vars = await r.json();
+
+    const result = await r.json();
+
+    // Handle timeout response
+    if (result.status === 'timeout') {
+      alert('Request timed out: ' + result.message);
+      vars = result.data || [];
+    } else if (Array.isArray(result)) {
+      vars = result;
+    } else {
+      alert('Unexpected response format');
+      vars = [];
+    }
+
     vars.forEach(v=>{
       try{
         const hint = typeHint(v.Type);
-        // If server returned RawValue as a JSON string for complex objects, try to detect and parse it
-        if (hint === 'string') {
-          v.DisplayValue = v.RawValue === null || v.RawValue === undefined ? '' : String(v.RawValue);
-          v.DisplayValueRaw = v.DisplayValue;
-        } else {
-          // If RawValue is a string, attempt to parse it as JSON so structured values show nicely
-          if (typeof v.RawValue === 'string') {
-            try {
-              const parsed = JSON.parse(v.RawValue);
-              v.DisplayValue = JSON.stringify(parsed, null, 2);
-              v.DisplayValueRaw = v.DisplayValue;
-            } catch(e) {
-              // not JSON, show raw string
-              v.DisplayValue = v.RawValue;
-              v.DisplayValueRaw = v.DisplayValue;
-            }
+
+        // List mode: no values
+        if (mode === 'list') {
+          v.DisplayValue = '(click Detailed mode to view)';
+          v.DisplayValueRaw = '';
+        }
+        // Detailed mode: has RawValue
+        else if (v.RawValue !== undefined) {
+          if (hint === 'string') {
+            v.DisplayValue = v.RawValue === null || v.RawValue === undefined ? '' : String(v.RawValue);
+            v.DisplayValueRaw = v.DisplayValue;
           } else {
-            try {
-              v.DisplayValue = JSON.stringify(v.RawValue, null, 2);
-              v.DisplayValueRaw = v.DisplayValue;
-            } catch (e) {
-              v.DisplayValue = String(v.RawValue);
-              v.DisplayValueRaw = v.DisplayValue;
+            if (typeof v.RawValue === 'string') {
+              try {
+                const parsed = JSON.parse(v.RawValue);
+                v.DisplayValue = JSON.stringify(parsed, null, 2);
+                v.DisplayValueRaw = v.DisplayValue;
+              } catch(e) {
+                v.DisplayValue = v.RawValue;
+                v.DisplayValueRaw = v.DisplayValue;
+              }
+            } else {
+              try {
+                v.DisplayValue = JSON.stringify(v.RawValue, null, 2);
+                v.DisplayValueRaw = v.DisplayValue;
+              } catch (e) {
+                v.DisplayValue = String(v.RawValue);
+                v.DisplayValueRaw = v.DisplayValue;
+              }
             }
           }
+        } else {
+          v.DisplayValue = '';
+          v.DisplayValueRaw = '';
         }
+
         v.editing = false;
         v.editBuffer = v.DisplayValueRaw;
-      }catch(e){ v.DisplayValue = String(v.RawValue); v.DisplayValueRaw = v.DisplayValue; }
+      }catch(e){
+        v.DisplayValue = String(v.RawValue || '');
+        v.DisplayValueRaw = v.DisplayValue;
+      }
     });
     renderTable();
   }
@@ -256,8 +327,13 @@ width: auto; /* Allow Value column to take remaining space */
     if (r.ok) { await loadVars(); alert('Created'); } else { const txt = await r.text(); alert('Create failed: '+txt); }
   };
 
-  searchBox.oninput = renderTable;
-  filterType.onchange = renderTable;
+  searchBox.oninput = () => {
+    if (viewMode.value !== 'table') renderTable();
+  };
+  filterType.onchange = () => {
+    if (viewMode.value !== 'table') renderTable();
+  };
+  viewMode.onchange = loadVars;
 
   document.querySelectorAll('#varsTable th[data-key]').forEach(th=>{
     th.onclick = ()=>{ const key = th.getAttribute('data-key'); if (sortKey===key) sortAsc=!sortAsc; else { sortKey=key; sortAsc=true } ; renderTable(); }

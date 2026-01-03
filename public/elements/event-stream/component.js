@@ -8,6 +8,7 @@ const EventStreamCard = ({ onError }) => {
     const [selectedEvents, setSelectedEvents] = useState(new Set());
     const [filterText, setFilterText] = useState('');
     const [wordWrap, setWordWrap] = useState(false);
+    const [jobStatus, setJobStatus] = useState([]);
     const [visibleColumns, setVisibleColumns] = useState({
         checkbox: true,
         Date: true,
@@ -26,49 +27,12 @@ const EventStreamCard = ({ onError }) => {
     });
     const resizingColumn = useRef(null);
 
+    const fetchDataRef = React.useRef();
+
     const fetchData = () => {
-        // Build query string with filter parameters
-        const params = new URLSearchParams();
-        if (filterText) {
-            params.append('filter', filterText);
+        if (fetchDataRef.current) {
+            fetchDataRef.current();
         }
-        params.append('count', maxEvents);
-
-        const url = `/api/v1/ui/elements/event-stream?${params.toString()}`;
-
-        psweb_fetchWithAuthHandling(url)
-            .then(res => {
-                if (!res.ok) {
-                    onError({ message: "Failed to fetch event stream", status: res.status, statusText: res.statusText });
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                return res.text();
-            })
-            .then(text => {
-                const data = text ? JSON.parse(text) : [];
-                const eventsArray = (Array.isArray(data) ? data : [data]).map((event, index) => ({
-                    ...event,
-                    _id: `event-${Date.now()}-${index}`,
-                    // Don't re-parse Date, backend already formatted it
-                    Data: typeof event.Data === 'object' ? JSON.stringify(event.Data) : event.Data
-                }));
-                setEvents(eventsArray);
-                setLastUpdate(new Date());
-                // Clear selections that are no longer in the list
-                setSelectedEvents(prev => {
-                    const newSet = new Set();
-                    const eventIds = new Set(eventsArray.map(e => e._id));
-                    prev.forEach(id => {
-                        if (eventIds.has(id)) newSet.add(id);
-                    });
-                    return newSet;
-                });
-            })
-            .catch(err => {
-                if (err.name !== 'Unauthorized') {
-                    console.error("EventStreamCard fetch error:", err);
-                }
-            });
     };
 
     const handleClearEvents = () => {
@@ -169,11 +133,74 @@ const EventStreamCard = ({ onError }) => {
     const filteredEvents = events;
 
     useEffect(() => {
+        let isMounted = true;
+
+        fetchDataRef.current = () => {
+            // Fetch job status
+            psweb_fetchWithAuthHandling('/api/v1/ui/elements/job-status')
+                .then(res => res.json())
+                .then(data => {
+                    if (isMounted) {
+                        setJobStatus(data || []);
+                    }
+                })
+                .catch(err => {
+                    console.error("Failed to fetch job status:", err);
+                });
+
+            // Build query string with filter parameters
+            const params = new URLSearchParams();
+            if (filterText) {
+                params.append('filter', filterText);
+            }
+            params.append('count', maxEvents);
+
+            const url = `/api/v1/ui/elements/event-stream?${params.toString()}`;
+
+            psweb_fetchWithAuthHandling(url)
+                .then(res => {
+                    if (!res.ok) {
+                        if (isMounted) {
+                            onError({ message: "Failed to fetch event stream", status: res.status, statusText: res.statusText });
+                        }
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.text();
+                })
+                .then(text => {
+                    if (!isMounted) return;
+
+                    const data = text ? JSON.parse(text) : [];
+                    const eventsArray = (Array.isArray(data) ? data : [data]).map((event, index) => ({
+                        ...event,
+                        _id: `event-${Date.now()}-${index}`,
+                        Data: typeof event.Data === 'object' ? JSON.stringify(event.Data) : event.Data
+                    }));
+                    setEvents(eventsArray);
+                    setLastUpdate(new Date());
+                    // Clear selections that are no longer in the list
+                    setSelectedEvents(prev => {
+                        const newSet = new Set();
+                        const eventIds = new Set(eventsArray.map(e => e._id));
+                        prev.forEach(id => {
+                            if (eventIds.has(id)) newSet.add(id);
+                        });
+                        return newSet;
+                    });
+                })
+                .catch(err => {
+                    if (isMounted && err.name !== 'Unauthorized') {
+                        console.error("EventStreamCard fetch error:", err);
+                    }
+                });
+        };
+
         fetchData();
 
         const interval = autoRefresh ? setInterval(fetchData, 5000) : null;
 
         return () => {
+            isMounted = false;
             if (interval) clearInterval(interval);
         };
     }, [autoRefresh, filterText, maxEvents]);
@@ -354,6 +381,22 @@ const EventStreamCard = ({ onError }) => {
                 <div className="event-stream-header">
                     <div className="event-stream-title">
                         Event Stream ({filteredEvents.length}/{events.length} events{selectedEvents.size > 0 ? `, ${selectedEvents.size} selected` : ''})
+                        {jobStatus.length > 0 && (
+                            <div style={{ fontSize: '0.75em', marginTop: '4px', color: 'var(--text-secondary)' }}>
+                                Jobs: {jobStatus.map(job => (
+                                    <span key={job.Id} style={{
+                                        marginRight: '12px',
+                                        padding: '2px 6px',
+                                        borderRadius: '3px',
+                                        background: job.State === 'Running' ? '#10b981' : job.State === 'Failed' ? '#ef4444' : '#6b7280',
+                                        color: '#fff',
+                                        fontSize: '0.9em'
+                                    }}>
+                                        {job.Name.replace(/^Log_Tail: .*[\\\/]/, '')} - {job.State} {job.RunningTime && `(${job.RunningTime})`}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                     </div>
                     <div className="event-stream-controls">
                         {lastUpdate && (

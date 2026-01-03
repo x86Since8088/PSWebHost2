@@ -242,13 +242,24 @@ if (-not ($Env:PSModulePath -split ';' -contains $moduleDownloadPath)) {
 # --- Thread-Safe Logging Setup ---
 $global:PSWebHostLogQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
 $global:PSHostUIQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
-$Global:PSWebServer.LogFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/Logs/log.tsv"
+
+# Load timestamp helper function
+. (Join-Path $PSScriptRoot 'Get-PSWebHostTimestamp.ps1')
+
+# Generate timestamped log filename using ISO 8601 format with timezone
+# Format: YYYY-MM-DDTHHMMSS_mmmmmmmZZZZ (e.g., 2025-12-31T012345_1234567-0800)
+# This format includes timezone offset and handles daylight savings changes
+$logTimestamp = Get-PSWebHostTimestamp -ForFilename
+$logFileName = "log_$logTimestamp.tsv"
+$Global:PSWebServer.LogFilePath = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/Logs/$logFileName"
+
+# Store the logs directory path for API access
+$Global:PSWebServer.LogDirectory = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/Logs"
 
 # Ensure the Logs directory exists
-$logDirectory = Split-Path $Global:PSWebServer.LogFilePath -Parent
-if (-not (Test-Path $logDirectory)) {
-    New-Item -Path $logDirectory -ItemType Directory -Force | Out-Null
-    Write-Verbose "Created logs directory: $logDirectory" -Verbose
+if (-not (Test-Path $Global:PSWebServer.LogDirectory)) {
+    New-Item -Path $Global:PSWebServer.LogDirectory -ItemType Directory -Force | Out-Null
+    Write-Verbose "Created logs directory: $($Global:PSWebServer.LogDirectory)" -Verbose
 }
 
 # --- Real-Time Event Stream Buffer ---
@@ -257,41 +268,169 @@ $Global:PSWebServer.EventStreamBuffer = [System.Collections.Concurrent.Concurren
 $Global:PSWebServer.EventStreamMaxSize = 1000  # Maximum events to retain
 $Global:PSWebServer.EventStreamJobName = "PSWebHost_LogTail_EventStream"
 
-<#
-$global:StopLogging = $false
+# --- Log History for Event Stream ---
+# Initialize a thread-safe synchronized hashtable for log history
+$Global:LogHistory = [hashtable]::Synchronized(@{})
+$Global:LogHistoryMaxSize = 5000  # Maximum entries to retain
+$Global:LogHistoryIndex = 0  # Auto-incrementing index for ordering
+
+$global:StopLogging = [ref]$false
 
 $loggingScriptBlock = {
-    param($logQueue, $webServerConfig, $stopSignal)
+    param($logQueue, $logFilePath, $stopSignal)
 
-    $logDirectory = Join-Path $global:PSWebServer.Project_Root.Path "PsWebHost_Data/Logs"
+    # Ensure log directory exists
+    $logDirectory = Split-Path $logFilePath -Parent
     if (-not (Test-Path $logDirectory)) {
         New-Item -Path $logDirectory -ItemType Directory -Force | Out-Null
     }
-    $logFile = Join-Path $logDirectory "log.tsv"
 
     while (-not $stopSignal.Value) {
         $logEntries = [System.Collections.Generic.List[string]]::new()
-        while ($logQueue.TryDequeue([ref]'logEntry')) {
-            $logEntries.Add($logEntry)
+        $logEntry = $null
+
+        # Dequeue all available log entries
+        while ($logQueue.TryDequeue([ref]$logEntry)) {
+            if ($logEntry) {
+                $logEntries.Add($logEntry)
+            }
         }
 
+        # Write entries to file in batch
         if ($logEntries.Count -gt 0) {
-            Add-Content -Path $logFile -Value $logEntries
+            try {
+                Add-Content -Path $logFilePath -Value $logEntries -ErrorAction SilentlyContinue
+            } catch {
+                # Silently ignore write errors to prevent logging loop
+            }
         }
-        Start-Sleep -Milliseconds 500
+
+        Start-Sleep -Milliseconds 100
     }
 }
-#>
 
 $loggingPowerShell = [powershell]::Create().AddScript($loggingScriptBlock).AddParameters(@{
     logQueue = $global:PSWebHostLogQueue
-    webServerConfig = $Global:PSWebServer
+    logFilePath = $Global:PSWebServer.LogFilePath
     stopSignal = $global:StopLogging
 })
 $global:LoggingPS = $loggingPowerShell
 $global:PSWebServer.LoggingJob = $loggingPowerShell.BeginInvoke()
 Write-Verbose "Started background logging job." -Verbose
 # --- End Logging Setup ---
+
+# --- Log History Collection Job ---
+$global:StopLogHistoryCollection = [ref]$false
+
+$logHistoryScriptBlock = {
+    param($logHistory, $logHistoryMaxSize, $logHistoryIndex, $stopSignal, $projectRoot)
+
+    # Helper function to get log tail jobs and receive their output
+    function Get-LogTailOutput {
+        param($ProjectRoot)
+
+        # Get all Log_Tail jobs
+        $jobs = Get-Job -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'Log_Tail:*' }
+
+        $allOutput = @()
+        foreach ($job in $jobs) {
+            if ($job.HasMoreData) {
+                # Receive output from job
+                $output = Receive-Job -Job $job -ErrorAction SilentlyContinue
+
+                if ($output) {
+                    foreach ($entry in $output) {
+                        # Parse TSV line from log tail output
+                        if ($entry.Line) {
+                            $fields = $entry.Line -split "`t"
+                            if ($fields.Count -ge 5) {
+                                # Unescape the data field (remove backslash escaping)
+                                $dataField = if ($fields.Count -gt 4) { $fields[4] } else { '' }
+                                $dataField = $dataField -replace '\\(.)', '$1'
+
+                                $allOutput += [PSCustomObject]@{
+                                    Path = $entry.Path
+                                    Date = $fields[0]
+                                    DateTimeOffset = $fields[1]
+                                    Severity = $fields[2]
+                                    Category = if ($fields.Count -gt 3) { $fields[3] } else { '' }
+                                    Message = $dataField
+                                    LineNumber = $entry.LineNumber
+                                    ReceivedAt = $entry.Date
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return $allOutput
+    }
+
+    while (-not $stopSignal.Value) {
+        try {
+            # Collect log entries from all Log_Tail jobs
+            $logEntries = Get-LogTailOutput -ProjectRoot $projectRoot
+
+            # Add entries to synchronized hashtable
+            foreach ($entry in $logEntries) {
+                # Increment index (thread-safe via lock)
+                $index = [System.Threading.Interlocked]::Increment([ref]$logHistoryIndex.Value)
+
+                # Create event entry
+                $eventEntry = @{
+                    Index = $index
+                    Date = $entry.Date
+                    DateTimeOffset = $entry.DateTimeOffset
+                    state = $entry.Severity
+                    UserID = $entry.Category
+                    Provider = 'System'
+                    Data = $entry.Message
+                    Path = $entry.Path
+                    LineNumber = $entry.LineNumber
+                    ReceivedAt = $entry.ReceivedAt
+                    _timestamp = Get-Date
+                }
+
+                # Add to hashtable
+                $logHistory[$index] = $eventEntry
+            }
+
+            # Trim to max size - keep most recent entries
+            $currentSize = $logHistory.Count
+            if ($currentSize -gt $logHistoryMaxSize) {
+                $entriesToRemove = $currentSize - $logHistoryMaxSize
+
+                # Get all keys sorted by index
+                $allKeys = @($logHistory.Keys | Sort-Object)
+
+                # Remove oldest entries
+                for ($i = 0; $i -lt $entriesToRemove -and $i -lt $allKeys.Count; $i++) {
+                    $logHistory.Remove($allKeys[$i])
+                }
+            }
+
+        } catch {
+            # Silently continue on errors to prevent job crash
+            Start-Sleep -Milliseconds 500
+        }
+
+        Start-Sleep -Milliseconds 500
+    }
+}
+
+$logHistoryPowerShell = [powershell]::Create().AddScript($logHistoryScriptBlock).AddParameters(@{
+    logHistory = $Global:LogHistory
+    logHistoryMaxSize = $Global:LogHistoryMaxSize
+    logHistoryIndex = [ref]$Global:LogHistoryIndex
+    stopSignal = $global:StopLogHistoryCollection
+    projectRoot = $Global:PSWebServer.Project_Root.Path
+})
+$global:LogHistoryPS = $logHistoryPowerShell
+$global:PSWebServer.LogHistoryJob = $logHistoryPowerShell.BeginInvoke()
+Write-Verbose "Started log history collection job." -Verbose
+# --- End Log History Setup ---
 
 $Global:PSWebServer.Modules = [hashtable]::Synchronized(@{})
 

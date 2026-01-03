@@ -4,29 +4,38 @@ const ServerHeatmapCard = ({ onError }) => {
     const [systemData, setSystemData] = useState(null);
     const [autoRefresh, setAutoRefresh] = useState(true);
 
-    const fetchData = () => {
-        psweb_fetchWithAuthHandling('/api/v1/ui/elements/server-heatmap')
-            .then(res => {
-                if (!res.ok) {
-                    onError({ message: "Failed to fetch system stats", status: res.status, statusText: res.statusText });
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                return res.json();
-            })
-            .then(data => {
-                setSystemData(data);
-            })
-            .catch(err => {
-                console.error("ServerHeatmapCard fetch error:", err);
-            });
-    };
-
     useEffect(() => {
+        let isMounted = true;
+
+        const fetchData = () => {
+            psweb_fetchWithAuthHandling('/api/v1/ui/elements/server-heatmap')
+                .then(res => {
+                    if (!res.ok) {
+                        if (isMounted) {
+                            onError({ message: "Failed to fetch system stats", status: res.status, statusText: res.statusText });
+                        }
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    if (isMounted) {
+                        setSystemData(data);
+                    }
+                })
+                .catch(err => {
+                    if (isMounted && err.name !== 'Unauthorized') {
+                        console.error("ServerHeatmapCard fetch error:", err);
+                    }
+                });
+        };
+
         fetchData();
 
         const interval = autoRefresh ? setInterval(fetchData, 5000) : null;
 
         return () => {
+            isMounted = false;
             if (interval) clearInterval(interval);
         };
     }, [autoRefresh]);

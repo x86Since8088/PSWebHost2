@@ -85,8 +85,18 @@ begin{
     }
 
     $Packages = Get-Package -ErrorAction SilentlyContinue
-    if (-not ('LogError' -in $Packages.Name)) {install-package LogError -Force}
-    if (-not ('LogError' -in $Packages.Name)) {install-package LogError -Force}
+
+    # Install required packages
+    if (-not ('LogError' -in $Packages.Name)) {
+        Write-Verbose "Installing LogError package..." -Verbose
+        Install-Package LogError -Source PSGallery -Force -ErrorAction SilentlyContinue
+    }
+
+    # Install SQLite package for System.Data.SQLite assembly
+    if (-not ('SQLite' -in $Packages.Name)) {
+        Write-Verbose "Installing SQLite package (provides System.Data.SQLite assembly)..." -Verbose
+        Install-Package SQLite -Source PSGallery -Force -ErrorAction SilentlyContinue
+    }
 
     <#
 

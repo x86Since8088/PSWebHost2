@@ -9,6 +9,44 @@ async function psweb_fetchWithAuthHandling(url, options) {
     return response;
 }
 
+// --- Global Helper for Client-Side Logging ---
+window.logToServer = async function(level, category, message, data) {
+    try {
+        await fetch('/api/v1/debug/client-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                level: level,
+                category: category,
+                message: message,
+                data: data,
+                url: window.location.href,
+                timestamp: new Date().toISOString()
+            })
+        });
+    } catch (err) {
+        console.error('Failed to log to server:', err);
+    }
+}
+
+// Log client errors automatically
+window.addEventListener('error', (event) => {
+    window.logToServer('Error', 'GlobalError', event.message, {
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        error: event.error ? event.error.stack : null
+    });
+});
+
+// Log unhandled promise rejections
+window.addEventListener('unhandledrejection', (event) => {
+    window.logToServer('Error', 'UnhandledPromise', event.reason.toString(), {
+        reason: event.reason,
+        promise: event.promise
+    });
+});
+
 // --- Global Component Registry ---
 window.cardComponents = {};
 
@@ -99,24 +137,89 @@ const UserCard = ({ element }) => {
 };
 
 const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isMaximized }) => {
-    const elementId = element.Element_Id || element.id;
-    const CardComponent = window.cardComponents[elementId];
+    // Safety check - element must exist
+    if (!element) {
+        console.error('Card component received undefined element');
+        return <div className="card"><div className="card-content">Error: Invalid card configuration</div></div>;
+    }
+
+    // Extract element type from Element_Id or parse from id (e.g., "main-menu-123456" -> "main-menu")
+    let elementId = element.Element_Id;
+    if (!elementId && element.id) {
+        // Try to extract element type from id by removing timestamp suffix
+        const match = element.id.match(/^(.+?)-\d+$/);
+        elementId = match ? match[1] : element.id;
+    }
+
+    const initialComponent = window.cardComponents[elementId] || null;
+    // IMPORTANT: Wrap in arrow function to prevent React from calling it as an initializer
+    const [CardComponent, setCardComponent] = useState(() => initialComponent);
     const [errorInfo, setErrorInfo] = useState(null);
     const contentRef = useRef(null);
 
+    // Monitor for when the component becomes available
     useEffect(() => {
-        if (contentRef.current) {
+        if (!CardComponent) {
+            // Poll every 50ms for up to 5 seconds
+            let attempts = 0;
+            const maxAttempts = 100; // 5 seconds
+
+            const checkInterval = setInterval(() => {
+                attempts++;
+                if (window.cardComponents[elementId]) {
+                    setCardComponent(window.cardComponents[elementId]);
+                    clearInterval(checkInterval);
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                }
+            }, 50);
+
+            return () => clearInterval(checkInterval);
+        }
+    }, [elementId, CardComponent]);
+
+    useEffect(() => {
+        if (contentRef.current && CardComponent) {
             const contentHeight = contentRef.current.scrollHeight;
             const contentWidth = contentRef.current.scrollWidth;
             onCardResize(element.id, contentHeight, contentWidth);
         }
     }, [CardComponent]); // Rerun when component changes
 
-    const onError = useCallback((error) => {
-        setErrorInfo({ message: error.message, status: error.status, statusText: error.statusText });
-    }, []);
+    const handleError = (error) => {
+        if (error && typeof error === 'object') {
+            setErrorInfo({
+                message: error.message || 'Unknown error',
+                status: error.status,
+                statusText: error.statusText
+            });
+            // Log to server
+            window.logToServer('Error', elementId || 'Card', error.message || 'Component error', {
+                elementId: elementId,
+                status: error.status,
+                statusText: error.statusText,
+                cardId: element.id
+            });
+        }
+    };
 
-    const title = element.Title;
+    const title = element.Title || 'Untitled';
+
+    // Prepare props for component
+    const componentProps = {
+        element: element,
+        onError: handleError
+    };
+
+    // Render component content
+    let cardContent;
+    if (CardComponent && typeof CardComponent === 'function') {
+        cardContent = React.createElement(CardComponent, componentProps);
+    } else if (CardComponent) {
+        cardContent = <div>Error: Invalid component type for {elementId}</div>;
+    } else {
+        cardContent = <p>Loading component...</p>;
+    }
 
     return (
         <div className={`card ${isMaximized ? 'maximized' : ''}`} style={{height: '100%'}}>
@@ -131,11 +234,7 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
                 <div className="close-icon" onClick={() => onRemove(element.id)}>&times;</div>
             </div>
             <div className="card-content" ref={contentRef}>
-                {CardComponent ? (
-                    <CardComponent element={element} onError={onError} />
-                ) : (
-                    <p>Loading component...</p>
-                )}
+                {cardContent}
             </div>
             {errorInfo && (
                 <div className="card-footer">
@@ -260,7 +359,7 @@ const App = () => {
             .then(initialData => {
                 const allCardIds = Object.values(initialData.layout).flatMap(pane => Object.values(pane)).flat();
                 const uniqueCardIds = [...new Set(allCardIds)];
-                const defaultLayout = initialData.gridLayout.find(item => item.i === 'default') || { w: 3, h: 10 };
+                const defaultLayout = initialData.gridLayout.find(item => item.i === 'default') || { w: 12, h: 10 };
                 
                 const componentPromises = uniqueCardIds
                     .filter(id => id && id !== 'user-card' && id !== 'title')
@@ -313,10 +412,99 @@ const App = () => {
         setModal({ isOpen: true, src: '', component: window.cardComponents[componentName], props: props });
     };
 
-    window.openCard = (url, title) => {
-        const cardId = 'iframe-card-' + Date.now();
-        const newElement = { Title: title, Element_Id: 'iframe-card', url: url };
-        const defaultLayout = data.gridLayout.find(item => item.i === 'default') || { w: 3, h: 10 };
+    // Helper function to load component script dynamically
+    const loadComponentScript = (elementId) => {
+        return new Promise((resolve, reject) => {
+            // Check if component is already loaded
+            if (window.cardComponents[elementId]) {
+                resolve();
+                return;
+            }
+
+            console.log(`Loading component script for ${elementId}...`);
+
+            // Fetch and explicitly transform with Babel (same pattern as loadLayout)
+            fetch(`/public/elements/${elementId}/component.js`)
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                    }
+                    return res.text();
+                })
+                .then(text => {
+                    if (text) {
+                        console.log(`Transforming ${elementId} with Babel...`);
+                        const transformed = Babel.transform(text, { presets: ['react'] }).code;
+                        (new Function(transformed))();
+
+                        if (window.cardComponents[elementId]) {
+                            console.log(`✓ Component ${elementId} loaded and registered`);
+                        } else {
+                            console.warn(`⚠ Component ${elementId} loaded but not registered in window.cardComponents`);
+                            window.logToServer('Warning', 'ComponentLoad', `Component ${elementId} loaded but not registered`, { elementId: elementId });
+                        }
+                    }
+                    resolve();
+                })
+                .catch(err => {
+                    console.log(`Failed to load component.js for ${elementId}, trying element.js fallback...`);
+                    window.logToServer('Warning', 'ComponentLoad', `Failed to load ${elementId}/component.js: ${err.message}`, { elementId: elementId, error: err.toString() });
+
+                    // Try loading element.js as fallback (for legacy components)
+                    fetch(`/public/elements/${elementId}/element.js`)
+                        .then(res => {
+                            if (!res.ok) {
+                                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                            }
+                            return res.text();
+                        })
+                        .then(text => {
+                            if (text) {
+                                console.log(`Transforming ${elementId} (fallback) with Babel...`);
+                                const transformed = Babel.transform(text, { presets: ['react'] }).code;
+                                (new Function(transformed))();
+
+                                if (window.cardComponents[elementId]) {
+                                    console.log(`✓ Component ${elementId} loaded (fallback)`);
+                                }
+                            }
+                            resolve();
+                        })
+                        .catch(fallbackErr => {
+                            console.error(`Failed to load ${elementId} component:`, fallbackErr);
+                            resolve(); // Resolve anyway to allow card creation
+                        });
+                });
+        });
+    };
+
+    window.openCard = async (url, title) => {
+        // Extract element ID from URL if it's an API endpoint
+        // e.g., /api/v1/ui/elements/system-log -> system-log
+        let elementId = 'iframe-card';
+        let elementUrl = url;
+
+        const elementMatch = url.match(/\/api\/v1\/ui\/elements\/([^/?]+)/);
+        if (elementMatch) {
+            elementId = elementMatch[1];
+            elementUrl = url; // Keep the full URL for fetching
+        }
+
+        // Load the component script if needed
+        if (elementId !== 'iframe-card') {
+            await loadComponentScript(elementId);
+        }
+
+        // Create the card
+        const cardId = elementId + '-' + Date.now();
+        const newElement = {
+            Title: title,
+            Element_Id: elementId,
+            url: elementUrl,
+            id: cardId
+        };
+
+        const defaultLayout = data.gridLayout.find(item => item.i === 'default') || { w: 12, h: 10 };
         const position = findNextFreePosition(gridLayout, defaultLayout);
 
         setData(prevData => {
@@ -352,15 +540,25 @@ const App = () => {
             setMaximizedCard(null);
             setLayoutBeforeMaximize(null);
 
-            // Restore the parent div's style attribute
+            // Restore all parent elements' style attributes
             setTimeout(() => {
-                // Get the maximize button's parent.parent.parent (the GridLayout item wrapper)
                 if (event && event.target) {
-                    const gridItemDiv = event.target.parentElement.parentElement.parentElement;
-                    const savedStyle = gridItemDiv.getAttribute('data-maximized-style');
-                    if (savedStyle) {
-                        gridItemDiv.setAttribute('style', savedStyle);
-                        gridItemDiv.removeAttribute('data-maximized-style');
+                    let element = event.target;
+                    let parentIndex = 0;
+
+                    // Walk up the parent chain and restore styles
+                    while (element && element !== document.body && parentIndex < 20) {
+                        const savedStyle = element.getAttribute('data-maximized-style-' + parentIndex);
+                        if (savedStyle !== null) {
+                            if (savedStyle === '') {
+                                element.removeAttribute('style');
+                            } else {
+                                element.setAttribute('style', savedStyle);
+                            }
+                            element.removeAttribute('data-maximized-style-' + parentIndex);
+                        }
+                        element = element.parentElement;
+                        parentIndex++;
                     }
                 }
             }, 0);
@@ -369,24 +567,50 @@ const App = () => {
             setLayoutBeforeMaximize(gridLayout);
             setMaximizedCard(cardId);
 
-            // Clear the style attribute on the parent.parent.parent div (GridLayout wrapper)
-            setTimeout(() => {
-                // Get the maximize button's parent.parent.parent (the GridLayout item wrapper)
-                if (event && event.target) {
-                    const gridItemDiv = event.target.parentElement.parentElement.parentElement;
-                    // Save the original style to restore later
-                    gridItemDiv.setAttribute('data-maximized-style', gridItemDiv.getAttribute('style') || '');
-                    gridItemDiv.removeAttribute('style');
-                }
-            }, 10);
-
             const newLayout = gridLayout.map(item => {
                 if (item.i === cardId) {
-                    return { ...item, x: 0, y: 0, w: 12, h: 8 }; // A large size
+                    // Use a very large height value to ensure vertical maximization
+                    // React Grid Layout uses row height, so multiply by a large number
+                    return { ...item, x: 0, y: 0, w: 12, h: 50 }; // Much larger height
                 }
                 return item;
             });
             setGridLayout(newLayout);
+
+            // Strip style attributes from React Grid Layout wrappers as the LAST action
+            setTimeout(() => {
+                if (event && event.target) {
+                    // Find the maximized card
+                    let cardElement = event.target;
+                    while (cardElement && !cardElement.classList.contains('card')) {
+                        cardElement = cardElement.parentElement;
+                    }
+
+                    if (cardElement && cardElement.classList.contains('maximized')) {
+                        let element = cardElement.parentElement; // Start from card's parent
+                        let parentIndex = 0;
+
+                        // Walk up the parent chain, save styles, then strip them
+                        // Stop at react-grid-layout or body
+                        while (element && element !== document.body && parentIndex < 20) {
+                            // Don't strip from the main grid container
+                            if (element.classList.contains('react-grid-layout')) {
+                                break;
+                            }
+
+                            // Save the original style attribute
+                            const currentStyle = element.getAttribute('style') || '';
+                            element.setAttribute('data-maximized-style-' + parentIndex, currentStyle);
+
+                            // Strip the style attribute to remove React Grid Layout positioning
+                            element.removeAttribute('style');
+
+                            element = element.parentElement;
+                            parentIndex++;
+                        }
+                    }
+                }
+            }, 100); // Increased timeout to ensure this runs after React updates
         }
     };
 

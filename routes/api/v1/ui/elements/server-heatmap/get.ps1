@@ -6,6 +6,11 @@ param (
     $sessiondata
 )
 
+# Helper function to create a JSON response
+function New-JsonResponse($status, $message) {
+    return @{ status = $status; Message = $message } | ConvertTo-Json
+}
+
 # Check authentication
 if (-not $sessiondata -or 'authenticated' -notin $sessiondata.Roles) {
     $jsonResponse = New-JsonResponse -status 'fail' -message 'Authentication required'

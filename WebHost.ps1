@@ -196,7 +196,30 @@ begin {
 
     # Start log tail job for real-time event stream
     Write-Host "Starting log tail job for event stream..."
-    $logPath = $Global:PSWebServer.LogFilePath
+
+    # Use improved log selection to find most recent log file
+    $logsDir = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\Logs"
+    $LogBaseNames = (Get-ChildItem $logsDir -ErrorAction SilentlyContinue |
+        Where-Object { $_.basename -match '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}' }) -replace '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}', '*' |
+        Sort-Object -Unique
+
+    if ($LogBaseNames) {
+        $mostRecentLog = Get-ChildItem $LogBaseNames |
+            Where-Object { $_.basename -match '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+
+        if ($mostRecentLog) {
+            $logPath = $mostRecentLog.FullName
+            Write-Host "Selected log file: $($mostRecentLog.Name)"
+        } else {
+            $logPath = $Global:PSWebServer.LogFilePath
+            Write-Warning "No timestamped log files found, using configured path: $logPath"
+        }
+    } else {
+        $logPath = $Global:PSWebServer.LogFilePath
+        Write-Warning "No timestamped log files found, using configured path: $logPath"
+    }
 
     $tailScriptBlock = {
         param($FilePath)
@@ -236,8 +259,10 @@ begin {
         }
     }
 
-    $jobName = "Log_Tail: $logPath"
-    $existingJob = Get-Job -Name $jobName -ErrorAction SilentlyContinue
+    $jobName = "Log_Tail:$logPath"
+
+    # Check for existing job (suppress all errors)
+    $existingJob = Get-Job | Where-Object { $_.Name -eq $jobName }
     if ($existingJob) {
         Stop-Job -Job $existingJob -ErrorAction SilentlyContinue
         Remove-Job -Job $existingJob -Force -ErrorAction SilentlyContinue
@@ -293,16 +318,16 @@ end {
     $lastSessionSync = Get-Date
     
     function ProcessLogQueue {
-        $LogEnd = $PSWebHostLogQueue.count
-        if ($LogEnd -lt $Logpos) {
-            $Logpos = 0
+        $LogEnd = $global:PSWebHostLogQueue.count
+        if ($LogEnd -lt $script:Logpos) {
+            $script:Logpos = 0
         }
-        if ([int]$Logpos -lt $LogEnd) {
-            [array]$logEntries = $LogPos .. ($LogEnd -1)|ForEach-Object{$PSWebHostLogQueue[$_]}
+        if ([int]$script:Logpos -lt $LogEnd) {
+            [array]$logEntries = $script:Logpos .. ($LogEnd -1)|ForEach-Object{$global:PSWebHostLogQueue[$_]}
             if ($logEntries.Count) {
                 $logEntries|Tee-Object -FilePath $global:PSWebServer.LogFilePath -Append|ForEach-Object{Write-Host "`tLogging: $_"}
             }
-            $Logpos = $LogEnd
+            $script:Logpos = $LogEnd
         }
     }
 

@@ -1,0 +1,3 @@
+{
+    "Allowed_Roles": ["authenticated", "site_admin", "system_admin"]
+}

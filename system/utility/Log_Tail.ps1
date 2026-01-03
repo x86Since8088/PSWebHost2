@@ -146,6 +146,61 @@ function Get-LogFiles {
     return $logFiles
 }
 
+# Helper function to get most recent log file(s) using timestamp pattern
+# Matches log files with timestamps like: log_2025-12-31T123456_1234567-0600.tsv
+function Get-MostRecentLogFiles {
+    param(
+        [Parameter(Mandatory=$false)]
+        [string]$LogsDirectory = (Join-Path $ProjectRoot "PsWebHost_Data\Logs"),
+
+        [Parameter(Mandatory=$false)]
+        [switch]$AllBasenames
+    )
+
+    if (-not (Test-Path $LogsDirectory)) {
+        Write-Warning "Logs directory not found: $LogsDirectory"
+        return $null
+    }
+
+    # Find all log files with timestamp pattern: _YYYY-MM-DDTHHMMSS_NNNNNNN-ZZZZ
+    # Pattern matches both underscore and period before microseconds: _1234567 or .1234567
+    $timestampPattern = '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}'
+
+    # Get unique base names (remove timestamp suffix)
+    $logBaseNames = (Get-ChildItem $LogsDirectory -ErrorAction SilentlyContinue |
+        Where-Object { $_.basename -match $timestampPattern }) -replace $timestampPattern, '*' |
+        Sort-Object -Unique
+
+    if (-not $logBaseNames) {
+        Write-Verbose "No timestamped log files found in: $LogsDirectory"
+        return $null
+    }
+
+    if ($AllBasenames) {
+        # Return most recent file for each unique basename
+        $results = @()
+        foreach ($baseName in $logBaseNames) {
+            $mostRecent = Get-ChildItem $baseName |
+                Where-Object { $_.basename -match $timestampPattern } |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1
+
+            if ($mostRecent) {
+                $results += $mostRecent
+            }
+        }
+        return $results
+    } else {
+        # Return only the single most recent log file across all basenames
+        $mostRecent = Get-ChildItem $logBaseNames |
+            Where-Object { $_.basename -match $timestampPattern } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+
+        return $mostRecent
+    }
+}
+
 if ($SelectWithGridView) {
     # Find log files in testing/data folders
     $logFiles = Get-LogFiles

@@ -5,6 +5,11 @@ param (
     $sessiondata
 )
 
+# Helper function to create a JSON response
+function New-JsonResponse($status, $message) {
+    return @{ status = $status; Message = $message } | ConvertTo-Json
+}
+
 # Get user ID from session
 if (-not $sessiondata -or -not $sessiondata.UserID) {
     $jsonResponse = New-JsonResponse -status 'fail' -message 'User not authenticated'

@@ -41,6 +41,11 @@ function Convert-ObjectToYaml {
     return $output
 }
 
+# Helper function to create a JSON response
+function New-JsonResponse($status, $message) {
+    return @{ status = $status; Message = $message } | ConvertTo-Json
+}
+
 # NOTE: This function appears to be incomplete or obsolete. 
 # The main logic for recursively walking properties is commented out.
 # The Inspect-Object function provides similar, more robust functionality.
