@@ -15,7 +15,7 @@ The PSWebHost error modal system provides **role-based error reporting** with **
          ↓
 ┌─────────────────────────────────┐
 │  Backend Endpoint               │
-│  ┌─────────────────────────┐   │
+│  ┌──────────────────────────┐   │
 │  │  try {                   │   │
 │  │    // endpoint logic     │   │
 │  │  } catch {               │   │
@@ -23,7 +23,7 @@ The PSWebHost error modal system provides **role-based error reporting** with **
 │  │      Get-PSWebHostError  │   │
 │  │      Report(...)         │   │
 │  │  }                       │   │
-│  └─────────────────────────┘   │
+│  └──────────────────────────┘   │
 └────────┬────────────────────────┘
          │
          ↓
@@ -40,8 +40,8 @@ The PSWebHost error modal system provides **role-based error reporting** with **
 └────────┬─────────────────────────┘
          │
          ↓
-┌──────────────────────────────────┐
-│  Frontend (psweb_spa.js)         │
+┌─────────────────────────────────┐
+│  Frontend (psweb_spa.js)        │
 │  ┌────────────────────────────┐ │
 │  │  fetch(url)                │ │
 │  │    .then(response =>       │ │
@@ -53,11 +53,11 @@ The PSWebHost error modal system provides **role-based error reporting** with **
 │  │      }                     │ │
 │  │    )                       │ │
 │  └────────────────────────────┘ │
-└────────┬─────────────────────────┘
+└────────┬────────────────────────┘
          │
          ↓
-┌──────────────────────────────────┐
-│  Beautiful Modal Displayed       │
+┌─────────────────────────────────┐
+│  Beautiful Modal Displayed      │
 │  ┌────────────────────────────┐ │
 │  │  Error Report (Admin)      │ │
 │  │  ──────────────────────    │ │
@@ -68,7 +68,7 @@ The PSWebHost error modal system provides **role-based error reporting** with **
 │  │                            │ │
 │  │  [Close]                   │ │
 │  └────────────────────────────┘ │
-└──────────────────────────────────┘
+└─────────────────────────────────┘
 ```
 
 ## Backend Implementation

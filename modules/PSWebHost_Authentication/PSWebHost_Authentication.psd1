@@ -31,6 +31,7 @@
         'Remove-PSWebHostRole',
         'Remove-PSWebHostRoleAssignment',
         'Set-CardSession',
+        'Set-CardSettings',
         'Set-LastLoginAttempt',
         'Set-LoginSession',
         'Test-IsValidEmailAddress',

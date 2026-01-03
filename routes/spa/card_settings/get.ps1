@@ -14,7 +14,16 @@ if (-not $cardId -or -not $userId) {
 $settings = Get-CardSettings -EndpointGuid $cardId -UserId $userId
 
 if ($settings) {
-    context_reponse -Response $Context.Response -String $settings -ContentType "application/json"
+    # Cache saved settings for 30 minutes (1800 seconds)
+    context_reponse -Response $Context.Response -String $settings -ContentType "application/json" -CacheDuration 1800
 } else {
-    context_reponse -Response $Context.Response -StatusCode 404 -String "{}"
+    # Return default settings (12x14 grid units) when no DB match exists
+    # Cache defaults for only 10 seconds since they may be customized soon
+    $defaultSettings = @{
+        data = (@{
+            w = 12
+            h = 14
+        } | ConvertTo-Json -Compress)
+    } | ConvertTo-Json
+    context_reponse -Response $Context.Response -String $defaultSettings -ContentType "application/json" -CacheDuration 10
 }

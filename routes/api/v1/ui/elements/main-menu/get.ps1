@@ -103,4 +103,4 @@ if ('' -eq $body) {
 if ($test.IsPresent) {
     return write-host $body -ForegroundColor Yellow
 }
-context_reponse -Response $Response -String $body -ContentType 'application/json' -StatusCode 200
+context_reponse -Response $Response -String $body -ContentType 'application/json' -StatusCode 200 -CacheDuration 60

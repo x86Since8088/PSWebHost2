@@ -511,7 +511,13 @@ const EventStreamCard = ({ onError }) => {
                         </tbody>
                     </table>
                 ) : (
-                    <p>Loading events...</p>
+                    <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                        {lastUpdate ? (
+                            <p>No events found. {filterText ? 'Try adjusting your filter.' : 'Events will appear here as they are logged.'}</p>
+                        ) : (
+                            <p>Loading events...</p>
+                        )}
+                    </div>
                 )}
             </div>
         </>

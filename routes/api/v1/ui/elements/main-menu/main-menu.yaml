@@ -107,12 +107,6 @@
   - Name: Site Settings
     url: /admin/site-settings
     hover_description: Configure site-wide settings.
-  - url: /api/v1/status
-    Name: System Status
-    tags:
-    - system
-    - monitoring
-    hover_description: View system health and status.
   - url: /spa/services
     Name: Service Control
     tags:

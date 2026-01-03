@@ -10,7 +10,7 @@ const WorldMapCard = ({ onError }) => {
     useEffect(() => {
         let isMounted = true;
 
-        fetch('/elements/world-map/map-definition.json')
+        fetch('/public/elements/world-map/map-definition.json')
             .then(res => {
                 if (!res.ok) {
                     throw new Error(`Failed to load map definition: ${res.status}`);
@@ -152,7 +152,7 @@ const WorldMapCard = ({ onError }) => {
             ref={containerRef}
             style={{
                 width: '100%',
-                height: '400px',
+                height: '100%',
                 position: 'relative',
                 overflow: 'hidden',
                 backgroundColor: '#e0e0e0'
@@ -165,7 +165,7 @@ const WorldMapCard = ({ onError }) => {
                 preserveAspectRatio="xMidYMid meet"
             >
                 <image
-                    href={`/elements/world-map/${mapDef.imageFile}`}
+                    href={`/public/elements/world-map/${mapDef.imageFile}`}
                     width={mapDef.imageWidth}
                     height={mapDef.imageHeight}
                     onLoad={() => setImageLoaded(true)}

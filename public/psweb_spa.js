@@ -1,7 +1,118 @@
 const { useState, useEffect, useCallback, lazy, Suspense, useRef } = React;
 
-// --- Global Helper for Fetching ---
-async function psweb_fetchWithAuthHandling(url, options) {
+// --- Client-Side Cache Manager ---
+const CacheManager = {
+    prefix: 'psweb_cache_',
+
+    set(key, data, maxAge = 1800) {
+        try {
+            const item = {
+                data: data,
+                timestamp: Date.now(),
+                maxAge: maxAge * 1000, // Convert to milliseconds
+                etag: data.etag || null
+            };
+            localStorage.setItem(this.prefix + key, JSON.stringify(item));
+        } catch (e) {
+            console.warn('Failed to cache data:', e);
+        }
+    },
+
+    get(key) {
+        try {
+            const item = localStorage.getItem(this.prefix + key);
+            if (!item) return null;
+
+            const cached = JSON.parse(item);
+            const age = Date.now() - cached.timestamp;
+
+            // Return cached data with freshness info
+            return {
+                data: cached.data,
+                age: age,
+                maxAge: cached.maxAge,
+                isFresh: age < cached.maxAge,
+                isStale: age >= cached.maxAge,
+                etag: cached.etag
+            };
+        } catch (e) {
+            console.warn('Failed to read cache:', e);
+            return null;
+        }
+    },
+
+    invalidate(key) {
+        try {
+            localStorage.removeItem(this.prefix + key);
+            // Also store invalidation timestamp to force cache bypass
+            localStorage.setItem(this.prefix + 'invalidated_' + key, Date.now().toString());
+            console.log(`Cache invalidated for: ${key}`);
+        } catch (e) {
+            console.warn('Failed to invalidate cache:', e);
+        }
+    },
+
+    wasRecentlyInvalidated(key, withinMs = 5000) {
+        try {
+            const invalidatedAt = localStorage.getItem(this.prefix + 'invalidated_' + key);
+            if (!invalidatedAt) return false;
+            const age = Date.now() - parseInt(invalidatedAt, 10);
+            return age < withinMs;
+        } catch (e) {
+            return false;
+        }
+    },
+
+    invalidatePattern(pattern) {
+        try {
+            const regex = new RegExp(pattern);
+            const keys = Object.keys(localStorage).filter(k => k.startsWith(this.prefix) && regex.test(k));
+            keys.forEach(k => localStorage.removeItem(k));
+            console.log(`Invalidated ${keys.length} cache entries matching: ${pattern}`);
+        } catch (e) {
+            console.warn('Failed to invalidate cache pattern:', e);
+        }
+    },
+
+    clear() {
+        try {
+            const keys = Object.keys(localStorage).filter(k => k.startsWith(this.prefix));
+            keys.forEach(k => localStorage.removeItem(k));
+            console.log(`Cleared ${keys.length} cache entries`);
+        } catch (e) {
+            console.warn('Failed to clear cache:', e);
+        }
+    }
+};
+
+// Make cache manager globally available
+window.CacheManager = CacheManager;
+
+// Expose helpful cache management functions
+window.clearAllCache = () => {
+    CacheManager.clear();
+    console.log('All cache cleared. Reload the page to fetch fresh data.');
+};
+
+window.viewCacheStats = () => {
+    const keys = Object.keys(localStorage).filter(k => k.startsWith(CacheManager.prefix));
+    console.log(`Cache Statistics:`);
+    console.log(`Total cached items: ${keys.length}`);
+
+    keys.forEach(key => {
+        const cached = CacheManager.get(key.replace(CacheManager.prefix, ''));
+        if (cached) {
+            const ageMinutes = Math.floor(cached.age / 60000);
+            const maxAgeMinutes = Math.floor(cached.maxAge / 60000);
+            console.log(`  - ${key.replace(CacheManager.prefix, '')}: ${cached.isFresh ? 'FRESH' : 'STALE'} (age: ${ageMinutes}m / max: ${maxAgeMinutes}m)`);
+        }
+    });
+
+    return { totalItems: keys.length };
+};
+
+// --- Global Helper for Fetching with Cache Support ---
+window.psweb_fetchWithAuthHandling = async function(url, options) {
     const response = await fetch(url, options);
 
     // Check for error responses that should show a modal
@@ -26,7 +137,7 @@ async function psweb_fetchWithAuthHandling(url, options) {
         // The caller is responsible for handling 401.
     }
     return response;
-}
+};
 
 // --- Global Helper for Client-Side Logging ---
 window.logToServer = async function(level, category, message, data) {
@@ -474,7 +585,7 @@ const UserCard = ({ element }) => {
 
     useEffect(() => {
         let isMounted = true;
-        psweb_fetchWithAuthHandling('/api/v1/auth/sessionid')
+        window.psweb_fetchWithAuthHandling('/api/v1/auth/sessionid')
             .then(response => response.text())
             .then(text => {
                 if (isMounted) {
@@ -776,7 +887,7 @@ const App = () => {
 
         // Find a free spot
         for (let i = 0; i < 100 - h; i++) {
-            for (let j = 0; j < cols - w; j++) {
+            for (let j = 0; j <= cols - w; j++) { // Changed < to <= to handle full-width cards
                 let isFree = true;
                 for (let k = i; k < i + h; k++) {
                     for (let l = j; l < j + w; l++) {
@@ -793,17 +904,19 @@ const App = () => {
             }
         }
 
-        return { x: 0, y: Infinity }; // Fallback
+        // If no free spot found, place at bottom
+        const maxY = layout.reduce((max, item) => Math.max(max, item.y + item.h), 0);
+        return { x: 0, y: maxY };
     }
 
     const loadLayout = () => {
         fetch('/public/layout.json')
             .then(response => response.json())
-            .then(initialData => {
+            .then(async initialData => {
                 const allCardIds = Object.values(initialData.layout).flatMap(pane => Object.values(pane)).flat();
                 const uniqueCardIds = [...new Set(allCardIds)];
-                const defaultLayout = initialData.gridLayout.find(item => item.i === 'default') || { w: 12, h: 10 };
-                
+                const defaultLayout = initialData.gridLayout.find(item => item.i === 'default') || { w: 12, h: 14 };
+
                 const componentPromises = uniqueCardIds
                     .filter(id => id && id !== 'user-card' && id !== 'title')
                     .map(id => {
@@ -816,25 +929,38 @@ const App = () => {
                                 }
                             });
                     });
-                
+
                 const profilePromise = fetch('/public/elements/profile/component.js').then(res => res.text()).then(text => {
                     if(text) (new Function(Babel.transform(text, { presets: ['react'] }).code))();
                 });
 
                 Promise.all([...componentPromises, profilePromise])
-                    .then(() => {
+                    .then(async () => {
                         setData({ ...initialData, componentsReady: true });
-                        const mainPaneLayout = initialData.layout.mainPane.content.map((id, index) => {
+
+                        // Fetch card settings for each card in mainPane
+                        const mainPaneLayoutPromises = initialData.layout.mainPane.content.map(async (id, index) => {
                             const specificLayout = initialData.gridLayout.find(item => item.i === id);
+
+                            // Get element to determine endpoint_guid
+                            const element = initialData.elements[id];
+                            const endpointGuid = element?.url || id;
+
+                            // Fetch card settings from database
+                            const cardSettings = await fetchCardSettings(endpointGuid);
+
+                            // Priority: cardSettings (DB) > specificLayout (layout.json) > defaultLayout
+                            // This ensures user preferences and DB defaults take precedence over static config
                             return {
                                 i: id,
-                                x: (index % 4) * 3,
-                                y: Math.floor(index / 4) * 2,
-                                w: specificLayout ? specificLayout.w : defaultLayout.w,
-                                h: specificLayout ? specificLayout.h : defaultLayout.h,
-                                ...specificLayout
-                            }
+                                x: specificLayout?.x ?? (index % 4) * 3,
+                                y: specificLayout?.y ?? Math.floor(index / 4) * 2,
+                                w: cardSettings?.w ?? specificLayout?.w ?? defaultLayout.w,
+                                h: cardSettings?.h ?? specificLayout?.h ?? defaultLayout.h
+                            };
                         });
+
+                        const mainPaneLayout = await Promise.all(mainPaneLayoutPromises);
                         setGridLayout(mainPaneLayout);
                     })
                     .catch(setError);
@@ -853,6 +979,93 @@ const App = () => {
 
     window.openComponentInModal = (componentName, props = {}) => {
         setModal({ isOpen: true, src: '', component: window.cardComponents[componentName], props: props });
+    };
+
+    // Helper function to fetch card settings from database with caching
+    const fetchCardSettings = async (endpointGuid, skipCache = false) => {
+        const cacheKey = `card_settings_${endpointGuid}`;
+
+        // Check if cache was recently invalidated (within 30 minutes to match max cache duration)
+        const forceBypassCache = CacheManager.wasRecentlyInvalidated(cacheKey, 1800000); // 30 minutes in ms
+        if (forceBypassCache) {
+            console.log(`Cache was recently invalidated for ${endpointGuid}, bypassing browser cache`);
+            skipCache = true;
+        }
+
+        // Check cache first (unless explicitly skipped)
+        if (!skipCache) {
+            const cached = CacheManager.get(cacheKey);
+            if (cached) {
+                if (cached.isFresh) {
+                    // Fresh cache hit - return immediately
+                    console.log(`Cache hit (fresh) for ${endpointGuid}`);
+                    return cached.data;
+                } else if (cached.isStale) {
+                    // Stale cache - return stale data but revalidate in background
+                    console.log(`Cache hit (stale) for ${endpointGuid}, revalidating...`);
+                    // Start background revalidation (don't await)
+                    fetchCardSettings(endpointGuid, true).then(fresh => {
+                        // Background update completed
+                        console.log(`Background revalidation complete for ${endpointGuid}`);
+                    }).catch(() => {
+                        // Background update failed - keep using stale
+                        console.log(`Background revalidation failed for ${endpointGuid}, using stale data`);
+                    });
+                    return cached.data;
+                }
+            }
+        }
+
+        // Cache miss or forced fetch - get from server
+        try {
+            // Add cache-busting parameter if we're bypassing cache
+            const url = forceBypassCache
+                ? `/spa/card_settings?id=${encodeURIComponent(endpointGuid)}&_=${Date.now()}`
+                : `/spa/card_settings?id=${encodeURIComponent(endpointGuid)}`;
+
+            const fetchOptions = forceBypassCache
+                ? { headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' } }
+                : {};
+
+            const response = await window.psweb_fetchWithAuthHandling(url, fetchOptions);
+
+            if (response.ok) {
+                const settings = await response.json();
+                if (settings && settings.data) {
+                    const parsedData = JSON.parse(settings.data);
+
+                    // Parse Cache-Control header to determine max-age
+                    const cacheControl = response.headers.get('Cache-Control');
+                    let maxAge = 1800; // Default 30 minutes
+                    if (cacheControl) {
+                        const maxAgeMatch = cacheControl.match(/max-age=(\d+)/);
+                        if (maxAgeMatch) {
+                            maxAge = parseInt(maxAgeMatch[1], 10);
+                        }
+                    }
+
+                    // Store in cache
+                    CacheManager.set(cacheKey, parsedData, maxAge);
+                    console.log(`Cached card settings for ${endpointGuid} (max-age: ${maxAge}s)`);
+
+                    return parsedData;
+                }
+            } else {
+                console.warn(`Failed to fetch card settings for ${endpointGuid} (status ${response.status}), using defaults`);
+            }
+        } catch (err) {
+            console.warn(`Error fetching card settings for ${endpointGuid}:`, err);
+
+            // On error, try to use stale cache if available
+            const cached = CacheManager.get(cacheKey);
+            if (cached) {
+                console.log(`Using stale cache due to error for ${endpointGuid}`);
+                return cached.data;
+            }
+        }
+
+        // Fallback to default settings if all else fails
+        return { w: 12, h: 14 };
     };
 
     // Helper function to load component script dynamically
@@ -947,9 +1160,7 @@ const App = () => {
             id: cardId
         };
 
-        const defaultLayout = data.gridLayout.find(item => item.i === 'default') || { w: 12, h: 10 };
-        const position = findNextFreePosition(gridLayout, defaultLayout);
-
+        // Add the card to data first
         setData(prevData => {
             const newElements = { ...prevData.elements, [cardId]: newElement };
             const newLayout = JSON.parse(JSON.stringify(prevData.layout));
@@ -957,9 +1168,37 @@ const App = () => {
             return { ...prevData, elements: newElements, layout: newLayout };
         });
 
-        setGridLayout(prevGridLayout => {
-            return [...prevGridLayout, { ...defaultLayout, i: cardId, ...position }];
-        });
+        // Fetch card settings from database (endpoint_guid is the elementId or url)
+        const endpointGuid = elementUrl || elementId;
+        const cardSettings = await fetchCardSettings(endpointGuid);
+
+        console.log('[openCard] Fetched card settings:', { endpointGuid, cardSettings });
+
+        // Add card with temporary small size first to allow it to render
+        const tempPosition = findNextFreePosition(gridLayout, { w: 2, h: 2 });
+        const tempLayoutItem = { w: 2, h: 2, i: cardId, ...tempPosition };
+
+        console.log('[openCard] Adding temporary layout item:', tempLayoutItem);
+
+        setGridLayout(prevGridLayout => [...prevGridLayout, tempLayoutItem]);
+
+        // Wait for the card to render, then apply the actual saved settings
+        setTimeout(() => {
+            console.log('[openCard] Applying saved card settings:', cardSettings);
+            const position = findNextFreePosition(gridLayout, cardSettings);
+
+            console.log('[openCard] Final position found:', position);
+
+            setGridLayout(prevGridLayout => {
+                const updatedLayout = prevGridLayout.map(item =>
+                    item.i === cardId
+                        ? { ...cardSettings, i: cardId, x: position.x, y: position.y }
+                        : item
+                );
+                console.log('[openCard] Updated gridLayout with saved settings:', updatedLayout);
+                return updatedLayout;
+            });
+        }, 100);
     };
     
     const openSettingsModal = (cardId) => {
@@ -970,10 +1209,53 @@ const App = () => {
         setSettingsModal({ isOpen: false, cardId: null });
     };
 
-    const handleSaveCardSettings = (newCardLayout) => {
+    const handleSaveCardSettings = async (newCardLayout) => {
         const newGridLayout = gridLayout.map(item => item.i === newCardLayout.i ? newCardLayout : item);
         setGridLayout(newGridLayout);
-        // TODO: Save to backend
+
+        // Save to backend
+        try {
+            // Extract the element from the card ID
+            const element = data.elements[newCardLayout.i];
+            if (element) {
+                const endpointGuid = element.url || element.Element_Id;
+
+                // Prepare layout data (w, h, x, y)
+                const layoutData = {
+                    w: newCardLayout.w,
+                    h: newCardLayout.h,
+                    x: newCardLayout.x,
+                    y: newCardLayout.y
+                };
+
+                const response = await window.psweb_fetchWithAuthHandling('/spa/card_settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: endpointGuid,
+                        layout: layoutData
+                    })
+                });
+
+                if (response.ok) {
+                    // Invalidate cache for this card so fresh data is fetched next time
+                    CacheManager.invalidate(`card_settings_${endpointGuid}`);
+                    console.log('Card settings saved and cache invalidated');
+                } else {
+                    console.error('Failed to save card settings');
+                    window.logToServer('Error', 'CardSettings', 'Failed to save card settings', {
+                        cardId: newCardLayout.i,
+                        status: response.status
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('Error saving card settings:', err);
+            window.logToServer('Error', 'CardSettings', 'Error saving card settings', {
+                cardId: newCardLayout.i,
+                error: err.toString()
+            });
+        }
     };
 
     const handleMaximizeCard = (cardId, event) => {
@@ -1068,7 +1350,87 @@ const App = () => {
     };
 
     const handleLayoutChange = (layout) => {
+        console.log('[handleLayoutChange] Called with', layout.length, 'items');
+        // Log the last few items to see what's happening
+        if (layout.length > 0) {
+            const lastItem = layout[layout.length - 1];
+            console.log('[handleLayoutChange] Last item in layout:', lastItem);
+        }
         setGridLayout(layout);
+    };
+
+    const handleResize = (layout, oldItem, newItem, placeholder, e, element) => {
+        console.log('handleResize (during resize):', {
+            cardId: newItem.i,
+            oldSize: { w: oldItem.w, h: oldItem.h },
+            newSize: { w: newItem.w, h: newItem.h },
+            position: { x: newItem.x, y: newItem.y }
+        });
+    };
+
+    const handleResizeStart = (layout, oldItem, newItem, placeholder, e, element) => {
+        console.log('handleResizeStart:', {
+            cardId: oldItem.i,
+            startSize: { w: oldItem.w, h: oldItem.h },
+            startPosition: { x: oldItem.x, y: oldItem.y }
+        });
+    };
+
+    const handleDragOrResizeStop = async (layout, oldItem, newItem, placeholder, e, element) => {
+        // Save the updated layout for the card that was moved/resized
+        if (!newItem) {
+            console.warn('handleDragOrResizeStop: newItem is undefined');
+            return;
+        }
+
+        if (!data.elements[newItem.i]) {
+            console.warn(`handleDragOrResizeStop: No element found for card ID: ${newItem.i}`);
+            return;
+        }
+
+        const cardElement = data.elements[newItem.i];
+        const endpointGuid = cardElement.url || cardElement.Element_Id;
+
+        if (!endpointGuid) {
+            console.error('handleDragOrResizeStop: Could not determine endpoint_guid', { cardElement });
+            return;
+        }
+
+        const layoutData = {
+            w: newItem.w,
+            h: newItem.h,
+            x: newItem.x,
+            y: newItem.y
+        };
+
+        console.log(`Saving card settings for ${endpointGuid}:`, layoutData);
+
+        try {
+            const response = await window.psweb_fetchWithAuthHandling('/spa/card_settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: endpointGuid,
+                    layout: layoutData
+                })
+            });
+
+            if (response.ok) {
+                // Invalidate cache for this card
+                CacheManager.invalidate(`card_settings_${endpointGuid}`);
+                console.log('✓ Card settings saved after drag/resize, cache invalidated');
+            } else {
+                const errorText = await response.text();
+                console.error('Failed to save card settings after drag/resize:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    error: errorText
+                });
+            }
+        } catch (err) {
+            console.error('Error saving card settings after drag/resize:', err);
+            console.error('Stack trace:', err.stack);
+        }
     };
 
     const handleCardResize = (cardId, contentHeight, contentWidth) => {
@@ -1165,7 +1527,12 @@ const App = () => {
                         cols={12}
                         rowHeight={15}
                         width={gridWidth}
+                        draggableHandle=".card-title-bar"
                         onLayoutChange={handleLayoutChange}
+                        onResizeStart={handleResizeStart}
+                        onResize={handleResize}
+                        onResizeStop={handleDragOrResizeStop}
+                        onDragStop={handleDragOrResizeStop}
                     >
                         {layout.mainPane.content.map(id => (
                             <div key={id}>

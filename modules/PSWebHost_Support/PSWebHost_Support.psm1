@@ -784,7 +784,8 @@ function context_reponse {
         [Parameter()] [System.Collections.IDictionary]$Headers,
         [Parameter()] [System.Net.CookieCollection]$Cookies,
         [Parameter()] [string]$RedirectLocation,
-        [Parameter()] [System.Text.Encoding]$ContentEncoding = [System.Text.Encoding]::UTF8
+        [Parameter()] [System.Text.Encoding]$ContentEncoding = [System.Text.Encoding]::UTF8,
+        [Parameter()] [int]$CacheDuration = 0
     )
 
     try {
@@ -801,6 +802,22 @@ function context_reponse {
         if ($PSBoundParameters.ContainsKey('RedirectLocation')) {
             Write-Verbose "Redirecting to: $($RedirectLocation) with status code $($StatusCode)"
             $Response.Redirect($RedirectLocation)
+        }
+
+        # Add cache control headers if CacheDuration is specified
+        if ($CacheDuration -gt 0) {
+            $cacheControl = "public, max-age=$CacheDuration, stale-while-revalidate=$([math]::Min($CacheDuration * 2, 1800)), stale-if-error=$([math]::Min($CacheDuration * 3, 3600))"
+            $Response.AddHeader("Cache-Control", $cacheControl)
+            $expiresDate = (Get-Date).AddSeconds($CacheDuration).ToUniversalTime().ToString("r")
+            $Response.AddHeader("Expires", $expiresDate)
+            # Add ETag for cache validation
+            $etag = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$StatusCode-$((Get-Date).Ticks)"))
+            $Response.AddHeader("ETag", "`"$etag`"")
+        } elseif ($CacheDuration -eq 0) {
+            # Explicitly disable caching
+            $Response.AddHeader("Cache-Control", "no-store, no-cache, must-revalidate")
+            $Response.AddHeader("Pragma", "no-cache")
+            $Response.AddHeader("Expires", "0")
         }
 
         $finalContentType = $ContentType
