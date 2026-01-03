@@ -6,7 +6,7 @@ const SystemStatusCard = ({ onError }) => {
     useEffect(() => {
         let isMounted = true;
 
-        psweb_fetchWithAuthHandling('/api/v1/ui/elements/system-status')
+        window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/system-status')
             .then(res => {
                 if (!res.ok) {
                     if (isMounted) {

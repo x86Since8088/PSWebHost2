@@ -137,7 +137,7 @@ const EventStreamCard = ({ onError }) => {
 
         fetchDataRef.current = () => {
             // Fetch job status
-            psweb_fetchWithAuthHandling('/api/v1/ui/elements/job-status')
+            window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/job-status')
                 .then(res => res.json())
                 .then(data => {
                     if (isMounted) {
@@ -157,7 +157,7 @@ const EventStreamCard = ({ onError }) => {
 
             const url = `/api/v1/ui/elements/event-stream?${params.toString()}`;
 
-            psweb_fetchWithAuthHandling(url)
+            window.psweb_fetchWithAuthHandling(url)
                 .then(res => {
                     if (!res.ok) {
                         if (isMounted) {

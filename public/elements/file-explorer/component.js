@@ -46,7 +46,7 @@ const FileExplorerCard = ({ onError }) => {
         console.log('[FileExplorer] loadFileTree: Starting fetch...');
         let isMounted = true;
 
-        psweb_fetchWithAuthHandling('/api/v1/ui/elements/file-explorer')
+        window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/file-explorer')
             .then(res => {
                 console.log('[FileExplorer] loadFileTree: Fetch response received', { ok: res.ok, status: res.status });
                 if (!res.ok) {
@@ -83,7 +83,7 @@ const FileExplorerCard = ({ onError }) => {
 
     const performAction = (action, data) => {
         console.log('[FileExplorer] performAction: Starting', { action, data });
-        return psweb_fetchWithAuthHandling('/api/v1/ui/elements/file-explorer', {
+        return window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/file-explorer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action, ...data })

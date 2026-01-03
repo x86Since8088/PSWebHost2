@@ -8,7 +8,7 @@ const ServerHeatmapCard = ({ onError }) => {
         let isMounted = true;
 
         const fetchData = () => {
-            psweb_fetchWithAuthHandling('/api/v1/ui/elements/server-heatmap')
+            window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/server-heatmap')
                 .then(res => {
                     if (!res.ok) {
                         if (isMounted) {

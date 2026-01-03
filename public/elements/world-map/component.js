@@ -39,7 +39,7 @@ const WorldMapCard = ({ onError }) => {
         let isMounted = true;
 
         const fetchData = () => {
-            psweb_fetchWithAuthHandling('/api/v1/ui/elements/world-map')
+            window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/world-map')
                 .then(res => {
                     if (!res.ok) {
                         if (isMounted) {
