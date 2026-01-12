@@ -68,8 +68,16 @@ begin {
 
     Write-Verbose 'Starting init.ps1...'
     $Start = Get-Date
-    . (Join-Path $PSScriptRoot 'system/init.ps1')
+    $WebHostRoot = $PSScriptRoot  # Save before dot-sourcing changes context
+    . (Join-Path $WebHostRoot 'system/init.ps1')
     Write-Host "Init.ps1 completed after $(((Get-date) - $start).TotalMilliseconds) milliseconds"
+
+    # Load async runspace pool module if -Async is specified
+    if ($Async) {
+        Write-Verbose 'Loading AsyncRunspacePool module...'
+        . (Join-Path $WebHostRoot 'system/AsyncRunspacePool.ps1')
+        Write-Host "AsyncRunspacePool module loaded."
+    }
     $InitialFileDate = (get-item $MyInvocation.MyCommand.Path).LastWriteTime # This is the initial script's last write time
 
     # Replace API key placeholder in spa-shell.html
@@ -184,6 +192,16 @@ begin {
 
     $script:ListenerInstance = $listener # Store for cleanup
 
+    # Initialize async runspace pool if -Async mode
+    # This must happen AFTER listener starts since workers need the ListenerInstance
+    if ($Async) {
+        Write-Host "Initializing async runspace pool with 15 worker runspaces..."
+        # Force re-initialization to clean up any old runspaces from previous runs
+        # This prevents runspace jamming on server restart
+        Initialize-AsyncRunspacePool -PoolSize 15 -ListenerInstance $script:ListenerInstance -Force
+        Write-Host "Async workers are now handling requests directly from the listener."
+    }
+
     # Start performance monitoring job
     Write-Host "Starting performance monitoring job..."
     $perfJobScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1"
@@ -270,6 +288,8 @@ begin {
 
     $job = Start-Job -Name $jobName -ScriptBlock $tailScriptBlock -ArgumentList $logPath
     Write-Host "Log tail job started: $jobName (Job ID: $($job.Id))"
+
+    # Note: Async runspace pool is initialized later after listener starts
 }
 
 end {
@@ -364,73 +384,19 @@ end {
         }
 
         if ($Async) {
-            # Check for and clean up completed runspace jobs every 5 seconds.
-            if (((get-date).Second % 5) -eq 0) {
-                if ($global:PSWebSessions) {
-                    $sessions = $global:PSWebSessions.Clone()
-                    foreach ($sessionEntry in $sessions.GetEnumerator()) {
-                        $sessionData = $sessionEntry.Value
-                        if ($sessionData.Runspaces) {
-                            $runspaceTable = $sessionData.Runspaces
-                            $runspaceKeys = @($runspaceTable.Keys)
-                            
-                            foreach ($key in $runspaceKeys) {
-                                if ($key -like "*_handle") {
-                                    $handle = $runspaceTable[$key]
-                                    if ($handle.IsCompleted) {
-                                        $psInstanceKey = $key.Replace('_handle', '_ps')
-                                        if ($runspaceTable.ContainsKey($psInstanceKey)) {
-                                            $psInstance = $runspaceTable[$psInstanceKey]
-                                            try {
-                                                $psInstance.EndInvoke($handle)
-                                            } catch {
-                                                Write-Warning "Error in background runspace for session $($sessionEntry.Key): $($_.Exception.Message)"
-                                            } finally {
-                                                $psInstance.Dispose()
-                                                $runspaceTable.Remove($key)
-                                                $runspaceTable.Remove($psInstanceKey)
-                                                Write-Verbose "Cleaned up completed runspace job for session $($sessionEntry.Key)."
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            # In async mode, worker runspaces directly acquire and process contexts
+            # Main thread just monitors health and collects output
+
+            # Collect output streams from workers and relay to console
+            Update-AsyncWorkerStatus
+
+            # Repair any broken runspaces in the pool (check every 5 seconds)
+            if (((Get-Date).Second % 5) -eq 0 -and $global:AsyncRunspacePool.LastCleanup -lt (Get-Date).AddSeconds(-5)) {
+                Repair-AsyncRunspacePool
+                $global:AsyncRunspacePool.LastCleanup = Get-Date
             }
 
-            # Use the modern Task-based Asynchronous Pattern (TAP)
-            
-            # If there is no active task to get a context, start one.
-            if ($null -eq $contextTask) {
-                $contextTask = $script:ListenerInstance.GetContextAsync()
-                $msg = "Asynchronous listener waiting for a new request."
-                Write-Verbose $msg
-            }
-
-            # Check if the task has completed.
-            if ($contextTask.IsCompleted) {
-                if ($contextTask.IsFaulted) {
-                    # The async operation failed. Log the error and reset the task.
-                    $msg = "An error occurred while waiting for a request: $($contextTask.Exception.InnerException.Message)"
-                    Write-Warning $msg
-                    $contextTask = $null
-                } else {
-                    # The operation completed successfully. Get the context.
-                    $context = $contextTask.Result
-                    $msg = "Asynchronous context received. Processing request."
-                    Write-Verbose $msg
-                    $contextTask = $null
-                    # Process the request asynchronously in a separate runspace.
-                    Process-HttpRequest -Context $context -Async -HostUIQueue $global:PSHostUIQueue -InlineExecute
-                    
-                    # Reset the task to be ready for the next request.
-                    $contextTask = $null
-                }
-            }
-            
-            # Pause briefly to prevent a tight loop.
+            # Brief pause - workers handle requests independently
             Start-Sleep -Milliseconds 100
         } 
         else {
@@ -466,6 +432,13 @@ end {
     Write-Verbose "Exiting listener loop."
 
     # --- Cleanup ---
+
+    # Stop async runspace pool if it was initialized
+    if ($Async -and $global:AsyncRunspacePool -and $global:AsyncRunspacePool.Initialized) {
+        Write-Host "Stopping async runspace pool..."
+        Stop-AsyncRunspacePool -TimeoutSeconds 10
+    }
+
     if ($script:ListenerInstance -and $script:ListenerInstance.IsListening) {
         $script:ListenerInstance.Stop()
         $script:ListenerInstance.Close()

@@ -1,0 +1,12 @@
+# Menu entries for Redis Manager
+# These will be integrated into the main PSWebHost menu under:
+# Databases > Redis
+
+- Name: Redis Manager
+  url: /apps/redismanager/api/v1/ui/elements/redis-manager
+  hover_description: Redis cache and data structure management
+  icon: database
+  tags:
+    - databases
+    - redis
+    - cache

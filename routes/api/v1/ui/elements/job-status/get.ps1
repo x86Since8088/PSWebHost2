@@ -51,10 +51,15 @@ try {
         }
     }
 
-    # Convert to JSON
-    $jsonData = $jobList | ConvertTo-Json -Depth 5 -Compress
-    if ($jsonData -in @('null', '')) {
+    # Convert to JSON - handle empty array case properly
+    if ($jobList.Count -eq 0) {
         $jsonData = '[]'
+    } else {
+        $jsonData = $jobList | ConvertTo-Json -Depth 5 -Compress
+        # Single item returns object, not array - wrap it
+        if ($jobList.Count -eq 1) {
+            $jsonData = "[$jsonData]"
+        }
     }
 
     context_reponse -Response $Response -StatusCode 200 -String $jsonData -ContentType "application/json"

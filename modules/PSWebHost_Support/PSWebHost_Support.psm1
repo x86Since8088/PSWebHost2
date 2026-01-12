@@ -155,7 +155,21 @@ function Set-PSWebSession {
     $MyTag = '[Set-PSWebSession]'
     $sessionData = Get-PSWebSessions -SessionID $SessionID
 
-    if ($UserID) { $sessionData.UserID = $UserID }
+    if ($UserID) {
+        $sessionData.UserID = $UserID
+        # Look up user's configured roles from database
+        $userRoles = Get-PSWebHostRole -UserID $UserID
+        if ($userRoles) {
+            Write-Verbose "$MyTag Found roles for UserID $UserID`: $($userRoles -join ', ')"
+            if (-not $Roles) {
+                # No explicit roles passed, use database roles
+                $Roles = $userRoles
+            } else {
+                # Merge passed roles with database roles
+                $Roles = @($Roles) + @($userRoles) | Select-Object -Unique
+            }
+        }
+    }
     # Normalize Roles to an ArrayList when provided
     if ($Roles) {
         if ($Roles -is [System.Collections.ArrayList]) {
@@ -209,6 +223,12 @@ function Get-PSWebSessions {
     # Validate SessionID
     if ([string]::IsNullOrWhiteSpace($SessionID)) {
         Write-Warning "$MyTag SessionID is null or empty, returning empty session"
+        return [hashtable]::Synchronized(@{})
+    }
+
+    # Ensure PSWebSessions exists (may not be initialized in runspace)
+    if ($null -eq $global:PSWebSessions) {
+        Write-Warning "$MyTag PSWebSessions global not initialized - runspace issue?"
         return [hashtable]::Synchronized(@{})
     }
 
@@ -376,19 +396,20 @@ function Process-HttpRequest {
     }
 
     Write-Verbose "$($MyTag) $(Get-Date -f 'yyyMMdd HH:mm:ss') Request received: $($httpMethod) $($requestedPath) from $($request.RemoteEndPoint)"
-    
-    # Log incoming Cookie header for debugging cookie flows
+
+    # --- Session Cookie Handling ---
+    # Always handle session cookies first, then apply API key auth on top if present
     try { Write-Verbose "$($MyTag) Incoming Cookie header: $($request.Headers['Cookie'])" } catch {}
     $sessionCookie = $request.Cookies["PSWebSessionID"]
     if ($sessionCookie -and -not [string]::IsNullOrWhiteSpace($sessionCookie.Value)) {
         $sessionID = $sessionCookie.Value
         Write-Verbose "$($MyTag) Session cookie found: $($sessionID)"
-
     } else {
         $sessionID = [Guid]::NewGuid().ToString()
         Write-Verbose "$($MyTag) No session cookie found or empty, creating new session: $($sessionID)"
 
-        # Create session in database and memory
+        # Create session in memory only for unauthenticated sessions
+        # Database session is created when user authenticates
         $global:PSWebSessions[$sessionID] = [hashtable]::Synchronized(@{
             UserID = ""
             Provider = ""
@@ -397,10 +418,7 @@ function Process-HttpRequest {
             LastUpdated = (Get-Date)
             Roles = [System.Collections.ArrayList]@('unauthenticated')
         })
-
-        # Save to database
-        Set-LoginSession -SessionID $sessionID -UserID "" -Provider "" -AuthenticationTime (Get-Date) -LogonExpires (Get-Date).AddDays(7) -AuthenticationState "unauthenticated" -UserAgent $request.UserAgent | Out-Null
-        Write-Verbose "$($MyTag) New session created in database: $($sessionID)"
+        Write-Verbose "$($MyTag) New unauthenticated session created in memory: $($sessionID)"
 
         # Set cookie
         $newCookie = New-Object System.Net.Cookie("PSWebSessionID", $sessionID)
@@ -418,12 +436,8 @@ function Process-HttpRequest {
         $response.AppendCookie($newCookie)
         try { Write-Verbose "$($MyTag) Response Set-Cookie header after append: $($response.Headers['Set-Cookie'])" } catch {}
         Write-Verbose "$($MyTag) Session cookie appended to response: $($sessionID) (Secure=$($newCookie.Secure), HttpOnly=$($newCookie.HttpOnly))"
-
-        # Redirect to the same page so the browser sends the cookie back
-        Write-Verbose "$($MyTag) Redirecting to same page to ensure cookie is sent: $($request.Url.AbsoluteUri)"
-        context_reponse -Response $response -StatusCode 302 -RedirectLocation $request.Url.AbsoluteUri
-        return
     }
+
     if ($sessionCookie) {
         if (
             $request.IsSecureConnection -ne $sessionCookie.Secure -or
@@ -433,6 +447,61 @@ function Process-HttpRequest {
             $sessionCookie.HttpOnly = $true
             $sessionCookie.Path = "/"
         }
+    }
+
+    # --- API Key Bearer Token Authentication ---
+    # Check Authorization header for Bearer token - enhances/overrides session auth
+    $apiKeyAuthenticated = $false
+    $authHeader = $request.Headers['Authorization']
+    if ($authHeader -and $authHeader.StartsWith('Bearer ', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $bearerToken = $authHeader.Substring(7).Trim()
+        Write-Verbose "$($MyTag) Authorization Bearer token detected, validating API key..."
+
+        # Get remote IP address
+        $remoteIP = $request.RemoteEndPoint.Address.ToString()
+        Write-Verbose "$($MyTag) Remote IP for API key validation: $remoteIP"
+
+        # Validate the bearer token
+        try {
+            $apiKeyResult = Test-Authentication_API_Key_Bearer -BearerToken $bearerToken -RemoteIP $remoteIP
+        } catch {
+            Write-PSWebHostLog -Severity 'Error' -Category 'Authentication' -Message "$($MyTag) Error calling Test-Authentication_API_Key_Bearer: $($_.Exception.Message)"
+            Write-Host "$($MyTag) Error calling Test-Authentication_API_Key_Bearer: $($_.Exception.Message)" -ForegroundColor Red
+            $apiKeyResult = $null
+        }
+
+        if ($apiKeyResult -and $apiKeyResult.Authenticated) {
+            Write-Verbose "$($MyTag) API key authentication successful: $($apiKeyResult.KeyName) from $($apiKeyResult.Source)"
+            $apiKeyAuthenticated = $true
+
+            # Update the existing session with API key authentication
+            # This allows API key auth to work alongside session cookies
+            $global:PSWebSessions[$sessionID] = [hashtable]::Synchronized(@{
+                UserID = $apiKeyResult.UserID
+                Provider = "API_Key"
+                UserAgent = $request.UserAgent
+                AuthTokenExpiration = (Get-Date).AddHours(1)
+                LastUpdated = (Get-Date)
+                Roles = $apiKeyResult.Roles
+                ApiKeyName = $apiKeyResult.KeyName
+                ApiKeySource = $apiKeyResult.Source
+            })
+
+            Write-PSWebHostLog -Severity 'Info' -Category 'Authentication' -Message "$($MyTag) API key authenticated: $($apiKeyResult.KeyName) from $remoteIP with roles: $($apiKeyResult.Roles -join ', ')"
+        } else {
+            Write-Verbose "$($MyTag) API key authentication failed for bearer token"
+            Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "$($MyTag) Invalid API key bearer token from $($request.RemoteEndPoint.Address)"
+            # Invalid API key - return 401 Unauthorized immediately
+            context_reponse -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Invalid API key"
+            return
+        }
+    }
+
+    # For new sessions without API key auth, redirect to establish cookie
+    if (-not $sessionCookie -and -not $apiKeyAuthenticated) {
+        Write-Verbose "$($MyTag) Redirecting to same page to ensure cookie is sent: $($request.Url.AbsoluteUri)"
+        context_reponse -Response $response -StatusCode 302 -RedirectLocation $request.Url.AbsoluteUri
+        return
     }
 
     $session = Get-PSWebSessions -SessionID $sessionID
@@ -459,6 +528,126 @@ function Process-HttpRequest {
         Write-PSWebHostLog -Severity 'Info' -Category 'Routing' -Message "$($MyTag) Redirecting '/' to '/spa'" -WriteHost:$Verbose.ispresent
         context_reponse -Response $response -StatusCode 302 -RedirectLocation "/spa"
         $handled = $true
+    }
+
+    # --- Apps Static File Handling ---
+    # Serve static files from /apps/[appname]/public/*
+    if (-not $handled -and $requestedPath -match '^/apps/(?<appname>[a-zA-Z0-9_-]+)/public/(?<filepath>.+)$') {
+        $appName = $matches.appname
+        $filePath = $matches.filepath
+        Write-Verbose "$($MyTag) Apps public file request: app=$appName, file=$filePath"
+
+        if ($Global:PSWebServer.Apps -and $Global:PSWebServer.Apps.ContainsKey($appName)) {
+            $appInfo = $Global:PSWebServer.Apps[$appName]
+            $appPublicDir = $appInfo.PublicPath
+
+            if (Test-Path $appPublicDir) {
+                $handled = $true
+                $sanitizedPath = Sanitize-FilePath -FilePath $filePath -BaseDirectory $appPublicDir
+                if ($sanitizedPath.Score -eq 'pass') {
+                    Write-Verbose "$($MyTag) Apps static file sanitization passed, serving: $($sanitizedPath.Path)"
+                    context_reponse -Response $response -Path $sanitizedPath.Path
+                    return
+                } else {
+                    Write-Verbose "$($MyTag) Apps static file sanitization failed: $($sanitizedPath.Message)"
+                    Write-PSWebHostLog -Message "`t$MyTag $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
+                    context_reponse -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
+                    return
+                }
+            }
+        } else {
+            Write-Verbose "$($MyTag) App '$appName' not found or not loaded"
+        }
+    }
+
+    # --- Apps Route Resolution ---
+    # Handle /apps/[appname]/* routes (excluding /public/)
+    $appScriptPath = $null
+    $appSecurityConfig = $null
+    if (-not $handled -and $requestedPath -match '^/apps/(?<appname>[a-zA-Z0-9_-]+)/(?<routepath>.*)$') {
+        $appName = $matches.appname
+        $routePath = $matches.routepath
+
+        # Skip if this is a public file request (already handled above)
+        if (-not $routePath.StartsWith("public/")) {
+            Write-Verbose "$($MyTag) Apps route request: app=$appName, route=$routePath"
+
+            if ($Global:PSWebServer.Apps -and $Global:PSWebServer.Apps.ContainsKey($appName)) {
+                $appInfo = $Global:PSWebServer.Apps[$appName]
+                $manifest = $appInfo.Manifest
+
+                # Check if app requires specific roles
+                if ($manifest.requiredRoles -and $manifest.requiredRoles.Count -gt 0) {
+                    $hasRequiredRole = $false
+                    foreach ($reqRole in $manifest.requiredRoles) {
+                        if ($session.Roles -contains $reqRole) {
+                            $hasRequiredRole = $true
+                            break
+                        }
+                    }
+                    if (-not $hasRequiredRole) {
+                        Write-Verbose "$($MyTag) User lacks required roles for app '$appName': $($manifest.requiredRoles -join ', ')"
+                        Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "Unauthorized app access: $appName requires roles: $($manifest.requiredRoles -join ', ')"
+                        context_reponse -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized - App requires: $($manifest.requiredRoles -join ', ')"
+                        return
+                    }
+                }
+
+                $appRoutesDir = $appInfo.RoutesPath
+                if (Test-Path $appRoutesDir) {
+                    # Ensure routePath has leading slash for resolution
+                    if (-not $routePath.StartsWith("/")) {
+                        $routePath = "/$routePath"
+                    }
+                    $appScriptPath = Resolve-RouteScriptPath -UrlPath $routePath -HttpMethod $httpMethod -BaseDirectory $appRoutesDir
+                    if ($appScriptPath) {
+                        Write-Verbose "$($MyTag) Apps route script found: $appScriptPath"
+                        $handled = $true
+                    }
+                }
+            } else {
+                Write-Verbose "$($MyTag) App '$appName' not found or not loaded"
+            }
+        }
+    }
+
+    # --- Execute App Route Script ---
+    # If we found an app script path, execute it
+    if ($appScriptPath) {
+        Write-Verbose "$($MyTag) Executing app route script: $appScriptPath"
+        $securityPath = [System.IO.Path]::ChangeExtension($appScriptPath, ".security.json")
+
+        if (-not (Test-Path $securityPath)) {
+            $defaultRoles = @("authenticated")  # Apps default to authenticated
+            $securityContent = @{ Allowed_Roles = $defaultRoles } | ConvertTo-Json -Compress
+            Set-Content -Path $securityPath -Value $securityContent
+            Write-Verbose "$($MyTag) Auto-created default security file for app route with roles: $($defaultRoles -join ', ')"
+        }
+
+        $isAuthorized = Authorize-Request -Session $session -SecurityPath $securityPath
+        if (-not $isAuthorized) {
+            Write-Verbose "$MyTag App route authorization failed"
+            Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "Unauthorized app route access: $requestedPath"
+            context_reponse -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized"
+            return
+        }
+
+        $scriptParams = @{
+            Context = $Context
+            SessionData = $session
+        }
+        [string[]]$ScriptParamNames = (Get-Command -Name $appScriptPath).Parameters.keys
+        ($scriptParams.Keys | Where-Object { $ScriptParamNames -notcontains $_ }) | ForEach-Object {
+            $scriptParams.Remove($_)
+        }
+
+        try {
+            & $appScriptPath @scriptParams
+        } catch {
+            Write-PSWebHostLog -Severity 'Error' -Category 'Apps' -Message "$MyTag Error executing app route: $($_.Exception.Message)" -WriteHost
+            context_reponse -Response $response -StatusCode 500 -StatusDescription "Internal Server Error" -String "App Error: $($_.Exception.Message)"
+        }
+        return
     }
 
     if (-not $handled) {
@@ -572,8 +761,21 @@ function Process-HttpRequest {
                 }
 
                 if ($Async.ispresent) {
-                    Write-Verbose "$MyTag Executing route script asynchronously"
-                    Invoke-ContextRunspace -Context $Context -ScriptPath $scriptPath -SessionID $sessionID
+                    Write-Verbose "$MyTag Executing route script asynchronously via runspace pool"
+                    # Use the new async runspace pool if available
+                    # The function reference is stored in the synchronized hashtable during initialization
+                    if ($global:AsyncRunspacePool -and $global:AsyncRunspacePool.Initialized) {
+                        $asyncFunc = $global:AsyncRunspacePool.Functions['Invoke-AsyncHttpRequest']
+                        if ($asyncFunc) {
+                            & $asyncFunc -Context $Context -ScriptPath $scriptPath -ScriptParams $scriptParams -SessionID $sessionID
+                        } else {
+                            Write-Warning "$MyTag Invoke-AsyncHttpRequest function not found in pool, falling back to legacy"
+                            Invoke-ContextRunspace -Context $Context -ScriptPath $scriptPath -SessionID $sessionID
+                        }
+                    } else {
+                        # Fallback to legacy runspace handling
+                        Invoke-ContextRunspace -Context $Context -ScriptPath $scriptPath -SessionID $sessionID
+                    }
                 } else {
                     Write-Verbose "$MyTag Executing route script synchronously: $($httpMethod.ToUpper()) $scriptPath"
                     if ($PSBoundParameters.Verbose.ispresent) {
@@ -649,7 +851,7 @@ function Write-PSWebHostLog {
         [switch]$WriteHost,
         [string]$State = 'Unspecified',
         [string]$ForeGroundColor,
-        [string]$BackGroundColor = $host.UI.RawUI.BackgroundColor
+        [string]$BackGroundColor = ($host.UI.RawUI.BackgroundColor, "Black"|Where-Object{$_ -match '\w'}|Select-Object -First 1)
     )
     if ($WriteHost.IsPresent) {
         if ($ForeGroundColor -eq '') {
@@ -660,7 +862,8 @@ function Write-PSWebHostLog {
             } elseif ($Severity -eq 'Info') {
                 $ForeGroundColor = 'Green'
             } else {
-                $ForeGroundColor = $host.UI.RawUI.ForegroundColor
+                # Default to Gray if host color is blank (runspace has no console host)
+                $ForeGroundColor = ($host.UI.RawUI.ForegroundColor, "Gray" | Where-Object { $_ -match '\w' } | Select-Object -First 1)
             }
         }
     }
@@ -685,29 +888,34 @@ function Write-PSWebHostLog {
         }
     }
     $logEntry = "$utcTime`t$localTime`t$Severity`t$Category`t$escapedMessage`t$SessionID`t$UserID`t$dataString"
-    $global:PSWebHostLogQueue.Enqueue($logEntry)
+    if ($null -ne $global:PSWebHostLogQueue) {
+        $global:PSWebHostLogQueue.Enqueue($logEntry)
+    }
 
-    $eventGuid = [Guid]::NewGuid().ToString()
-    if ($null -eq $global:PSWebServer.events) {
-        $global:PSWebServer.events = [hashtable]::Synchronized(@{})
+    # Only update events if PSWebServer is available (may not be in runspaces during init)
+    if ($null -ne $global:PSWebServer) {
+        $eventGuid = [Guid]::NewGuid().ToString()
+        if ($null -eq $global:PSWebServer.events) {
+            $global:PSWebServer.events = [hashtable]::Synchronized(@{})
+        }
+        if ($null -eq $global:PSWebServer.eventGuid) {
+            $global:PSWebServer.eventGuid = [hashtable]::Synchronized(@{})
+        }
+        $global:PSWebServer.events[$eventGuid] = @{
+            guid = $eventGuid
+            Date = $date
+            Message = $Message
+            Severity = $Severity
+            Category = $Category
+            state = 'Completed'
+            UserID = $UserID
+            Provider = $Category
+            SessionID = $SessionID
+            Data = @{ Message = $Message; Severity = $Severity; Details = $Data }
+            CompletionDate = Get-Date
+        }
+        $global:PSWebServer.eventGuid[$date] = $eventGuid
     }
-    if ($null -eq $global:PSWebServer.eventGuid) {
-        $global:PSWebServer.eventGuid = [hashtable]::Synchronized(@{})
-    }
-    $global:PSWebServer.events[$eventGuid] = @{
-        guid = $eventGuid
-        Date = $date
-        Message = $Message
-        Severity = $Severity
-        Category = $Category
-        state = 'Completed'
-        UserID = $UserID
-        Provider = $Category
-        SessionID = $SessionID
-        Data = @{ Message = $Message; Severity = $Severity; Details = $Data }
-        CompletionDate = Get-Date
-    }
-    $global:PSWebServer.eventGuid[$date] = $eventGuid
     if ($WriteHost.IsPresent) {
         $Callstack = @()
         Get-PSCallStack | Select-Object -Skip 1 | ForEach-Object{

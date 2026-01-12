@@ -1,6 +1,14 @@
 param (
-    [switch]$Loadvariables
+    [switch]$Loadvariables,
+    [switch]$Force
 )
+
+# ============================================================================
+# Duplicate Loading Prevention
+# ============================================================================
+if ($PSWebHostDotSourceLoaded -and $global:PSWebHostGlobalLoaded -and -not $Force.IsPresent) {
+    return Write-Host ".\init has already been loaded and -Force is not being used. Skipping."
+}
 
 # ============================================================================
 # PowerShell Version Check - Require PowerShell 7 or later
@@ -61,8 +69,51 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
 if ($null -eq $ProjectRoot) {
     $ProjectRoot = Split-Path (Split-Path -Parent $MyInvocation.MyCommand.Definition)
 }
-$Global:PSWebServer = @{}
-$Global:PSWebServer.Project_Root = @{ Path = $ProjectRoot }
+# Use synchronized hashtable for thread-safe access from async runspaces
+$Global:PSWebServer = [hashtable]::Synchronized(@{})
+$Global:PSWebServer.Project_Root = [hashtable]::Synchronized(@{ Path = $ProjectRoot })
+
+# Add modules folder to PSModulePath
+$modulesFolderPath = Join-Path $Global:PSWebServer.Project_Root.Path "modules"
+if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
+    $Env:PSModulePath = "$modulesFolderPath;$($Env:PSModulePath)"
+    Write-Verbose "Added '$modulesFolderPath' to PSModulePath." -Verbose
+}
+
+$Global:PSWebServer.Modules = [hashtable]::Synchronized(@{})
+
+function Import-TrackedModule {
+    param (
+        [string]$Path
+    )
+    $moduleInfo = Import-Module $Path -Force -DisableNameChecking -PassThru 3>$null
+    $fileInfo = Get-Item -Path $Path
+    $Global:PSWebServer.Modules[$moduleInfo.Name] = @{
+        Path = $Path
+        LastWriteTime = $fileInfo.LastWriteTime
+        Loaded = (Get-Date)
+    }
+    Write-Verbose "Tracked module $($moduleInfo.Name) from $Path" -Verbose
+}
+
+# Source core functions using full paths and track them
+Import-TrackedModule -Path (Join-Path $modulesFolderPath "Sanitization/Sanitization.psm1")
+Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Support/PSWebHost_Support.psd1")
+Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Database/PSWebHost_Database.psd1")
+Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Authentication/PSWebHost_Authentication.psd1")
+Import-TrackedModule -Path (Join-Path $modulesFolderPath "smtp/smtp.psd1")
+
+# Validate installation, dependencies, and database schema
+& (Join-Path $PSScriptRoot 'validateInstall.ps1')
+
+try {
+    Import-Module PSSQLite 
+}
+catch {
+    Write-Error -Message "Error importing PSSQLite module: $($_.Exception.Message)"
+}
+if ($Loadvariables.IsPresent) {return}
+
 
 # Load configuration
 $Configfile = Join-Path $ProjectRoot "config/settings.json"
@@ -110,6 +161,7 @@ if (-not (Test-Path $Configfile)) {
             ".otf" = "font/otf"
             ".woff" = "font/woff"
             ".woff2" = "font/woff2"
+            ".wasm" = "application/wasm"
         }
         authentication = @{
             providers = @{
@@ -158,6 +210,127 @@ if (-not (Test-Path $Configfile)) {
 $Global:PSWebServer.Config = (Get-Content $Configfile | ConvertFrom-Json)
 $Global:PSWebServer.SettingsLastWriteTime = (Get-Item $Configfile).LastWriteTime
 
+# --- Node GUID Generation ---
+# Each PSWebHost instance needs a unique identifier for node-to-node communication
+$configUpdated = $false
+if (-not $Global:PSWebServer.Config.WebServer.guid) {
+    $newGuid = [guid]::NewGuid().ToString()
+    Write-Verbose "Generated new Node GUID: $newGuid" -Verbose
+
+    # Add guid property to WebServer config
+    $Global:PSWebServer.Config.WebServer | Add-Member -MemberType NoteProperty -Name 'guid' -Value $newGuid -Force
+    $configUpdated = $true
+}
+$Global:PSWebServer.NodeGuid = $Global:PSWebServer.Config.WebServer.guid
+Write-Verbose "Node GUID: $($Global:PSWebServer.NodeGuid)" -Verbose
+
+# --- Nodes Configuration ---
+$nodesConfigFile = Join-Path $ProjectRoot "config/nodes.json"
+if (-not (Test-Path $nodesConfigFile)) {
+    $defaultNodesConfig = @{
+        nodes = @{}
+    }
+    $defaultNodesConfig | ConvertTo-Json -Depth 5 | Set-Content $nodesConfigFile -Encoding UTF8
+    Write-Verbose "Created default nodes configuration at: $nodesConfigFile" -Verbose
+}
+$Global:PSWebServer.NodesConfig = (Get-Content $nodesConfigFile | ConvertFrom-Json)
+$Global:PSWebServer.NodesConfigPath = $nodesConfigFile
+
+# --- API Keys Configuration ---
+# Built-in API keys for localhost admin and global_read access
+# API keys are linked to system user accounts - roles come from the user
+function New-ApiKeyString {
+    # Generate a secure random API key (32 bytes = 256 bits, Base64 encoded)
+    $bytes = [byte[]]::new(32)
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    return [Convert]::ToBase64String($bytes)
+}
+
+# Ensure system users exist for API keys
+$dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+$systemUsers = @(
+    @{
+        UserID = 'system:localhost_admin'
+        Email = 'localhost_admin@system.local'
+        Roles = @('admin', 'site_admin', 'system_admin', 'authenticated')
+    },
+    @{
+        UserID = 'system:global_read'
+        Email = 'global_read@system.local'
+        Roles = @('authenticated')
+    }
+)
+
+foreach ($sysUser in $systemUsers) {
+    $existingUser = Get-PSWebSQLiteData -File $dbFile -Query "SELECT UserID FROM Users WHERE UserID = '$($sysUser.UserID)';"
+    if (-not $existingUser) {
+        Write-Host "[Init] Creating system user: $($sysUser.UserID)" -ForegroundColor Cyan
+        # Create system user with a placeholder password hash (not used for login)
+        $placeholderHash = 'SYSTEM_ACCOUNT_NO_PASSWORD_LOGIN'
+        $safeUserID = Sanitize-SqlQueryString -String $sysUser.UserID
+        $safeEmail = Sanitize-SqlQueryString -String $sysUser.Email
+        $insertQuery = "INSERT INTO Users (ID, UserID, Email, PasswordHash) VALUES ('$([guid]::NewGuid().ToString())', '$safeUserID', '$safeEmail', '$placeholderHash');"
+        Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $insertQuery
+
+        # Assign roles to the system user
+        foreach ($role in $sysUser.Roles) {
+            $safeRole = Sanitize-SqlQueryString -String $role
+            $roleQuery = "INSERT OR IGNORE INTO PSWeb_Roles (PrincipalID, PrincipalType, RoleName) VALUES ('$safeUserID', 'User', '$safeRole');"
+            Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $roleQuery
+        }
+        Write-Verbose "[Init] System user created with roles: $($sysUser.Roles -join ', ')" -Verbose
+    }
+}
+
+if (-not $Global:PSWebServer.Config.ApiKeys) {
+    Write-Verbose "Generating built-in API keys..." -Verbose
+
+    # Generate new API keys
+    $localhostAdminKey = New-ApiKeyString
+    $globalReadKey = New-ApiKeyString
+
+    $apiKeysConfig = [PSCustomObject]@{
+        localhost_admin = [PSCustomObject]@{
+            key = $localhostAdminKey
+            user_id = 'system:localhost_admin'
+            allowed_ips = @('127.0.0.1', '::1', 'localhost')
+            description = 'Admin access for localhost connections only'
+        }
+        global_read = [PSCustomObject]@{
+            key = $globalReadKey
+            user_id = 'system:global_read'
+            allowed_ips = @()  # Empty means all IPs allowed
+            description = 'Read-only access from any IP'
+        }
+    }
+
+    $Global:PSWebServer.Config | Add-Member -MemberType NoteProperty -Name 'ApiKeys' -Value $apiKeysConfig -Force
+    $configUpdated = $true
+
+    Write-Host "[Init] Generated new API keys:" -ForegroundColor Cyan
+    Write-Host "  localhost_admin: $localhostAdminKey" -ForegroundColor Yellow
+    Write-Host "  global_read: $globalReadKey" -ForegroundColor Yellow
+    Write-Host "  (These are displayed only once - save them securely!)" -ForegroundColor Red
+}
+
+# Store API keys in memory for quick access
+$Global:PSWebServer.ApiKeys = @{}
+if ($Global:PSWebServer.Config.ApiKeys) {
+    foreach ($keyName in @('localhost_admin', 'global_read')) {
+        $keyConfig = $Global:PSWebServer.Config.ApiKeys.$keyName
+        if ($keyConfig -and $keyConfig.key) {
+            $Global:PSWebServer.ApiKeys[$keyConfig.key] = @{
+                Name = $keyName
+                UserID = $keyConfig.user_id
+                AllowedIPs = $keyConfig.allowed_ips
+                Description = $keyConfig.description
+                Source = 'config'
+            }
+        }
+    }
+    Write-Verbose "Loaded $($Global:PSWebServer.ApiKeys.Count) API keys from config" -Verbose
+}
+
 # Securely handle SMTP password
 if ($Global:PSWebServer.Config.Smtp -and -not [string]::IsNullOrEmpty($Global:PSWebServer.Config.Smtp.Password)) {
     $securePassword = $Global:PSWebServer.Config.Smtp.Password | ConvertTo-SecureString -AsPlainText -Force
@@ -202,10 +375,10 @@ elseif (-not $Global:PSWebServer.Config.Data.UserDataStorage -or $Global:PSWebSe
     $configUpdated = $true
 }
 
-# Save config if updated
+# Save config if updated (GUID, UserDataStorage, etc.)
 if ($configUpdated) {
     $Global:PSWebServer.Config | ConvertTo-Json -Depth 10 | Set-Content $Configfile
-    Write-Verbose "Initialized Data.UserDataStorage in configuration." -Verbose
+    Write-Verbose "Updated configuration file with new settings." -Verbose
 }
 
 # Ensure UserData directories exist
@@ -219,13 +392,6 @@ foreach ($storagePath in $Global:PSWebServer.Config.Data.UserDataStorage) {
         New-Item -Path $fullPath -ItemType Directory -Force | Out-Null
         Write-Verbose "Created user data storage directory: $fullPath" -Verbose
     }
-}
-
-# Add modules folder to PSModulePath
-$modulesFolderPath = Join-Path $Global:PSWebServer.Project_Root.Path "modules"
-if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
-    $Env:PSModulePath = "$modulesFolderPath;$($Env:PSModulePath)"
-    Write-Verbose "Added '$modulesFolderPath' to PSModulePath." -Verbose
 }
 
 # Add ModuleDownload folder to PSModulePath for third-party modules
@@ -432,40 +598,6 @@ $global:PSWebServer.LogHistoryJob = $logHistoryPowerShell.BeginInvoke()
 Write-Verbose "Started log history collection job." -Verbose
 # --- End Log History Setup ---
 
-$Global:PSWebServer.Modules = [hashtable]::Synchronized(@{})
-
-function Import-TrackedModule {
-    param (
-        [string]$Path
-    )
-    $moduleInfo = Import-Module $Path -Force -DisableNameChecking -PassThru 3>$null
-    $fileInfo = Get-Item -Path $Path
-    $Global:PSWebServer.Modules[$moduleInfo.Name] = @{
-        Path = $Path
-        LastWriteTime = $fileInfo.LastWriteTime
-        Loaded = (Get-Date)
-    }
-    Write-Verbose "Tracked module $($moduleInfo.Name) from $Path" -Verbose
-}
-
-# Source core functions using full paths and track them
-Import-TrackedModule -Path (Join-Path $modulesFolderPath "Sanitization/Sanitization.psm1")
-Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Support/PSWebHost_Support.psd1")
-Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Database/PSWebHost_Database.psd1")
-Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Authentication/PSWebHost_Authentication.psd1")
-Import-TrackedModule -Path (Join-Path $modulesFolderPath "smtp/smtp.psd1")
-
-# Validate installation, dependencies, and database schema
-& (Join-Path $PSScriptRoot 'validateInstall.ps1')
-
-try {
-    Import-Module PSSQLite 
-}
-catch {
-    Write-Error -Message "Error importing PSSQLite module: $($_.Exception.Message)"
-}
-if ($Loadvariables.IsPresent) {return}
-
 
 # Register roles from config if they don't exist
 if ($Global:PSWebServer.Config.roles) {
@@ -478,3 +610,238 @@ if ($Global:PSWebServer.Config.roles) {
         }
     }
 }
+
+# --- Apps Framework Initialization ---
+# Initialize thread-safe apps registry
+$Global:PSWebServer.Apps = [hashtable]::Synchronized(@{})
+$appsPath = Join-Path $Global:PSWebServer.Project_Root.Path "apps"
+
+# Create apps directory if it doesn't exist
+if (-not (Test-Path $appsPath)) {
+    New-Item -Path $appsPath -ItemType Directory -Force | Out-Null
+    Write-Verbose "Created apps directory: $appsPath" -Verbose
+}
+
+# Load and initialize each app
+Get-ChildItem -Path $appsPath -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+    $appDir = $_.FullName
+    $appName = $_.Name
+    $manifestPath = Join-Path $appDir "app.yaml"
+
+    if (Test-Path $manifestPath) {
+        try {
+            $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Yaml
+
+            if ($manifest.enabled) {
+                # Add app modules to PSModulePath
+                $appModulesPath = Join-Path $appDir "modules"
+                if (Test-Path $appModulesPath) {
+                    if (-not ($Env:PSModulePath -split ';' -contains $appModulesPath)) {
+                        $Env:PSModulePath = "$appModulesPath;$($Env:PSModulePath)"
+                        Write-Verbose "Added app modules path: $appModulesPath" -Verbose
+                    }
+                }
+
+                # Run app_init.ps1 if it exists
+                $initScript = Join-Path $appDir "app_init.ps1"
+                if (Test-Path $initScript) {
+                    try {
+                        & $initScript -PSWebServer $Global:PSWebServer -AppRoot $appDir
+                        Write-Verbose "Executed app init script for: $appName" -Verbose
+                    } catch {
+                        Write-Warning "Failed to execute app_init.ps1 for app '$appName': $($_.Exception.Message)"
+                    }
+                }
+
+                # Track the app
+                # DataPath points to centralized PsWebHost_Data/apps/[app name]
+                $centralDataPath = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\apps\$appName"
+                if (-not (Test-Path $centralDataPath)) {
+                    New-Item -Path $centralDataPath -ItemType Directory -Force | Out-Null
+                }
+
+                $Global:PSWebServer.Apps[$appName] = @{
+                    Path = $appDir
+                    Manifest = $manifest
+                    ManifestPath = $manifestPath
+                    Loaded = Get-Date
+                    ModulesPath = $appModulesPath
+                    RoutesPath = Join-Path $appDir "routes"
+                    PublicPath = Join-Path $appDir "public"
+                    DataPath = $centralDataPath
+                }
+
+                Write-Host "[Init] Loaded app: $appName (v$($manifest.version))" -ForegroundColor Green
+            } else {
+                Write-Verbose "App '$appName' is disabled, skipping." -Verbose
+            }
+        } catch {
+            Write-Warning "Failed to load app '$appName': $($_.Exception.Message)"
+        }
+    } else {
+        Write-Verbose "No app.yaml found in '$appName', skipping." -Verbose
+    }
+}
+
+Write-Verbose "Apps framework initialized. Loaded $($Global:PSWebServer.Apps.Count) app(s)." -Verbose
+
+# --- Build Merged Category Structure ---
+# Merge duplicate parent categories across apps
+$Global:PSWebServer.Categories = [hashtable]::Synchronized(@{})
+
+foreach ($appName in $Global:PSWebServer.Apps.Keys) {
+    $appInfo = $Global:PSWebServer.Apps[$appName]
+    $manifest = $appInfo.Manifest
+
+    # Skip apps without category structure
+    if (-not $manifest.parentCategory) {
+        continue
+    }
+
+    $parentCat = $manifest.parentCategory
+    $subCat = $manifest.subCategory
+
+    # Use category ID as key for merging
+    $categoryId = $parentCat.id
+
+    # Create or update parent category
+    if (-not $Global:PSWebServer.Categories.ContainsKey($categoryId)) {
+        $Global:PSWebServer.Categories[$categoryId] = @{
+            id = $parentCat.id
+            name = $parentCat.name
+            description = $parentCat.description
+            icon = $parentCat.icon
+            order = $parentCat.order
+            subCategories = [hashtable]::Synchronized(@{})
+            apps = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
+        }
+        Write-Verbose "[Init] Created category: $($parentCat.name) (id: $categoryId)" -Verbose
+    }
+
+    $category = $Global:PSWebServer.Categories[$categoryId]
+
+    # Create subcategory key (use name as key)
+    $subCategoryKey = if ($subCat.name) { $subCat.name } else { "default" }
+
+    # Create or update subcategory
+    if (-not $category.subCategories.ContainsKey($subCategoryKey)) {
+        $category.subCategories[$subCategoryKey] = @{
+            name = $subCat.name
+            order = if ($subCat.order) { $subCat.order } else { 999 }
+            apps = [System.Collections.ArrayList]::Synchronized((New-Object System.Collections.ArrayList))
+        }
+        Write-Verbose "[Init]   Added subcategory: $subCategoryKey (order: $($subCat.order))" -Verbose
+    }
+
+    # Add app to subcategory
+    $subCategory = $category.subCategories[$subCategoryKey]
+    $null = $subCategory.apps.Add(@{
+        name = $appName
+        displayName = $manifest.name
+        version = $manifest.version
+        description = $manifest.description
+        routePrefix = $manifest.routePrefix
+        requiredRoles = $manifest.requiredRoles
+    })
+
+    # Also add to parent category apps list
+    $null = $category.apps.Add($appName)
+
+    Write-Verbose "[Init]   Added app '$appName' to category '$($parentCat.name)' > '$subCategoryKey'" -Verbose
+}
+
+Write-Host "[Init] Built category structure: $($Global:PSWebServer.Categories.Count) parent categories" -ForegroundColor Green
+foreach ($catId in ($Global:PSWebServer.Categories.Keys | Sort-Object)) {
+    $cat = $Global:PSWebServer.Categories[$catId]
+    $subCatCount = $cat.subCategories.Count
+    $appCount = $cat.apps.Count
+    Write-Verbose "[Init]   - $($cat.name): $subCatCount subcategories, $appCount apps" -Verbose
+}
+
+# --- End Apps Framework Initialization ---
+
+# --- Metrics System Initialization ---
+Write-Host "[Init] Initializing metrics collection system..." -ForegroundColor Cyan
+try {
+    Import-Module PSWebHost_Metrics -Force -ErrorAction Stop
+    Initialize-PSWebMetrics -SampleIntervalSeconds 5 -RetentionHours 24 -CsvRetentionDays 30
+
+    # Clean up any existing metrics job to prevent duplicates
+    if ($Global:PSWebServer.MetricsJob) {
+        Stop-Job -Job $Global:PSWebServer.MetricsJob -ErrorAction SilentlyContinue
+        Remove-Job -Job $Global:PSWebServer.MetricsJob -Force -ErrorAction SilentlyContinue
+        $Global:PSWebServer.MetricsJob = $null
+    }
+
+    # Initialize execution state in synchronized hashtable
+    if (-not $Global:PSWebServer.Metrics.JobState.ContainsKey('IsExecuting')) {
+        $Global:PSWebServer.Metrics.JobState.IsExecuting = $false
+    }
+    if (-not $Global:PSWebServer.Metrics.JobState.ContainsKey('ShouldStop')) {
+        $Global:PSWebServer.Metrics.JobState.ShouldStop = $false
+    }
+
+    # Create a PowerShell job for metrics collection
+    # This runs in a loop with 5-second intervals to collect system metrics
+    $Global:PSWebServer.MetricsJob = Start-Job -Name "PSWebHost_MetricsCollection" -ScriptBlock {
+        param($MetricsState, $ModulePath)
+
+        # Import required module in the job context
+        Import-Module (Join-Path $ModulePath "PSWebHost_Metrics") -Force -ErrorAction Stop
+
+        while (-not $MetricsState.ShouldStop) {
+            try {
+                # Prevent concurrent execution if previous run still active
+                if ($MetricsState.IsExecuting) {
+                    $elapsed = ((Get-Date) - $MetricsState.ExecutionStartTime).TotalSeconds
+                    Write-Verbose "[MetricsJob] Skipped execution - previous run still in progress ($($elapsed)s elapsed)"
+
+                    # If execution has been stuck for >30 seconds, force release the lock
+                    if ($MetricsState.ExecutionStartTime -and $elapsed -gt 30) {
+                        Write-Warning "[MetricsJob] Force-releasing stuck execution lock after 30 seconds"
+                        $MetricsState.IsExecuting = $false
+                    }
+                } else {
+                    # Set execution lock
+                    $MetricsState.IsExecuting = $true
+                    $MetricsState.ExecutionStartTime = Get-Date
+
+                    # Execute metrics maintenance
+                    Invoke-MetricJobMaintenance
+
+                    # Release execution lock
+                    $MetricsState.IsExecuting = $false
+                }
+            } catch {
+                # Log error but don't crash the job
+                Write-Warning "[MetricsJob] Error: $($_.Exception.Message)"
+                if ($MetricsState.Errors.Count -lt 100) {
+                    [void]$MetricsState.Errors.Add(@{
+                        Timestamp = Get-Date
+                        Message = $_.Exception.Message
+                    })
+                }
+                # Always release execution lock on error
+                $MetricsState.IsExecuting = $false
+            }
+
+            # Sleep for 5 seconds before next collection
+            Start-Sleep -Seconds 5
+        }
+    } -ArgumentList $Global:PSWebServer.Metrics.JobState, $Global:PSWebServer.ModulesPath
+
+    # Note: Initial metrics collection will happen asynchronously via job (within 5 seconds)
+    # Removed synchronous initial collection to prevent startup hangs on slow performance counter queries
+
+    Write-Host "[Init] Metrics collection system started (5-second intervals)" -ForegroundColor Green
+} catch {
+    Write-Warning "[Init] Failed to initialize metrics system: $($_.Exception.Message)"
+    Write-Warning "[Init] Server will continue without metrics collection"
+}
+# --- End Metrics System Initialization ---
+
+# ============================================================================
+# Mark init.ps1 as loaded to prevent duplicate loading
+# ============================================================================
+$PSWebHostDotSourceLoaded = $true
+$global:PSWebHostGlobalLoaded = $true

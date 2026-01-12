@@ -58,7 +58,7 @@ VALUES ('$groupID', 'Description', '$(Sanitize-SqlQueryString -String $Descripti
 Write-Verbose "$MyTag Group created successfully with GroupID: $groupID"
 
 # Return the created group
-$createdGroup = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM User_Groups WHERE GroupID = '$groupID';"
+$createdGroup = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM User_Groups WHERE GroupID COLLATE NOCASE = '$groupID';"
 
 if ($Description) {
     $createdGroup | Add-Member -NotePropertyName Description -NotePropertyValue $Description

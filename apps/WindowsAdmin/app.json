@@ -1,0 +1,26 @@
+{
+  "requiredRoles": [
+    "admin",
+    "system_admin"
+  ],
+  "author": "test",
+  "enabled": true,
+  "features": {
+    "created": "2026-01-10"
+  },
+  "version": "1.0.0",
+  "description": "Windows service and task scheduler management",
+  "routePrefix": "/apps/windowsadmin",
+  "name": "Windows Administration",
+  "subCategory": {
+    "name": "Windows",
+    "order": 1
+  },
+  "parentCategory": {
+    "id": "operating-systems",
+    "name": "Operating Systems",
+    "description": "Operating system administration and management",
+    "icon": "desktop",
+    "order": 1
+  }
+}

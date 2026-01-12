@@ -27,18 +27,18 @@ $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebh
 $safeUserID = Sanitize-SqlQueryString -String $UserID
 $safeProvider = Sanitize-SqlQueryString -String $Provider
 
-$user = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM Users WHERE UserID = '$safeUserID';"
+$user = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM Users WHERE UserID COLLATE NOCASE = '$safeUserID';"
 if (-not $user) {
     throw "User with UserID '$UserID' not found"
 }
 
-$providerRecord = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM auth_user_provider WHERE UserID = '$safeUserID' AND provider = '$safeProvider';"
+$providerRecord = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM auth_user_provider WHERE UserID COLLATE NOCASE = '$safeUserID' AND provider COLLATE NOCASE = '$safeProvider';"
 if (-not $providerRecord) {
     throw "Provider '$Provider' not found for user '$($user.Email)'"
 }
 
 # Count how many providers this user has
-$countQuery = "SELECT COUNT(*) as Count FROM auth_user_provider WHERE UserID = '$safeUserID';"
+$countQuery = "SELECT COUNT(*) as Count FROM auth_user_provider WHERE UserID COLLATE NOCASE = '$safeUserID';"
 $providerCount = (Get-PSWebSQLiteData -File $dbFile -Query $countQuery).Count
 
 if ($Force) {
@@ -53,7 +53,7 @@ if ($providerCount -eq 1 -and $RemoveUserIfLastProvider) {
 if ($PSCmdlet.ShouldProcess($action, "User-Provider Relationship", "Remove")) {
 
     # Remove the provider relationship
-    $deleteProviderQuery = "DELETE FROM auth_user_provider WHERE UserID = '$safeUserID' AND provider = '$safeProvider';"
+    $deleteProviderQuery = "DELETE FROM auth_user_provider WHERE UserID COLLATE NOCASE = '$safeUserID' AND provider COLLATE NOCASE = '$safeProvider';"
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteProviderQuery
     Write-Verbose "$MyTag Removed provider '$Provider' from user '$($user.Email)'"
 
@@ -62,15 +62,15 @@ if ($PSCmdlet.ShouldProcess($action, "User-Provider Relationship", "Remove")) {
         Write-Warning "Removing user account '$($user.Email)' as it has no remaining authentication providers"
 
         # Remove user sessions
-        $deleteSessionsQuery = "DELETE FROM LoginSessions WHERE UserID = '$safeUserID';"
+        $deleteSessionsQuery = "DELETE FROM LoginSessions WHERE UserID COLLATE NOCASE = '$safeUserID';"
         Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteSessionsQuery
 
         # Remove user-group mappings
-        $deleteGroupMappingsQuery = "DELETE FROM User_Groups_Map WHERE UserID = '$safeUserID';"
+        $deleteGroupMappingsQuery = "DELETE FROM User_Groups_Map WHERE UserID COLLATE NOCASE = '$safeUserID';"
         Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteGroupMappingsQuery
 
         # Remove user roles
-        $deleteRolesQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID = '$safeUserID' AND PrincipalType = 'User';"
+        $deleteRolesQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safeUserID' AND PrincipalType COLLATE NOCASE = 'User';"
         Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteRolesQuery
 
         # Remove user data
@@ -78,7 +78,7 @@ if ($PSCmdlet.ShouldProcess($action, "User-Provider Relationship", "Remove")) {
         Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteDataQuery
 
         # Remove the user
-        $deleteUserQuery = "DELETE FROM Users WHERE UserID = '$safeUserID';"
+        $deleteUserQuery = "DELETE FROM Users WHERE UserID COLLATE NOCASE = '$safeUserID';"
         Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteUserQuery
 
         Write-Host "User '$($user.Email)' removed completely" -ForegroundColor Yellow

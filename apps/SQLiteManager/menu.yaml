@@ -1,0 +1,12 @@
+# Menu entries for SQLite Manager
+# These will be integrated into the main PSWebHost menu under:
+# Databases > SQLite
+
+- Name: SQLite Manager
+  url: /apps/sqlitemanager/api/v1/ui/elements/sqlite-manager
+  hover_description: SQLite database file management
+  icon: database
+  tags:
+    - databases
+    - sqlite
+    - sql

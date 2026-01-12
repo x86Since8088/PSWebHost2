@@ -15,3 +15,6 @@
 /PsWebHost_Data
 /_ImportFrom
 /ModuleDownload
+
+# Test artifacts
+tests/twin/process-tracking-report.txt

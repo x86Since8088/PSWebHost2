@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "requiredRoles": [
+    "admin",
+    "database_admin"
+  ],
+  "features": {
+    "created": "2026-01-10"
+  },
+  "subCategory": {
+    "name": "Redis",
+    "order": 2
+  },
+  "name": "Redis Manager",
+  "routePrefix": "/apps/redismanager",
+  "author": "test",
+  "description": "Redis cache and data structure management",
+  "enabled": true,
+  "parentCategory": {
+    "id": "databases",
+    "name": "Databases",
+    "description": "Database administration and monitoring",
+    "icon": "database",
+    "order": 3
+  }
+}

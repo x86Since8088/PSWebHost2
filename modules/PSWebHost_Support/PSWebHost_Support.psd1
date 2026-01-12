@@ -15,6 +15,7 @@
         'Get-PSWebHostEvents',
         'Get-PSWebSessions',
         'Get-RequestBody',
+        'New-PSWebHostResult',
         'Process-HttpRequest',
         'Read-PSWebHostLog',
         'Remove-PSWebSession',

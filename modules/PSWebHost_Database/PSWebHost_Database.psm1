@@ -241,10 +241,10 @@ function Get-PSWebUser {
 
     if ($UserID) {
         $safe = Sanitize-SqlQueryString -String $UserID
-        $q = "SELECT * FROM Users WHERE UserID = '$safe' LIMIT 1;"
+        $q = "SELECT * FROM Users WHERE UserID COLLATE NOCASE = '$safe' LIMIT 1;"
     } elseif ($Email) {
         $safe = Sanitize-SqlQueryString -String $Email
-        $q = "SELECT * FROM Users WHERE Email = '$safe' LIMIT 1;"
+        $q = "SELECT * FROM Users WHERE Email COLLATE NOCASE = '$safe' LIMIT 1;"
     } else {
         # Do not throw an error here; callers may call with empty values. Return $null to indicate not found.
         Write-Verbose "Get-PSWebUser called without -UserID or -Email; returning null."
@@ -258,7 +258,8 @@ function Get-PSWebUser {
     # Fetch roles for this user
     if ($user.UserID) {
         $safeUser = Sanitize-SqlQueryString -String $user.UserID
-        $rq = "SELECT RoleName FROM PSWeb_Roles WHERE PrincipalID = '$safeUser' AND PrincipalType = 'user';"
+        # Use COLLATE NOCASE for case-insensitive comparison (database has 'User', code might use 'user')
+        $rq = "SELECT RoleName FROM PSWeb_Roles WHERE PrincipalID = '$safeUser' AND PrincipalType COLLATE NOCASE = 'user';"
         $roles = Get-PSWebSQLiteData -File $dbFile -Query $rq
         if ($roles) {
             $user | Add-Member -NotePropertyName Roles -NotePropertyValue (($roles | ForEach-Object { $_.RoleName }) ) -Force
@@ -284,13 +285,13 @@ function Set-PSWebUser {
 
     if ($Email) {
         $safeEmail = Sanitize-SqlQueryString -String $Email
-        $uq = "UPDATE Users SET Email = '$safeEmail' WHERE UserID = '$safeUser';"
+        $uq = "UPDATE Users SET Email = '$safeEmail' WHERE UserID COLLATE NOCASE = '$safeUser';"
         Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $uq
     }
 
     if ($Roles) {
         # Remove existing roles for user
-        $del = "DELETE FROM PSWeb_Roles WHERE PrincipalID = '$safeUser' AND PrincipalType = 'user';"
+        $del = "DELETE FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safeUser' AND PrincipalType COLLATE NOCASE = 'user';"
         Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $del
         foreach ($r in $Roles) {
             $safeR = Sanitize-SqlQueryString -String $r

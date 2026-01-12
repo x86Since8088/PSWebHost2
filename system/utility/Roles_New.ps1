@@ -26,13 +26,13 @@ $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebh
 # Verify principal exists
 $safePrincipalID = Sanitize-SqlQueryString -String $PrincipalID
 if ($PrincipalType -eq 'User') {
-    $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM Users WHERE UserID = '$safePrincipalID';"
+    $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM Users WHERE UserID COLLATE NOCASE = '$safePrincipalID';"
     if (-not $principal) {
         throw "User with UserID '$PrincipalID' not found"
     }
     $principalName = $principal.Email
 } else {
-    $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM User_Groups WHERE GroupID = '$safePrincipalID';"
+    $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM User_Groups WHERE GroupID COLLATE NOCASE = '$safePrincipalID';"
     if (-not $principal) {
         throw "Group with GroupID '$PrincipalID' not found"
     }
@@ -41,7 +41,7 @@ if ($PrincipalType -eq 'User') {
 
 # Check if role assignment already exists
 $safeRoleName = Sanitize-SqlQueryString -String $RoleName
-$checkQuery = "SELECT * FROM PSWeb_Roles WHERE PrincipalID = '$safePrincipalID' AND RoleName = '$safeRoleName';"
+$checkQuery = "SELECT * FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safePrincipalID' AND RoleName = '$safeRoleName';"
 $existing = Get-PSWebSQLiteData -File $dbFile -Query $checkQuery
 
 if ($existing) {

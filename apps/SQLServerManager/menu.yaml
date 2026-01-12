@@ -1,0 +1,13 @@
+# Menu entries for SQL Server Manager
+# These will be integrated into the main PSWebHost menu under:
+# Databases > SQL Server
+
+- Name: SQL Server Manager
+  url: /apps/sqlservermanager/api/v1/ui/elements/sqlserver-manager
+  hover_description: Microsoft SQL Server administration
+  icon: database
+  tags:
+    - databases
+    - sqlserver
+    - sql
+    - microsoft

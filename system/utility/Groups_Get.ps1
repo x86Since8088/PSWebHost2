@@ -30,7 +30,7 @@ if ($PSCmdlet.ParameterSetName -eq 'GroupID') {
         throw "GroupID parameter is required for this parameter set"
     }
     $safeGroupID = Sanitize-SqlQueryString -String $GroupID
-    $query = "SELECT * FROM User_Groups WHERE GroupID = '$safeGroupID';"
+    $query = "SELECT * FROM User_Groups WHERE GroupID COLLATE NOCASE = '$safeGroupID';"
 }
 elseif ($PSCmdlet.ParameterSetName -eq 'GroupName') {
     if ([string]::IsNullOrEmpty($GroupName)) {
@@ -47,7 +47,7 @@ elseif ($PSCmdlet.ParameterSetName -eq 'ByUser') {
     $query = @"
 SELECT g.* FROM User_Groups g
 INNER JOIN User_Groups_Map ugm ON g.GroupID = ugm.GroupID
-WHERE ugm.UserID = '$safeUserID';
+WHERE ugm.UserID COLLATE NOCASE = '$safeUserID';
 "@
 }
 elseif ($ListAll) {
@@ -63,7 +63,7 @@ $groups = Get-PSWebSQLiteData -File $dbFile -Query $query
 if ($groups) {
     # Add member count to each group
     foreach ($group in $groups) {
-        $countQuery = "SELECT COUNT(*) as MemberCount FROM User_Groups_Map WHERE GroupID = '$($group.GroupID)';"
+        $countQuery = "SELECT COUNT(*) as MemberCount FROM User_Groups_Map WHERE GroupID COLLATE NOCASE = '$($group.GroupID)';"
         $count = Get-PSWebSQLiteData -File $dbFile -Query $countQuery
         $group | Add-Member -NotePropertyName MemberCount -NotePropertyValue $count.MemberCount
 

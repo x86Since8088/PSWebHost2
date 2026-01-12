@@ -21,20 +21,20 @@ $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebh
 
 # Verify user exists
 $safeUserID = Sanitize-SqlQueryString -String $UserID
-$user = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM Users WHERE UserID = '$safeUserID';"
+$user = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM Users WHERE UserID COLLATE NOCASE = '$safeUserID';"
 if (-not $user) {
     throw "User with UserID '$UserID' not found"
 }
 
 # Verify group exists
 $safeGroupID = Sanitize-SqlQueryString -String $GroupID
-$group = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM User_Groups WHERE GroupID = '$safeGroupID';"
+$group = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM User_Groups WHERE GroupID COLLATE NOCASE = '$safeGroupID';"
 if (-not $group) {
     throw "Group with GroupID '$GroupID' not found"
 }
 
 # Check if mapping already exists
-$checkQuery = "SELECT * FROM User_Groups_Map WHERE UserID = '$safeUserID' AND GroupID = '$safeGroupID';"
+$checkQuery = "SELECT * FROM User_Groups_Map WHERE UserID COLLATE NOCASE = '$safeUserID' AND GroupID COLLATE NOCASE = '$safeGroupID';"
 $existing = Get-PSWebSQLiteData -File $dbFile -Query $checkQuery
 
 if ($existing) {
@@ -48,7 +48,7 @@ Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $insertQuery
 
 # Update group's Updated timestamp
 $updated = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-$updateGroupQuery = "UPDATE User_Groups SET Updated = '$updated' WHERE GroupID = '$safeGroupID';"
+$updateGroupQuery = "UPDATE User_Groups SET Updated = '$updated' WHERE GroupID COLLATE NOCASE = '$safeGroupID';"
 Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $updateGroupQuery
 
 Write-Verbose "$MyTag User '$($user.Email)' added to group '$($group.Name)'"

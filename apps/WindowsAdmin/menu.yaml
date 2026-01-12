@@ -1,0 +1,21 @@
+# Menu entries for Windows Administration
+# These will be integrated into the main PSWebHost menu under:
+# Operating Systems > Windows
+
+- Name: Windows Services
+  url: /apps/windowsadmin/api/v1/ui/elements/service-control
+  hover_description: Manage Windows services
+  icon: settings
+  tags:
+    - operating systems
+    - windows
+    - services
+
+- Name: Task Scheduler
+  url: /apps/windowsadmin/api/v1/ui/elements/task-scheduler
+  hover_description: Manage Windows scheduled tasks
+  icon: clock
+  tags:
+    - operating systems
+    - windows
+    - tasks

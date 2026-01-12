@@ -111,7 +111,7 @@ if ($pageName -eq 'ConfirmEmail') {
     $email = $parsedBody["email"]
     
     $safeEmail = Sanitize-SqlQueryString -String $email
-    $query = "SELECT * FROM account_email_confirmation WHERE email = '$safeEmail' AND response_date IS NOT NULL;"
+    $query = "SELECT * FROM account_email_confirmation WHERE email COLLATE NOCASE = '$safeEmail' AND response_date IS NOT NULL;"
     $confirmation = Get-PSWebSQLiteData -File "pswebhost.db" -Query $query
     
     if ($confirmation) {

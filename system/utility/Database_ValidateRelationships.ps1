@@ -48,7 +48,7 @@ if ($orphanProviders) {
         foreach ($orphan in $orphanProviders) {
             $safeUserID = Sanitize-SqlQueryString -String $orphan.UserID
             $safeProvider = Sanitize-SqlQueryString -String $orphan.provider
-            $deleteQuery = "DELETE FROM auth_user_provider WHERE UserID = '$safeUserID' AND provider = '$safeProvider';"
+            $deleteQuery = "DELETE FROM auth_user_provider WHERE UserID COLLATE NOCASE = '$safeUserID' AND provider COLLATE NOCASE = '$safeProvider';"
             Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteQuery
             $orphansFixed++
         }
@@ -82,7 +82,7 @@ if ($orphanUserMaps) {
         foreach ($orphan in $orphanUserMaps) {
             $safeUserID = Sanitize-SqlQueryString -String $orphan.UserID
             $safeGroupID = Sanitize-SqlQueryString -String $orphan.GroupID
-            $deleteQuery = "DELETE FROM User_Groups_Map WHERE UserID = '$safeUserID' AND GroupID = '$safeGroupID';"
+            $deleteQuery = "DELETE FROM User_Groups_Map WHERE UserID COLLATE NOCASE = '$safeUserID' AND GroupID COLLATE NOCASE = '$safeGroupID';"
             Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteQuery
             $orphansFixed++
         }
@@ -116,7 +116,7 @@ if ($orphanGroupMaps) {
         foreach ($orphan in $orphanGroupMaps) {
             $safeUserID = Sanitize-SqlQueryString -String $orphan.UserID
             $safeGroupID = Sanitize-SqlQueryString -String $orphan.GroupID
-            $deleteQuery = "DELETE FROM User_Groups_Map WHERE UserID = '$safeUserID' AND GroupID = '$safeGroupID';"
+            $deleteQuery = "DELETE FROM User_Groups_Map WHERE UserID COLLATE NOCASE = '$safeUserID' AND GroupID COLLATE NOCASE = '$safeGroupID';"
             Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteQuery
             $orphansFixed++
         }
@@ -150,7 +150,7 @@ if ($orphanUserRoles) {
         foreach ($orphan in $orphanUserRoles) {
             $safePrincipalID = Sanitize-SqlQueryString -String $orphan.PrincipalID
             $safeRoleName = Sanitize-SqlQueryString -String $orphan.RoleName
-            $deleteQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID = '$safePrincipalID' AND RoleName = '$safeRoleName';"
+            $deleteQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safePrincipalID' AND RoleName = '$safeRoleName';"
             Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteQuery
             $orphansFixed++
         }
@@ -184,7 +184,7 @@ if ($orphanGroupRoles) {
         foreach ($orphan in $orphanGroupRoles) {
             $safePrincipalID = Sanitize-SqlQueryString -String $orphan.PrincipalID
             $safeRoleName = Sanitize-SqlQueryString -String $orphan.RoleName
-            $deleteQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID = '$safePrincipalID' AND RoleName = '$safeRoleName';"
+            $deleteQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safePrincipalID' AND RoleName = '$safeRoleName';"
             Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteQuery
             $orphansFixed++
         }
@@ -217,7 +217,7 @@ if ($orphanSessions) {
     if ($FixOrphans) {
         foreach ($orphan in $orphanSessions) {
             $safeSessionID = Sanitize-SqlQueryString -String $orphan.SessionID
-            $deleteQuery = "DELETE FROM LoginSessions WHERE SessionID = '$safeSessionID';"
+            $deleteQuery = "DELETE FROM LoginSessions WHERE SessionID COLLATE NOCASE = '$safeSessionID';"
             Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteQuery
             $orphansFixed++
         }

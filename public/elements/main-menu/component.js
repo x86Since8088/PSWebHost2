@@ -1,8 +1,29 @@
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 
 const MainMenu = ({ searchTerm, onError }) => {
     const [menuData, setMenuData] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [menuStates, setMenuStates] = useState({}); // Track open/closed state for all menu items
+    const saveTimeoutRef = useRef(null);
+
+    // Debounced save function - saves 500ms after last state change
+    const savePreferences = useCallback((states) => {
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+
+        saveTimeoutRef.current = setTimeout(async () => {
+            try {
+                await window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/main-menu/preferences', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(states)
+                });
+            } catch (error) {
+                console.error('Failed to save menu preferences:', error);
+            }
+        }, 500);
+    }, []);
 
     useEffect(() => {
         let isMounted = true;
@@ -23,12 +44,31 @@ const MainMenu = ({ searchTerm, onError }) => {
             }
         };
         pswebFetchMenu();
-        return () => { isMounted = false; };
+        return () => {
+            isMounted = false;
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current);
+            }
+        };
     }, [searchTerm, onError]);
 
-    const PswebMenuItem = ({ item }) => {
-        const [isOpen, setIsOpen] = useState(true);
+    const PswebMenuItem = ({ item, parentPath = '' }) => {
         const hasChildren = item.children && (Array.isArray(item.children) ? item.children.length > 0 : item.children);
+
+        // Build the full path for this menu item (matches backend logic)
+        const currentPath = parentPath ? `${parentPath}/${item.text}` : item.text;
+
+        // Use shared menuStates with backend-provided default
+        // If user has saved preference, backend already applied it to item.collapsed
+        const isOpen = menuStates[currentPath] !== undefined
+            ? menuStates[currentPath]
+            : (item.collapsed === true ? false : true);
+
+        const toggleMenu = (newState) => {
+            const updatedStates = { ...menuStates, [currentPath]: newState };
+            setMenuStates(updatedStates);
+            savePreferences(updatedStates);
+        };
 
         const handleClick = (e) => {
             e.preventDefault();
@@ -44,27 +84,43 @@ const MainMenu = ({ searchTerm, onError }) => {
                     window.openCard(item.url, item.text);
                 }
             }
-            if (hasChildren) setIsOpen(!isOpen);
+            if (hasChildren) toggleMenu(!isOpen);
+        };
+
+        // Generate a unique key from text and url (or index if needed)
+        const getItemKey = (childItem, idx) => {
+            const textPart = childItem.text || '';
+            const urlPart = childItem.url || '';
+            return `${textPart}-${urlPart}-${idx}`;
         };
 
         return (
             <li className={`menu-item ${hasChildren ? 'has-children' : ''} ${isOpen ? 'open' : ''}`}>
                 <a href={item.url || '#'} onClick={handleClick} title={item.hover_description}>
-                    {hasChildren && <span className="arrow" onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}>{isOpen ? '▼' : '►'}</span>}
+                    {hasChildren && <span className="arrow" onClick={(e) => { e.stopPropagation(); toggleMenu(!isOpen); }}>{isOpen ? '▼' : '►'}</span>}
                     {item.text}
                 </a>
                 {hasChildren && isOpen && <ul className="submenu-list">{
-                    (Array.isArray(item.children) ? item.children : [item.children]).map(child => <PswebMenuItem key={child.text} item={child} />)
+                    (Array.isArray(item.children) ? item.children : [item.children]).map((child, idx) =>
+                        <PswebMenuItem key={getItemKey(child, idx)} item={child} parentPath={currentPath} />
+                    )
                 }</ul>}
             </li>
         );
+    };
+
+    // Generate a unique key from text and url
+    const getItemKey = (item, idx) => {
+        const textPart = item.text || '';
+        const urlPart = item.url || '';
+        return `${textPart}-${urlPart}-${idx}`;
     };
 
     if (isLoading) return <div>Loading menu...</div>;
     if (!menuData || menuData.length === 0) return <div>Menu not available.</div>;
 
     return (
-        <ul className="main-menu-list">{menuData.map(item => <PswebMenuItem key={item.text} item={item} />)}</ul>
+        <ul className="main-menu-list">{menuData.map((item, idx) => <PswebMenuItem key={getItemKey(item, idx)} item={item} />)}</ul>
     );
 };
 

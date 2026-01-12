@@ -37,10 +37,10 @@ if ($PSCmdlet.ParameterSetName -eq 'ByUser') {
 SELECT ap.*, u.Email, u.PasswordHash
 FROM auth_user_provider ap
 INNER JOIN Users u ON ap.UserID = u.UserID
-WHERE ap.UserID = '$safeUserID';
+WHERE ap.UserID COLLATE NOCASE = '$safeUserID';
 "@
     } else {
-        $query = "SELECT * FROM auth_user_provider WHERE UserID = '$safeUserID';"
+        $query = "SELECT * FROM auth_user_provider WHERE UserID COLLATE NOCASE = '$safeUserID';"
     }
 }
 elseif ($PSCmdlet.ParameterSetName -eq 'ByEmail') {
@@ -52,7 +52,7 @@ elseif ($PSCmdlet.ParameterSetName -eq 'ByEmail') {
 SELECT ap.*, u.Email
 FROM auth_user_provider ap
 INNER JOIN Users u ON ap.UserID = u.UserID
-WHERE u.Email = '$safeEmail';
+WHERE u.Email COLLATE NOCASE = '$safeEmail';
 "@
 }
 elseif ($PSCmdlet.ParameterSetName -eq 'ByProvider') {

@@ -1,0 +1,11 @@
+# Menu entries for Docker Manager
+# These will be integrated into the main PSWebHost menu under:
+# Containers > Docker
+
+- Name: Docker Manager
+  url: /apps/dockermanager/api/v1/ui/elements/docker-manager
+  hover_description: Manage Docker containers, images, and networks
+  icon: box
+  tags:
+    - containers
+    - docker

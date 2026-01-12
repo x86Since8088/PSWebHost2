@@ -1,0 +1,21 @@
+routePrefix: /apps/kubernetesmanager
+features:
+  created: 2026-01-10
+version: 1.0.0
+requiredRoles:
+- admin
+- system_admin
+subCategory:
+  name: Kubernetes
+  order: 3
+author: test
+name: Kubernetes Manager
+enabled: true
+description: Kubernetes cluster monitoring and management
+parentCategory:
+  id: containers
+  name: Containers
+  description: Container orchestration and management
+  icon: box
+  order: 2
+

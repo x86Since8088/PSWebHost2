@@ -46,7 +46,7 @@ function Get-UserByEmail {
     param([string]$Email)
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeEmail = Sanitize-SqlQueryString -String $Email
-    return Get-PSWebSQLiteData -File $dbFile -Query "SELECT UserID, Email FROM Users WHERE Email = '$safeEmail';"
+    return Get-PSWebSQLiteData -File $dbFile -Query "SELECT UserID, Email FROM Users WHERE Email COLLATE NOCASE = '$safeEmail';"
 }
 
 function Show-AllUsers {

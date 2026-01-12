@@ -144,7 +144,7 @@ if ($PSCmdlet.ParameterSetName -eq 'FromFile') {
 # Resolve email to UserID if specified
 if ($PSCmdlet.ParameterSetName -eq 'UpdateByEmail' -or $PSCmdlet.ParameterSetName -eq 'ByEmail') {
     $safeEmail = Sanitize-SqlQueryString -String $Email
-    $user = Get-PSWebSQLiteData -File $dbFile -Query "SELECT UserID, Email FROM Users WHERE Email = '$safeEmail';"
+    $user = Get-PSWebSQLiteData -File $dbFile -Query "SELECT UserID, Email FROM Users WHERE Email COLLATE NOCASE = '$safeEmail';"
     if (-not $user) {
         throw "User with email '$Email' not found"
     }
@@ -160,12 +160,12 @@ if ($SetRoles) {
 
     if ($PSCmdlet.ShouldProcess("Replace all roles for $principalName with: $($SetRoles -join ', ')", "Role Update", "Set")) {
         # Get current roles
-        $currentRoles = Get-PSWebSQLiteData -File $dbFile -Query "SELECT RoleName FROM PSWeb_Roles WHERE PrincipalID = '$safePrincipalID';"
+        $currentRoles = Get-PSWebSQLiteData -File $dbFile -Query "SELECT RoleName FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safePrincipalID';"
         $currentRoleNames = if ($currentRoles) { @($currentRoles | ForEach-Object { $_.RoleName }) } else { @() }
 
         # Remove all current roles
         if ($currentRoleNames.Count -gt 0) {
-            $deleteQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID = '$safePrincipalID';"
+            $deleteQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safePrincipalID';"
             Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteQuery
             Write-Host "  Removed $($currentRoleNames.Count) existing role(s)" -ForegroundColor Yellow
         }

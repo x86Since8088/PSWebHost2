@@ -1,0 +1,66 @@
+# Menu entries for uPlot Chart Builder
+# Integrated into: Data Visualization > Charts
+
+- Name: Chart Builder
+  url: /apps/uplot/api/v1/ui/elements/uplot-home
+  hover_description: Create and customize uPlot charts with multiple data sources
+  icon: chart-line
+  tags:
+    - visualization
+    - charts
+    - uplot
+    - analytics
+
+- Name: Time Series Charts
+  url: /apps/uplot/api/v1/ui/elements/time-series
+  hover_description: Create time-based line charts
+  icon: chart-line
+  tags:
+    - visualization
+    - time-series
+    - metrics
+
+- Name: Area Charts
+  url: /apps/uplot/api/v1/ui/elements/area-chart
+  hover_description: Create filled area charts for cumulative data
+  icon: chart-area
+  tags:
+    - visualization
+    - area
+    - cumulative
+
+- Name: Bar Charts
+  url: /apps/uplot/api/v1/ui/elements/bar-chart
+  hover_description: Create bar charts for categorical data
+  icon: chart-bar
+  tags:
+    - visualization
+    - bar
+    - categorical
+
+- Name: Scatter Plots
+  url: /apps/uplot/api/v1/ui/elements/scatter-plot
+  hover_description: Create scatter plots for correlation analysis
+  icon: circle
+  tags:
+    - visualization
+    - scatter
+    - correlation
+
+- Name: Multi-Axis Charts
+  url: /apps/uplot/api/v1/ui/elements/multi-axis
+  hover_description: Charts with multiple Y-axes for different scales
+  icon: chart-gantt
+  tags:
+    - visualization
+    - multi-axis
+    - comparison
+
+- Name: Heatmaps
+  url: /apps/uplot/api/v1/ui/elements/heatmap
+  hover_description: Color-coded matrix visualizations
+  icon: th
+  tags:
+    - visualization
+    - heatmap
+    - matrix

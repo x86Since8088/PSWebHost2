@@ -1,0 +1,28 @@
+# Vault App Menu
+# Secure credential storage for PSWebHost nodes and services
+
+- Name: Credential Manager
+  url: /apps/vault/api/v1/ui/elements/vault-manager
+  hover_description: Manage stored credentials securely
+  icon: key
+  tags:
+  - vault
+  - credentials
+  - security
+
+- Name: Audit Log
+  url: /apps/vault/api/v1/audit
+  hover_description: View vault access audit log
+  icon: clipboard-list
+  tags:
+  - vault
+  - audit
+  - security
+
+- Name: Status
+  url: /apps/vault/api/v1/status
+  hover_description: View vault health status
+  icon: heartbeat
+  tags:
+  - vault
+  - status

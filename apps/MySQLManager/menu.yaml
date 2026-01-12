@@ -1,0 +1,12 @@
+# Menu entries for MySQL Manager
+# These will be integrated into the main PSWebHost menu under:
+# Databases > MySQL
+
+- Name: MySQL Manager
+  url: /apps/mysqlmanager/api/v1/ui/elements/mysql-manager
+  hover_description: MySQL database administration and monitoring
+  icon: database
+  tags:
+    - databases
+    - mysql
+    - sql

@@ -1,0 +1,12 @@
+# Menu entries for WSL Manager
+# These will be integrated into the main PSWebHost menu under:
+# Containers > WSL
+
+- Name: WSL Manager
+  url: /apps/wslmanager/api/v1/ui/elements/wsl-manager
+  hover_description: Manage Windows Subsystem for Linux distributions
+  icon: terminal
+  tags:
+    - containers
+    - wsl
+    - linux

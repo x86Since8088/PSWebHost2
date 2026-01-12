@@ -2,6 +2,7 @@
   roles:
   - unauthenticated
   - authenticated
+  collapsed: false
   children:
   - url: /api/v1/auth/getauthtoken
     Name: Logon
@@ -41,9 +42,30 @@
     tags:
     - system
     - log
+  - Name: Apps
+    hover_description: Installed PSWebHost applications
+    roles:
+    - authenticated
+    tags:
+    - apps
+    - extensions
+    children: []
+  - Name: Documentation
+    hover_description: System documentation and guides
+    roles:
+    - authenticated
+    collapsed: true
+    children:
+    - Name: Architecture
+      url: /api/v1/ui/elements/markdown-viewer?file=public/help/architecture.md
+      hover_description: System architecture overview with diagrams
+      tags:
+      - docs
+      - architecture
 - Name: Site Admin Menu
   roles:
   - site_admin
+  collapsed: true
   children:
   - Name: User Management
     url: /api/v1/ui/elements/admin/users-management
@@ -51,6 +73,7 @@
 - Name: System Admin Menu
   roles:
   - system_admin
+  collapsed: true
   children:
   - url: /api/v1/status/logging
     Name: Logging Status
@@ -68,7 +91,17 @@
   - debug
   - site_admin
   - system_admin
+  collapsed: true
   children:
+  - Name: Unit Test Runner
+    url: /api/v1/ui/elements/unit-test-runner
+    hover_description: Run in-browser unit tests for PSWebHost components and libraries.
+    roles:
+    - debug
+    tags:
+    - debug
+    - testing
+    - unit-tests
   - Name: Test Error Modals
     url: /public/error-modal-demo.html
     hover_description: Test the error modal system with different user roles.
@@ -96,75 +129,51 @@
     - debug
     - jobs
     - monitoring
-- Name: Pending Review
-  hover_description: Endpoints that need review.
+- Name: System Management
+  hover_description: System administration and configuration tools.
   roles:
-  - authenticated
-  - unauthenticated
   - site_admin
   - system_admin
+  - admin
+  collapsed: true
   children:
-  - Name: Site Settings
-    url: /admin/site-settings
-    hover_description: Configure site-wide settings.
-  - url: /spa/services
-    Name: Service Control
-    tags:
-    - system
-    - services
-    hover_description: Manage system services.
-  - url: /api/v1/status/database
-    Name: Database Status
-    hover_description: View database health and status.
-    tags:
-    - database
-    - system
-  - Name: Role Management
-    url: /api/v1/ui/elements/admin/role-management
-    hover_description: Administer site roles.
-  - Name: services
-    url: /spa/services
-    hover_description: Manage system services.
-  - Name: Windwos Task Scheduler
-    url: /spa/WindowsTaskScheduler
-    hover_description: Manage scheduled tasks.
-    platform: windows
-    tags: tasks, windows, cron
-  - Name: Cron Jobs
-    url: /spa/CronJobs
-    hover_description: Manage scheduled cron jobs.
-    platform: linux
-    tags: tasks, cron
-  - Name: Linux Services
-    url: /spa/LinuxServices
-    hover_description: Manage Linux services.
-    platform: linux
-    tags: services, linux
-  - Name: Windows Subsystem for Linux (WSL)
-    url: /spa/WSL
-    hover_description: Manage WSL
-    platform: linux, windows
-    tags: wsl
-  - Name: Docker
-    url: /spa/Docker
-    hover_description: Manage Docker containers and images.
-    platform: linux
-    tags: docker
-  - Name: Kubernetes
-    url: /spa/Kubernetes
-    hover_description: Manage Kubernetes clusters.
-    platform: linux
-    tags: kubernetes
-  - Name: Card
-    url: /public/elements/card/element.html
-  - Name: Footer Info
-    url: /public/elements/footer-info/component.js
-  - Name: Profile
-    url: /public/elements/profile/component.js
-  - Name: System Status
-    url: /public/elements/system-status/component.js
-  - Name: User Card
-    url: /public/elements/user-card/element.html
+  - Name: WebHost
+    hover_description: PSWebHost server configuration and apps.
+    children:
+    - Name: Site Settings
+      url: /api/v1/ui/elements/site-settings
+      hover_description: Configure site-wide settings including security, appearance, and performance.
+      tags:
+      - settings
+      - configuration
+    - Name: Apps
+      url: /api/v1/ui/elements/apps-manager
+      hover_description: Manage installed PSWebHost apps.
+      tags:
+      - apps
+      - extensions
+    - Name: Role Management
+      url: /api/v1/ui/elements/admin/role-management
+      hover_description: Manage user roles and permissions.
+      tags:
+      - roles
+      - permissions
+      - security
+  - Name: Nodes
+    hover_description: Manage linked PSWebHost instances.
+    children:
+    - Name: Linked Nodes
+      url: /api/v1/ui/elements/nodes-manager
+      hover_description: View and manage connected PSWebHost instances.
+      tags:
+      - nodes
+      - cluster
+    - Name: Add Node
+      url: /api/v1/ui/elements/nodes-manager?action=add
+      hover_description: Register a new PSWebHost node.
+      tags:
+      - nodes
+      - cluster
 - Name: Not Implemented
   hover_description: Endpoints that are not implemented.
   roles:
@@ -172,4 +181,5 @@
   - unauthenticated
   - site_admin
   - system_admin
+  collapsed: true
   children: []

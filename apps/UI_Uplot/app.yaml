@@ -1,0 +1,141 @@
+name: uPlot Chart Builder
+version: 1.0.0
+author: PSWebHost
+description: >
+  High-performance charting application using uPlot library.
+  Provides multiple chart types with flexible data source options
+  including REST APIs, CSV files, JSON data, and SQL.js queries.
+enabled: true
+routePrefix: /apps/uplot
+requiredRoles:
+  - authenticated
+
+# Parent category structure
+parentCategory:
+  id: visualization
+  name: Data Visualization
+  description: Data visualization and charting tools
+  icon: chart-line
+  order: 5
+
+# Subcategory
+subCategory:
+  name: Charts
+  order: 1
+
+# App-specific settings
+settings:
+  # Browser-side console logging level
+  # Controls what events are logged to browser console via custom logger
+  # Options: verbose, info, warning, error, none
+  ConsoleToAPILoggingLevel: info
+
+  # Default chart settings
+  defaultChartHeight: 400
+  defaultChartWidth: 800
+  defaultRefreshInterval: 5  # seconds
+  maxDataPoints: 1000
+  enableRealTimeUpdates: true
+
+  # Data source limits
+  maxCsvFileSize: 10485760  # 10MB
+  maxJsonResponseSize: 52428800  # 50MB
+  queryTimeout: 30000  # 30 seconds
+
+  # Supported chart types
+  chartTypes:
+    - id: time-series
+      name: Time Series
+      description: Line charts for time-based data
+      icon: chart-line
+      defaultOptions:
+        interpolation: linear
+        pointSize: 0
+        strokeWidth: 2
+
+    - id: area-chart
+      name: Area Chart
+      description: Filled area charts for cumulative data
+      icon: chart-area
+      defaultOptions:
+        fill: true
+        fillOpacity: 0.3
+
+    - id: bar-chart
+      name: Bar Chart
+      description: Vertical or horizontal bar charts
+      icon: chart-bar
+      defaultOptions:
+        barWidth: 0.8
+        grouped: true
+
+    - id: scatter-plot
+      name: Scatter Plot
+      description: Point-based scatter plots for correlation analysis
+      icon: circle
+      defaultOptions:
+        pointSize: 4
+        showLines: false
+
+    - id: multi-axis
+      name: Multi-Axis Chart
+      description: Charts with multiple Y-axes for different scales
+      icon: chart-gantt
+      defaultOptions:
+        axes: 2
+
+    - id: heatmap
+      name: Heatmap
+      description: Color-coded matrix visualization
+      icon: th
+      defaultOptions:
+        colorScale: viridis
+
+  # Data source types
+  dataSources:
+    - id: rest-json
+      name: REST API (JSON)
+      description: Fetch JSON data from REST endpoints
+      method: GET
+      contentType: application/json
+      supportedChartTypes: ['time-series', 'area-chart', 'bar-chart', 'scatter-plot', 'multi-axis']
+
+    - id: rest-csv
+      name: REST API (CSV)
+      description: Fetch CSV data from REST endpoints
+      method: GET
+      contentType: text/csv
+      supportedChartTypes: ['time-series', 'area-chart', 'bar-chart', 'scatter-plot']
+
+    - id: sql-js
+      name: SQL.js Query
+      description: Query in-browser SQLite database
+      requiresLibrary: sql.js
+      supportedChartTypes: ['time-series', 'area-chart', 'bar-chart', 'scatter-plot', 'multi-axis', 'heatmap']
+
+    - id: metrics-db
+      name: Metrics Database
+      description: Query PSWebHost metrics database
+      requiresLibrary: metrics-database.js
+      supportedChartTypes: ['time-series', 'area-chart', 'multi-axis']
+
+    - id: static-json
+      name: Static JSON
+      description: Paste or upload JSON data
+      supportedChartTypes: ['time-series', 'area-chart', 'bar-chart', 'scatter-plot', 'multi-axis', 'heatmap']
+
+    - id: upload-csv
+      name: Upload CSV
+      description: Upload CSV file from local filesystem
+      supportedChartTypes: ['time-series', 'area-chart', 'bar-chart', 'scatter-plot']
+
+# Feature flags
+features:
+  enableDataExport: true
+  enableChartSharing: true
+  enableDashboards: true
+  enableRealTime: true
+  enableSqlJs: true
+
+# Created date
+created: 2026-01-11

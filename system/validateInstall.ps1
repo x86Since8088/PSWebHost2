@@ -263,9 +263,17 @@ end {
     try {
         $validatorScript = Join-Path $PSScriptRoot "db/sqlite/validatetables.ps1"
         if (Test-Path $validatorScript) {
+            # Validate main application database
             $dbFile = Join-Path $projectRoot "PsWebHost_Data/pswebhost.db"
             $configFile = Join-Path $projectRoot "system/db/sqlite/sqliteconfig.json"
+            Write-Verbose "Validating main database: $dbFile"
             & $validatorScript -DatabaseFile $dbFile -ConfigFile $configFile
+
+            # Validate performance database
+            $perfDbFile = Join-Path $projectRoot "PsWebHost_Data/pswebhost_perf.db"
+            $perfConfigFile = Join-Path $projectRoot "system/db/sqlite/sqlite_pswebhost_perf_config.json"
+            Write-Verbose "Validating performance database: $perfDbFile"
+            & $validatorScript -DatabaseFile $perfDbFile -ConfigFile $perfConfigFile
         } else {
             Write-Error "Database validation script not found at '$validatorScript'."
         }

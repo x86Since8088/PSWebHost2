@@ -7,10 +7,10 @@
     Description = 'Functions for formatting objects.'
     FunctionsToExport = @(
         'Convert-ObjectToYaml',
-        'Inspect-Object',
         'Get-ObjectSafeWalk',
+        'Inspect-Object',
+        'New-JsonResponse',
         'Test-Walkable'
-        'New-JsonResponse'
     )
     RootModule = 'PSWebHost_Formatters.psm1'
     RequiredModules = @()

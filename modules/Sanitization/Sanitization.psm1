@@ -13,6 +13,13 @@ function Sanitize-HtmlInput {
         $ansiEscapeRegex = '[\u001B\u009B][[()#;?]*.{0,2}(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]'
         $sanitizedString = $InputString -replace $ansiEscapeRegex, ''
 
+        # Remove dangerous JavaScript protocols and event handlers BEFORE encoding
+        # This prevents attacks that survive HTML encoding
+        $sanitizedString = $sanitizedString -replace 'javascript:', ''
+        $sanitizedString = $sanitizedString -replace 'vbscript:', ''
+        $sanitizedString = $sanitizedString -replace 'data:', ''
+        $sanitizedString = $sanitizedString -replace '\bon\w+\s*=', ''  # Remove event handlers like onerror=, onload=, etc.
+
         return [System.Web.HttpUtility]::HtmlEncode($sanitizedString)
     }
 }
@@ -46,10 +53,22 @@ function Sanitize-FilePath {
         return @{Score='pass'; Path = [System.IO.Path]::GetFullPath($BaseDirectory)}
     }
 
+    # Check for UNC paths (\\server\share)
+    if ($FilePath -match '^\\\\') {
+        Write-RequestSanitizationFail -Path $FilePath -Message "UNC paths are not allowed."
+        return @{Score='fail'; Message = "UNC path not allowed: $FilePath"}
+    }
+
+    # Check for absolute paths (C:\, /etc/, etc.)
+    if ([System.IO.Path]::IsPathRooted($FilePath)) {
+        Write-RequestSanitizationFail -Path $FilePath -Message "Absolute paths are not allowed."
+        return @{Score='fail'; Message = "Absolute path not allowed: $FilePath"}
+    }
+
     # Check for obvious path traversal sequences like '..'
     if ($FilePath -match '([\\/])\.\.' -or $FilePath.StartsWith('..', [System.StringComparison]::Ordinal)) {
         # Removed undefined variables $isAuthorized and $session.Roles
-        Write-RequestSanitizationFail -Path $FilePath -Message "Failed check for obvious path traversal sequences." 
+        Write-RequestSanitizationFail -Path $FilePath -Message "Failed check for obvious path traversal sequences."
         return @{Score='fail'; Message = "Path traversal attempt detected: $FilePath"}
     }
 

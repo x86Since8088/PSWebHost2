@@ -84,11 +84,11 @@ function Get-PSWebHostUser {
     $MyTag = "[Get-PSWebHostUser]"
     if ($PSBoundParameters.ContainsKey('Email')) {
         $safeEmail = Sanitize-SqlQueryString -String $Email
-        $query = "SELECT * FROM Users WHERE Email = '$safeEmail';"
+        $query = "SELECT * FROM Users WHERE Email COLLATE NOCASE = '$safeEmail';"
     }
     elseif ($PSBoundParameters.ContainsKey('UserID')) {
         $safeUserID = Sanitize-SqlQueryString -String $UserID
-        $query = "SELECT * FROM Users WHERE UserID = '$safeUserID';"
+        $query = "SELECT * FROM Users WHERE UserID COLLATE NOCASE = '$safeUserID';"
     }
     elseif ($Listall) {
         $query = "SELECT * FROM Users;"
@@ -148,7 +148,7 @@ function Get-UserAuthenticationMethods {
 
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeUserID = Sanitize-SqlQueryString -String $user.UserID
-    $query = "SELECT provider FROM auth_user_provider WHERE UserID = '$safeUserID';"
+    $query = "SELECT provider FROM auth_user_provider WHERE UserID COLLATE NOCASE = '$safeUserID';"
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
     $authMethods = Get-PSWebSQLiteData -File $dbFile -Query $query
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved authentication methods: $(($authMethods | Out-String).trim('\s') -split '\n' -join "`n`t")"
@@ -194,13 +194,13 @@ function Get-PSWebHostRole {
     $safeUserID = Sanitize-SqlQueryString -String $UserID
 
     # Get roles assigned directly to the user
-    $queryDirectRoles = "SELECT RoleName FROM PSWeb_Roles WHERE PrincipalID = '$safeUserID';"
+    $queryDirectRoles = "SELECT RoleName FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safeUserID';"
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$queryDirectRoles"
     $directRoles = Get-PSWebSQLiteData -File $dbFile -Query $queryDirectRoles
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved direct roles: $(($directRoles | Out-String).trim('\s') -split '\n' -join "`n`t")"
 
     # Get roles assigned to groups the user is in
-    $queryGroupRoles = "SELECT r.RoleName FROM PSWeb_Roles r JOIN User_Groups_Map ugm ON r.PrincipalID = ugm.GroupID WHERE ugm.UserID = '$safeUserID';"
+    $queryGroupRoles = "SELECT r.RoleName FROM PSWeb_Roles r JOIN User_Groups_Map ugm ON r.PrincipalID COLLATE NOCASE = ugm.GroupID WHERE ugm.UserID COLLATE NOCASE = '$safeUserID';"
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$queryGroupRoles"
     $groupRoles = Get-PSWebSQLiteData -File $dbFile -Query $queryGroupRoles
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved group roles: $(($groupRoles | Out-String).trim('\s') -split '\n' -join "`n`t")"
@@ -249,7 +249,7 @@ function Invoke-AuthenticationMethod {
             $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
             $safeUserID = Sanitize-SqlQueryString -String $user.UserID
             # The password hash is stored in the 'data' column as JSON
-            $query = "SELECT data FROM auth_user_provider WHERE UserID = '$safeUserID' AND provider = 'Password';"
+            $query = "SELECT data FROM auth_user_provider WHERE UserID COLLATE NOCASE = '$safeUserID' AND provider COLLATE NOCASE = 'Password';"
             Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Get-PSWebSQLiteData -File $dbFile -Query `n`t$query"
             $authMethod = Get-PSWebSQLiteData -File $dbFile -Query $query
             Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Retrieved authentication method data: $(($authMethod | Out-String).trim('\s') -split '\n' -join "`n`t")"
@@ -334,13 +334,16 @@ function Test-IsValidEmailAddress {
     $InvalidCharacters = Test-StringForHighRiskUnicode -String $Email
     if ($InvalidCharacters.IsValid -eq $false) {
         Write-PSWebHostLog -Severity Warning -Category Email_Conatins_High_Risk_Unicode "$MyTag Email_Conatins_High_Risk_Unicode: $InvalidCharacters" -WriteHost:$PSBoundParameters.Verbose -ForegroundColor yellow
+        if ($Global:PSWebHostTesting) { return $false }
         return $InvalidCharacters
     }
     if (-not ($Email -match $Regex)) {
         $return = @{ isValid = $false; Message = "Email address format is invalid." }
         Write-PSWebHostLog -Severity Warning -Category Email_Format_Invalid -message "$MyTag Invalid Characters: $($return|ConvertTo-Json -Compress)" -WriteHost:$PSBoundParameters.Verbose -ForegroundColor yellow
+        if ($Global:PSWebHostTesting) { return $false }
         return $return
     }
+    if ($Global:PSWebHostTesting) { return $true }
     return @{ isValid = $true; Message = "Email address is valid." }
 }
 
@@ -498,42 +501,50 @@ function Test-IsValidPassword {
     $MyTag = "[Test-IsValidPassword]"
     if ($Password.Length -lt 8) {
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Password length is less than minimum required length of 8."
+        if ($Global:PSWebHostTesting) { return $false }
         return @{ IsValid = $false; Message = "Password must be at least 8 characters long." }
     }
     # Check for minimum uppercase characters
     if (($Password.ToCharArray() -match '[A-Z]').Count -lt $Uppercase) {
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Not enough uppercase characters regex: '[A-Z]'"
+        if ($Global:PSWebHostTesting) { return $false }
         return @{ IsValid = $false; Message = "Password must contain at least $Uppercase uppercase letters." }
     }
     # Check for minimum lowercase characters
     if (($Password.ToCharArray() -match '[a-z]').Count -lt $LowerCase) {
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Not enough lowercase characters regex: '[a-z]'"
+        if ($Global:PSWebHostTesting) { return $false }
         return @{ IsValid = $false; Message = "Password must contain at least $LowerCase lowercase letters." }
     }
     # Check for minimum numbers
     if (($Password.ToCharArray() -match '[0-9]').Count -lt $Numbers) {
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Not enough number characters regex: '[0-9]'"
+        if ($Global:PSWebHostTesting) { return $false }
         return @{ IsValid = $false; Message = "Password must contain at least $Numbers numbers." }
     }
     # Check for minimum symbols
     if ($Symbols -gt 0) { # Only check if a minimum number of symbols is required
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Valid symbol characters regex: $ValidSymbolCharactersRegex '$($Password.ToCharArray() -match $ValidSymbolCharactersRegex |ForEach-Object{[uint32]$_})'"
         if (($Password.ToCharArray() -match $ValidSymbolCharactersRegex).Count -lt $Symbols) {
+            if ($Global:PSWebHostTesting) { return $false }
             return @{ IsValid = $false; Message = "Password must contain at least $Symbols symbols." }
         }
     }
     # Check for unapproved characters
     if (($Password.ToCharArray() -match "[^a-zA-Z0-9$($ValidSymbolCharactersRegex)]").Count -gt 0) {
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Password contains unapproved characters."
+        if ($Global:PSWebHostTesting) { return $false }
         return @{ IsValid = $false; Message = "Password contains unapproved characters." }
     }
 
     $InvalidCharacters = Test-StringForHighRiskUnicode -String $Password
     if ($InvalidCharacters.IsValid -eq $false) {
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Password failed high-risk unicode check."
+        if ($Global:PSWebHostTesting) { return $false }
         return $InvalidCharacters
-    }    
+    }
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Password passed high-risk unicode check."
+    if ($Global:PSWebHostTesting) { return $true }
     return @{ IsValid = $true; Message = "Password is valid." }
 }
 
@@ -711,6 +722,20 @@ function New-PSWebHostUser {
     $MyTag = "[New-PSWebHostUser]"
     if (-not $Email) { Write-Error "The -Email parameter is required."; return }
 
+    # Validate email format
+    $emailValidation = Test-IsValidEmailAddress -Email $Email
+    if ($Global:PSWebHostTesting) {
+        # In testing mode, validation returns boolean
+        if (-not $emailValidation) {
+            throw "Invalid email format: $Email"
+        }
+    } else {
+        # In production mode, validation returns hashtable
+        if (-not $emailValidation.isValid) {
+            throw "Invalid email format: $($emailValidation.Message)"
+        }
+    }
+
     if (-not $UserName) {
         $UserName = $Email
     }
@@ -718,7 +743,22 @@ function New-PSWebHostUser {
         # Generate a random password if not provided
         $Password = [System.Web.Security.Membership]::GeneratePassword(12,2)
         Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) No password provided. Generated random password."
+    } else {
+        # Validate password strength
+        $passwordValidation = Test-IsValidPassword -Password $Password
+        if ($Global:PSWebHostTesting) {
+            # In testing mode, validation returns boolean
+            if (-not $passwordValidation) {
+                throw "Password does not meet complexity requirements"
+            }
+        } else {
+            # In production mode, validation returns hashtable
+            if (-not $passwordValidation.IsValid) {
+                throw "Password does not meet complexity requirements: $($passwordValidation.Message)"
+            }
+        }
     }
+
     write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing Register-PSWebHostUser -UserName '$UserName' -Email '$Email' -Phone '$Phone' -Provider 'Password' -Password `$Password"
     Register-PSWebHostUser -UserName $UserName -Email $Email -Phone $Phone -Provider "Password" -Password $Password
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: Register-PSWebHostUser"
@@ -878,7 +918,7 @@ function Remove-PSWebHostRoleAssignment {
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeUserID = Sanitize-SqlQueryString -String $UserID
     $safeRoleName = Sanitize-SqlQueryString -String $RoleName
-    $query = "DELETE FROM PSWeb_Roles WHERE PrincipalID = '$safeUserID' AND RoleName = '$safeRoleName';"
+    $query = "DELETE FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safeUserID' AND RoleName COLLATE NOCASE = '$safeRoleName';"
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Invoke-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
     Write-PSWebHostLog -Severity 'Info' -Category 'RoleManagement' -Message "Removing role '$RoleName' from user '$UserID'." -Data @{ RoleName = $RoleName; UserID = $UserID }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
@@ -948,7 +988,7 @@ function Remove-PSWebHostGroupMember {
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     $safeUserID = Sanitize-SqlQueryString -String $UserID
     $safeGroupID = Sanitize-SqlQueryString -String $GroupID
-    $query = "DELETE FROM User_Groups_Map WHERE UserID = '$safeUserID' AND GroupID = '$safeGroupID';"
+    $query = "DELETE FROM User_Groups_Map WHERE UserID COLLATE NOCASE = '$safeUserID' AND GroupID COLLATE NOCASE = '$safeGroupID';"
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Executing: Invoke-PSWebSQLiteNonQuery -File $dbFile -Query `n`t$query"
     Write-PSWebHostLog -Severity 'Info' -Category 'GroupManagement' -Message "Removing user '$UserID' from group '$GroupID'." -Data @{ UserID = $UserID; GroupID = $GroupID }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
@@ -1239,4 +1279,324 @@ function Remove-LoginSession {
     write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Removing login session for SessionID '$SessionID'." -Data @{ SessionID = $SessionID }
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed Invoke-PSWebSQLiteNonQuery"
+}
+
+function Test-Authentication_API_Key_Bearer {
+    <#
+    .SYNOPSIS
+        Validates an API key from the Authorization header
+    .DESCRIPTION
+        Checks the provided Bearer token against:
+        1. Config-stored API keys (localhost_admin, global_read)
+        2. Database-stored API keys (API_Keys table)
+
+        Returns a session-like object with roles if valid, $null if invalid.
+    .PARAMETER BearerToken
+        The API key from the Authorization: Bearer header
+    .PARAMETER RemoteIP
+        The IP address of the client making the request
+    .OUTPUTS
+        PSCustomObject with authentication details, or $null if invalid
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BearerToken,
+
+        [string]$RemoteIP
+    )
+
+    $MyTag = '[Test-Authentication_API_Key_Bearer]'
+    Write-Verbose "$MyTag Validating API key from IP: $RemoteIP"
+
+    # Helper function to check if IP is localhost
+    $isLocalhost = {
+        param([string]$ip)
+        # Check various localhost representations including IPv4-mapped IPv6
+        $localhostPatterns = @('127.0.0.1', '::1', '::ffff:127.0.0.1', '0:0:0:0:0:0:0:1')
+        return ($ip -in $localhostPatterns) -or ($ip -match '^::ffff:127\.0\.0\.1$')
+    }
+
+    # Helper function to get roles for a user
+    $getUserRoles = {
+        param([string]$userID)
+        $roles = [System.Collections.ArrayList]@('authenticated')
+        $userRoles = Get-PSWebHostRole -UserID $userID
+        if ($userRoles) {
+            foreach ($role in $userRoles) {
+                if ($role -notin $roles) {
+                    $roles.Add($role) | Out-Null
+                }
+            }
+        }
+        return $roles
+    }
+
+    # Helper function to check IP restrictions
+    $checkIPAllowed = {
+        param($allowedIPs, [string]$remoteIP)
+        if (-not $allowedIPs -or $allowedIPs.Count -eq 0) {
+            return $true  # No restrictions
+        }
+        foreach ($allowedIP in $allowedIPs) {
+            if ($remoteIP -eq $allowedIP) {
+                return $true
+            }
+            # Special handling for 'localhost' keyword - match any localhost IP variant
+            if ($allowedIP -eq 'localhost' -or $allowedIP -eq '127.0.0.1' -or $allowedIP -eq '::1') {
+                if (& $isLocalhost $remoteIP) {
+                    return $true
+                }
+            }
+        }
+        return $false
+    }
+
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+
+    # 1. Check config-stored API keys first (fastest)
+    if ($Global:PSWebServer.ApiKeys -and $Global:PSWebServer.ApiKeys.ContainsKey($BearerToken)) {
+        $keyInfo = $Global:PSWebServer.ApiKeys[$BearerToken]
+
+        # Check IP restrictions
+        if (-not (& $checkIPAllowed $keyInfo.AllowedIPs $RemoteIP)) {
+            Write-Verbose "$MyTag API key '$($keyInfo.Name)' not allowed from IP: $RemoteIP"
+            Write-PSWebHostLog -Severity 'Warning' -Category 'Auth' -Message "API key '$($keyInfo.Name)' rejected - IP not allowed: $RemoteIP (allowed: $($keyInfo.AllowedIPs -join ', '))"
+            return $null
+        }
+
+        # Get roles from the linked user account
+        $userID = $keyInfo.UserID
+        $roles = & $getUserRoles $userID
+
+        Write-Verbose "$MyTag Config API key validated: $($keyInfo.Name) -> User: $userID"
+        Write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "API key authenticated: $($keyInfo.Name) -> User: $userID from $RemoteIP"
+
+        return [PSCustomObject]@{
+            Authenticated = $true
+            AuthMethod = 'API_Key'
+            KeyName = $keyInfo.Name
+            Roles = $roles
+            Source = 'config'
+            UserID = $userID
+        }
+    }
+
+    # 2. Check database-stored API keys
+    if (Test-Path $dbFile) {
+        try {
+            # Hash the token for comparison (we store hashed keys in DB for security)
+            $keyHash = [System.BitConverter]::ToString(
+                [System.Security.Cryptography.SHA256]::Create().ComputeHash(
+                    [System.Text.Encoding]::UTF8.GetBytes($BearerToken)
+                )
+            ).Replace('-', '').ToLower()
+
+            $safeKeyHash = Sanitize-SqlQueryString -String $keyHash
+            $query = @"
+SELECT KeyID, Name, UserID, AllowedIPs, ExpiresAt, Enabled
+FROM API_Keys
+WHERE KeyHash = '$safeKeyHash' AND Enabled = 1;
+"@
+
+            $apiKey = Get-PSWebSQLiteData -File $dbFile -Query $query
+
+            if ($apiKey) {
+                # Check expiration
+                if ($apiKey.ExpiresAt) {
+                    $expiresAt = [DateTime]::Parse($apiKey.ExpiresAt)
+                    if ($expiresAt -lt (Get-Date)) {
+                        Write-Verbose "$MyTag Database API key '$($apiKey.Name)' has expired"
+                        Write-PSWebHostLog -Severity 'Warning' -Category 'Auth' -Message "API key '$($apiKey.Name)' rejected - expired"
+                        return $null
+                    }
+                }
+
+                # Check IP restrictions
+                $allowedIPs = if ($apiKey.AllowedIPs) { @($apiKey.AllowedIPs -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ }) } else { @() }
+                if (-not (& $checkIPAllowed $allowedIPs $RemoteIP)) {
+                    Write-Verbose "$MyTag Database API key '$($apiKey.Name)' not allowed from IP: $RemoteIP"
+                    Write-PSWebHostLog -Severity 'Warning' -Category 'Auth' -Message "API key '$($apiKey.Name)' rejected - IP not allowed: $RemoteIP (allowed: $($apiKey.AllowedIPs))"
+                    return $null
+                }
+
+                # Get roles from the linked user account
+                $userID = $apiKey.UserID
+                $roles = & $getUserRoles $userID
+
+                # Update last used timestamp
+                $updateQuery = "UPDATE API_Keys SET LastUsed = datetime('now') WHERE KeyID = '$($apiKey.KeyID)';"
+                Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $updateQuery -ErrorAction SilentlyContinue
+
+                Write-Verbose "$MyTag Database API key validated: $($apiKey.Name) -> User: $userID"
+                Write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "API key authenticated: $($apiKey.Name) -> User: $userID from $RemoteIP"
+
+                return [PSCustomObject]@{
+                    Authenticated = $true
+                    AuthMethod = 'API_Key'
+                    KeyName = $apiKey.Name
+                    KeyID = $apiKey.KeyID
+                    Roles = $roles
+                    Source = 'database'
+                    UserID = $userID
+                }
+            }
+        } catch {
+            Write-Verbose "$MyTag Error checking database API keys: $($_.Exception.Message)"
+        }
+    }
+
+    # No valid API key found
+    Write-Verbose "$MyTag Invalid API key"
+    return $null
+}
+
+function New-DatabaseApiKey {
+    <#
+    .SYNOPSIS
+        Creates a new API key in the database linked to a user account
+    .PARAMETER Name
+        Name/identifier for the API key
+    .PARAMETER UserID
+        The UserID to link this API key to (roles come from the user)
+    .PARAMETER AllowedIPs
+        Array of allowed IP addresses (empty = all IPs)
+    .PARAMETER ExpiresAt
+        Optional expiration date
+    .PARAMETER Description
+        Optional description
+    .PARAMETER CreatedBy
+        UserID of the creator
+    .OUTPUTS
+        The generated API key (only returned once, not stored in plaintext)
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+
+        [Parameter(Mandatory = $true)]
+        [string]$UserID,
+
+        [string[]]$AllowedIPs = @(),
+
+        [DateTime]$ExpiresAt,
+
+        [string]$Description,
+
+        [string]$CreatedBy
+    )
+
+    $MyTag = '[New-DatabaseApiKey]'
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+
+    # Verify the user exists
+    $safeUserID = Sanitize-SqlQueryString -String $UserID
+    $userCheck = Get-PSWebSQLiteData -File $dbFile -Query "SELECT UserID FROM Users WHERE UserID = '$safeUserID';"
+    if (-not $userCheck) {
+        Write-Error "$MyTag User not found: $UserID"
+        return $null
+    }
+
+    # Generate a new API key
+    $bytes = [byte[]]::new(32)
+    [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+    $apiKey = [Convert]::ToBase64String($bytes)
+
+    # Hash the key for storage
+    $keyHash = [System.BitConverter]::ToString(
+        [System.Security.Cryptography.SHA256]::Create().ComputeHash(
+            [System.Text.Encoding]::UTF8.GetBytes($apiKey)
+        )
+    ).Replace('-', '').ToLower()
+
+    $keyID = [Guid]::NewGuid().ToString()
+    $safeName = Sanitize-SqlQueryString -String $Name
+    $safeAllowedIPs = Sanitize-SqlQueryString -String ($AllowedIPs -join ',')
+    $safeDescription = if ($Description) { Sanitize-SqlQueryString -String $Description } else { '' }
+    $safeCreatedBy = if ($CreatedBy) { Sanitize-SqlQueryString -String $CreatedBy } else { '' }
+    $expiresAtStr = if ($ExpiresAt) { $ExpiresAt.ToString('o') } else { '' }
+
+    $query = @"
+INSERT INTO API_Keys (KeyID, Name, KeyHash, UserID, AllowedIPs, CreatedBy, CreatedAt, ExpiresAt, Enabled, Description)
+VALUES ('$keyID', '$safeName', '$keyHash', '$safeUserID', '$safeAllowedIPs', '$safeCreatedBy', datetime('now'), '$expiresAtStr', 1, '$safeDescription');
+"@
+
+    try {
+        Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+        Write-Verbose "$MyTag Created API key: $Name -> User: $UserID (ID: $keyID)"
+        Write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Created API key: $Name -> User: $UserID by $CreatedBy"
+
+        return [PSCustomObject]@{
+            KeyID = $keyID
+            Name = $Name
+            UserID = $UserID
+            ApiKey = $apiKey  # Only returned once!
+            AllowedIPs = $AllowedIPs
+            ExpiresAt = $ExpiresAt
+        }
+    } catch {
+        Write-Error "$MyTag Failed to create API key: $($_.Exception.Message)"
+        return $null
+    }
+}
+
+function Remove-DatabaseApiKey {
+    <#
+    .SYNOPSIS
+        Removes an API key from the database
+    .PARAMETER KeyID
+        The ID of the key to remove
+    .PARAMETER Name
+        The name of the key to remove (alternative to KeyID)
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$KeyID,
+        [string]$Name
+    )
+
+    $MyTag = '[Remove-DatabaseApiKey]'
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+
+    if ($KeyID) {
+        $safeKeyID = Sanitize-SqlQueryString -String $KeyID
+        $query = "DELETE FROM API_Keys WHERE KeyID = '$safeKeyID';"
+    } elseif ($Name) {
+        $safeName = Sanitize-SqlQueryString -String $Name
+        $query = "DELETE FROM API_Keys WHERE Name = '$safeName';"
+    } else {
+        Write-Error "$MyTag Either -KeyID or -Name is required"
+        return $false
+    }
+
+    try {
+        Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
+        Write-Verbose "$MyTag Removed API key"
+        Write-PSWebHostLog -Severity 'Info' -Category 'Auth' -Message "Removed API key: $KeyID$Name"
+        return $true
+    } catch {
+        Write-Error "$MyTag Failed to remove API key: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Get-DatabaseApiKeys {
+    <#
+    .SYNOPSIS
+        Lists all API keys in the database (without the actual keys)
+    #>
+    [CmdletBinding()]
+    param()
+
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+
+    $query = "SELECT KeyID, Name, UserID, AllowedIPs, CreatedBy, CreatedAt, ExpiresAt, LastUsed, Enabled, Description FROM API_Keys ORDER BY Name;"
+
+    try {
+        return Get-PSWebSQLiteData -File $dbFile -Query $query
+    } catch {
+        Write-Error "Failed to get API keys: $($_.Exception.Message)"
+        return @()
+    }
 }

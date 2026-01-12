@@ -90,8 +90,8 @@ SELECT
         ELSE 'Unknown'
     END as PrincipalName
 FROM PSWeb_Roles r
-LEFT JOIN Users u ON r.PrincipalID = u.UserID AND r.PrincipalType = 'User'
-LEFT JOIN User_Groups g ON r.PrincipalID = g.GroupID AND r.PrincipalType = 'Group'
+LEFT JOIN Users u ON r.PrincipalID = u.UserID AND r.PrincipalType COLLATE NOCASE = 'User'
+LEFT JOIN User_Groups g ON r.PrincipalID = g.GroupID AND r.PrincipalType COLLATE NOCASE = 'Group'
 ORDER BY r.RoleName, r.PrincipalType, PrincipalName;
 "@
 

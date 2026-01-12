@@ -1,0 +1,181 @@
+/* Markdown Viewer Styles */
+
+.markdown-viewer {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+}
+
+.markdown-viewer.loading,
+.markdown-viewer.error {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    text-align: center;
+}
+
+.markdown-viewer .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border-color, #ddd);
+    border-top-color: var(--accent-color, #0366d6);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Markdown content styles */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    margin-top: 24px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.markdown-content h1 { font-size: 2em; border-bottom: 1px solid var(--border-color, #eee); padding-bottom: 0.3em; }
+.markdown-content h2 { font-size: 1.5em; border-bottom: 1px solid var(--border-color, #eee); padding-bottom: 0.3em; }
+.markdown-content h3 { font-size: 1.25em; }
+.markdown-content h4 { font-size: 1em; }
+.markdown-content h5 { font-size: 0.875em; }
+.markdown-content h6 { font-size: 0.85em; color: var(--text-muted, #6a737d); }
+
+.markdown-content p {
+    margin-top: 0;
+    margin-bottom: 16px;
+}
+
+.markdown-content code {
+    background: var(--code-bg, #f4f4f4);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+.markdown-content pre {
+    background: var(--code-bg, #f4f4f4);
+    padding: 16px;
+    border-radius: 6px;
+    overflow: auto;
+    margin: 16px 0;
+}
+
+.markdown-content pre code {
+    background: none;
+    padding: 0;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
+.markdown-content blockquote {
+    border-left: 4px solid var(--accent-color, #0366d6);
+    margin: 16px 0;
+    padding: 0 16px;
+    color: var(--text-muted, #6a737d);
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    margin: 16px 0;
+    padding-left: 2em;
+}
+
+.markdown-content li {
+    margin: 4px 0;
+}
+
+.markdown-content a {
+    color: var(--link-color, #0366d6);
+    text-decoration: none;
+}
+
+.markdown-content a:hover {
+    text-decoration: underline;
+}
+
+.markdown-content img {
+    max-width: 100%;
+    height: auto;
+}
+
+.markdown-content hr {
+    border: none;
+    border-top: 1px solid var(--border-color, #eee);
+    margin: 24px 0;
+}
+
+.markdown-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 16px 0;
+}
+
+.markdown-content th,
+.markdown-content td {
+    border: 1px solid var(--border-color, #ddd);
+    padding: 8px 12px;
+    text-align: left;
+}
+
+.markdown-content th {
+    background: var(--bg-secondary, #f6f8fa);
+    font-weight: 600;
+}
+
+.markdown-content tr:nth-child(even) {
+    background: var(--bg-secondary, #f6f8fa);
+}
+
+/* Mermaid diagram styles */
+.mermaid-container {
+    margin: 16px 0;
+    padding: 16px;
+    background: var(--bg-secondary, #f9f9f9);
+    border-radius: 6px;
+    overflow: auto;
+}
+
+.mermaid-container .mermaid {
+    display: flex;
+    justify-content: center;
+}
+
+.mermaid-container svg {
+    max-width: 100%;
+    height: auto;
+}
+
+/* Editor toolbar */
+.editor-toolbar,
+.viewer-toolbar {
+    background: var(--bg-secondary, #f6f8fa);
+}
+
+.editor-toolbar button,
+.viewer-toolbar button {
+    transition: background-color 0.2s;
+}
+
+.editor-toolbar button:hover,
+.viewer-toolbar button:hover {
+    filter: brightness(0.95);
+}
+
+/* TOAST UI Editor overrides for dark mode compatibility */
+.toastui-editor-defaultUI {
+    border: 1px solid var(--border-color, #ddd) !important;
+}
+
+.toastui-editor-md-container,
+.toastui-editor-ww-container {
+    background: var(--bg-color, #fff) !important;
+}

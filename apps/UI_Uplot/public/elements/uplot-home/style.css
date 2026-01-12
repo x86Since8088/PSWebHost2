@@ -1,0 +1,471 @@
+/**
+ * uPlot Chart Builder - Home Component Styles
+ */
+
+.uplot-home-container {
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Header */
+.uplot-header {
+    text-align: center;
+    margin-bottom: 40px;
+    padding: 30px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+}
+
+.uplot-header h1 {
+    margin: 0 0 10px 0;
+    font-size: 2.5em;
+    font-weight: 700;
+}
+
+.uplot-header h1 i {
+    margin-right: 15px;
+}
+
+.uplot-header .subtitle {
+    margin: 0;
+    font-size: 1.1em;
+    opacity: 0.95;
+    font-weight: 300;
+}
+
+/* Chart Types Grid */
+.chart-types-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 30px;
+    margin-bottom: 40px;
+}
+
+/* Chart Type Card */
+.chart-type-card {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    border-top: 4px solid #3b82f6;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-type-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.chart-type-card .card-icon {
+    font-size: 3em;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.chart-type-card h3 {
+    margin: 0 0 12px 0;
+    font-size: 1.5em;
+    color: #1f2937;
+    text-align: center;
+}
+
+.chart-type-card .card-description {
+    color: #6b7280;
+    margin: 0 0 20px 0;
+    line-height: 1.6;
+    text-align: center;
+    font-size: 0.95em;
+}
+
+.chart-type-card .card-section {
+    margin-bottom: 20px;
+}
+
+.chart-type-card .card-section h4 {
+    margin: 0 0 10px 0;
+    font-size: 0.9em;
+    color: #4b5563;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.chart-type-card .card-section h4 i {
+    margin-right: 8px;
+    color: #9ca3af;
+}
+
+/* Data Sources */
+.data-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.data-source-badge {
+    display: inline-block;
+    background: #f3f4f6;
+    color: #4b5563;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: 500;
+    cursor: help;
+    transition: all 0.2s;
+}
+
+.data-source-badge:hover {
+    background: #e5e7eb;
+    transform: scale(1.05);
+}
+
+.data-source-badge i {
+    margin-right: 5px;
+    color: #6b7280;
+}
+
+/* Use Cases */
+.use-cases {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.use-cases li {
+    padding: 6px 0;
+    color: #4b5563;
+    font-size: 0.9em;
+}
+
+.use-cases li i {
+    color: #10b981;
+    margin-right: 8px;
+}
+
+/* Create Chart Button */
+.create-chart-btn {
+    margin-top: auto;
+    padding: 12px 24px;
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.create-chart-btn:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.create-chart-btn:active {
+    transform: scale(0.98);
+}
+
+.create-chart-btn i {
+    font-size: 1.1em;
+}
+
+/* Modal */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 800px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 25px 30px;
+    border-bottom: 1px solid #e5e7eb;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+}
+
+.modal-header h2 {
+    margin: 0;
+    font-size: 1.8em;
+    font-weight: 600;
+}
+
+.close-button {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    font-size: 1.5em;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.close-button:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+}
+
+.modal-body {
+    padding: 30px;
+}
+
+/* Form Sections */
+.form-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border-left: 4px solid #3b82f6;
+}
+
+.form-section h3 {
+    margin: 0 0 20px 0;
+    color: #1f2937;
+    font-size: 1.3em;
+    font-weight: 600;
+}
+
+.form-section h3 i {
+    margin-right: 10px;
+    color: #3b82f6;
+}
+
+/* Form Groups */
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #374151;
+    font-weight: 500;
+    font-size: 0.95em;
+}
+
+.form-group label i {
+    margin-right: 6px;
+    color: #6b7280;
+}
+
+.form-group .help-text {
+    display: block;
+    font-size: 0.85em;
+    color: #6b7280;
+    font-weight: 400;
+    margin-top: 4px;
+}
+
+.form-group input[type="text"],
+.form-group input[type="url"],
+.form-group input[type="number"],
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 0.95em;
+    font-family: inherit;
+    transition: all 0.2s;
+    box-sizing: border-box;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-group textarea {
+    resize: vertical;
+    font-family: 'Courier New', monospace;
+}
+
+.form-group .input-hint {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.8em;
+    color: #6b7280;
+    line-height: 1.4;
+}
+
+.form-group .input-hint code {
+    background: #e5e7eb;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+/* Form Row */
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+/* Checkbox Label */
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* Data Source Inputs */
+.data-source-inputs {
+    padding: 20px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+}
+
+.no-selection {
+    text-align: center;
+    color: #9ca3af;
+    padding: 30px;
+    font-style: italic;
+}
+
+/* CSV Preview */
+#csvPreview {
+    margin-top: 15px;
+    padding: 15px;
+    background: #f9fafb;
+    border-radius: 6px;
+    border: 1px solid #e5e7eb;
+}
+
+#csvPreview h4 {
+    margin: 0 0 10px 0;
+    color: #374151;
+    font-size: 0.9em;
+}
+
+#csvPreviewContent {
+    background: #1f2937;
+    color: #e5e7eb;
+    padding: 12px;
+    border-radius: 4px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.85em;
+    overflow-x: auto;
+    margin: 0;
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    padding-top: 20px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.btn-primary,
+.btn-secondary {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background-color: #3b82f6;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-secondary {
+    background-color: #e5e7eb;
+    color: #374151;
+}
+
+.btn-secondary:hover {
+    background-color: #d1d5db;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .chart-types-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .uplot-header h1 {
+        font-size: 2em;
+    }
+
+    .modal-content {
+        margin: 10px;
+    }
+}

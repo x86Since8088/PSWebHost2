@@ -1,0 +1,14 @@
+{
+    "name": "vault",
+    "version": "1.0.0",
+    "description": "Secure credential storage for PSWebHost nodes and services",
+    "routePrefix": "/apps/vault",
+    "enabled": true,
+    "requiredRoles": ["admin", "vault_admin"],
+    "database": "separate",
+    "author": "PSWebHost",
+    "features": {
+        "dpapi": true,
+        "masterKey": false
+    }
+}

@@ -46,6 +46,97 @@
       "indexes": [
         { "name": "idx_sysperf_timestamp", "columns": ["Timestamp"] }
       ]
+    },
+    {
+      "name": "Perf_MemoryUsage",
+      "columns": [
+        { "name": "ID", "type": "INTEGER", "constraint": "PRIMARY KEY AUTOINCREMENT" },
+        { "name": "Timestamp", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Host", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "MB_Min", "type": "REAL", "constraint": "" },
+        { "name": "MB_Max", "type": "REAL", "constraint": "" },
+        { "name": "MB_Avg", "type": "REAL", "constraint": "" },
+        { "name": "Seconds", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "CreatedAt", "type": "TEXT", "constraint": "DEFAULT (datetime('now'))" }
+      ],
+      "indexes": [
+        { "name": "idx_memory_timestamp", "columns": ["Timestamp"] },
+        { "name": "idx_memory_host", "columns": ["Host"] },
+        { "name": "idx_memory_seconds", "columns": ["Seconds"] }
+      ]
+    },
+    {
+      "name": "Perf_DiskIO",
+      "columns": [
+        { "name": "ID", "type": "INTEGER", "constraint": "PRIMARY KEY AUTOINCREMENT" },
+        { "name": "Timestamp", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Host", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Drive", "type": "TEXT", "constraint": "" },
+        { "name": "KBPerSec_Min", "type": "REAL", "constraint": "" },
+        { "name": "KBPerSec_Max", "type": "REAL", "constraint": "" },
+        { "name": "KBPerSec_Avg", "type": "REAL", "constraint": "" },
+        { "name": "KBPerSec_Total", "type": "REAL", "constraint": "" },
+        { "name": "IOPerSec_Min", "type": "REAL", "constraint": "" },
+        { "name": "IOPerSec_Max", "type": "REAL", "constraint": "" },
+        { "name": "IOPerSec_Avg", "type": "REAL", "constraint": "" },
+        { "name": "IO_Total", "type": "INTEGER", "constraint": "" },
+        { "name": "Seconds", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "CreatedAt", "type": "TEXT", "constraint": "DEFAULT (datetime('now'))" }
+      ],
+      "indexes": [
+        { "name": "idx_diskio_timestamp", "columns": ["Timestamp"] },
+        { "name": "idx_diskio_host", "columns": ["Host"] }
+      ]
+    },
+    {
+      "name": "Perf_CPUCore",
+      "columns": [
+        { "name": "ID", "type": "INTEGER", "constraint": "PRIMARY KEY AUTOINCREMENT" },
+        { "name": "Timestamp", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Host", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "CoreNumber", "type": "INTEGER", "constraint": "" },
+        { "name": "Percent_Min", "type": "REAL", "constraint": "" },
+        { "name": "Percent_Max", "type": "REAL", "constraint": "" },
+        { "name": "Percent_Avg", "type": "REAL", "constraint": "" },
+        { "name": "Temp_Min", "type": "REAL", "constraint": "" },
+        { "name": "Temp_Max", "type": "REAL", "constraint": "" },
+        { "name": "Temp_Avg", "type": "REAL", "constraint": "" },
+        { "name": "Seconds", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "CreatedAt", "type": "TEXT", "constraint": "DEFAULT (datetime('now'))" }
+      ],
+      "indexes": [
+        { "name": "idx_cpu_timestamp", "columns": ["Timestamp"] },
+        { "name": "idx_cpu_host", "columns": ["Host"] },
+        { "name": "idx_cpu_core", "columns": ["CoreNumber"] }
+      ]
+    },
+    {
+      "name": "Network",
+      "columns": [
+        { "name": "ID", "type": "INTEGER", "constraint": "PRIMARY KEY AUTOINCREMENT" },
+        { "name": "Timestamp", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Host", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "AdapterName", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "AdapterType", "type": "TEXT", "constraint": "" },
+        { "name": "VendorName", "type": "TEXT", "constraint": "" },
+        { "name": "MACAddress", "type": "TEXT", "constraint": "" },
+        { "name": "IngressKB_Min", "type": "REAL", "constraint": "" },
+        { "name": "IngressKB_Max", "type": "REAL", "constraint": "" },
+        { "name": "IngressKB_Avg", "type": "REAL", "constraint": "" },
+        { "name": "IngressKB_Total", "type": "REAL", "constraint": "" },
+        { "name": "EgressKB_Min", "type": "REAL", "constraint": "" },
+        { "name": "EgressKB_Max", "type": "REAL", "constraint": "" },
+        { "name": "EgressKB_Avg", "type": "REAL", "constraint": "" },
+        { "name": "EgressKB_Total", "type": "REAL", "constraint": "" },
+        { "name": "Seconds", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "CreatedAt", "type": "TEXT", "constraint": "DEFAULT (datetime('now'))" }
+      ],
+      "indexes": [
+        { "name": "idx_network_timestamp", "columns": ["Timestamp"] },
+        { "name": "idx_network_host", "columns": ["Host"] },
+        { "name": "idx_network_adapter", "columns": ["AdapterName"] },
+        { "name": "idx_network_type", "columns": ["AdapterType"] }
+      ]
     }
   ],
   "views": [

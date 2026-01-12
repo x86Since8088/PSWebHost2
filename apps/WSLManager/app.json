@@ -1,0 +1,26 @@
+{
+  "features": {
+    "created": "2026-01-10"
+  },
+  "routePrefix": "/apps/wslmanager",
+  "description": "Windows Subsystem for Linux management and integration",
+  "version": "1.0.0",
+  "subCategory": {
+    "name": "WSL",
+    "order": 1
+  },
+  "name": "WSL Manager",
+  "enabled": true,
+  "requiredRoles": [
+    "admin",
+    "system_admin"
+  ],
+  "author": "test",
+  "parentCategory": {
+    "id": "containers",
+    "name": "Containers",
+    "description": "Container orchestration and management",
+    "icon": "box",
+    "order": 2
+  }
+}

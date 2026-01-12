@@ -103,7 +103,7 @@ if ($RemoveAll) {
 # Resolve email to PrincipalID if specified
 if ($PSCmdlet.ParameterSetName -eq 'ByEmail') {
     $safeEmail = Sanitize-SqlQueryString -String $Email
-    $user = Get-PSWebSQLiteData -File $dbFile -Query "SELECT UserID, Email FROM Users WHERE Email = '$safeEmail';"
+    $user = Get-PSWebSQLiteData -File $dbFile -Query "SELECT UserID, Email FROM Users WHERE Email COLLATE NOCASE = '$safeEmail';"
     if (-not $user) {
         throw "User with email '$Email' not found"
     }
@@ -115,7 +115,7 @@ if ($PSCmdlet.ParameterSetName -eq 'ByEmail') {
 $safePrincipalID = Sanitize-SqlQueryString -String $PrincipalID
 $safeRoleName = Sanitize-SqlQueryString -String $RoleName
 
-$checkQuery = "SELECT * FROM PSWeb_Roles WHERE PrincipalID = '$safePrincipalID' AND RoleName = '$safeRoleName';"
+$checkQuery = "SELECT * FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safePrincipalID' AND RoleName = '$safeRoleName';"
 $roleAssignment = Get-PSWebSQLiteData -File $dbFile -Query $checkQuery
 
 if (-not $roleAssignment) {
@@ -125,15 +125,15 @@ if (-not $roleAssignment) {
 
 # Get principal name for display
 if ($roleAssignment.PrincipalType -eq 'User') {
-    $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT Email FROM Users WHERE UserID = '$safePrincipalID';"
+    $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT Email FROM Users WHERE UserID COLLATE NOCASE = '$safePrincipalID';"
     $principalName = if ($principal) { $principal.Email } else { $PrincipalID }
 } else {
-    $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT Name FROM User_Groups WHERE GroupID = '$safePrincipalID';"
+    $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT Name FROM User_Groups WHERE GroupID COLLATE NOCASE = '$safePrincipalID';"
     $principalName = if ($principal) { $principal.Name } else { $PrincipalID }
 }
 
 if ($PSCmdlet.ShouldProcess("Remove role '$RoleName' from $($roleAssignment.PrincipalType) '$principalName'", "Role Assignment", "Remove")) {
-    $deleteQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID = '$safePrincipalID' AND RoleName = '$safeRoleName';"
+    $deleteQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safePrincipalID' AND RoleName = '$safeRoleName';"
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteQuery
 
     Write-Host "✓ Role '$RoleName' removed from $($roleAssignment.PrincipalType) '$principalName'" -ForegroundColor Green

@@ -1,0 +1,28 @@
+name: Vault
+version: 1.0.0
+description: Secure credential storage for PSWebHost nodes and services using DPAPI encryption
+routePrefix: /apps/vault
+enabled: true
+requiredRoles:
+- admin
+- vault_admin
+database: separate
+author: PSWebHost
+
+parentCategory:
+  id: security
+  name: Security
+  description: Security and credential management
+  icon: shield-alt
+  order: 2
+
+subCategory:
+  name: Credentials
+  order: 1
+
+features:
+  dpapi: true
+  masterKey: false
+  auditLog: true
+  created: 2026-01-11
+

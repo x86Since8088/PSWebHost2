@@ -25,7 +25,7 @@ $checkQuery = @"
 SELECT u.Email, ap.UserName
 FROM Users u
 INNER JOIN auth_user_provider ap ON u.UserID = ap.UserID
-WHERE u.UserID = '$safeID' AND ap.provider = 'Password';
+WHERE u.UserID COLLATE NOCASE = '$safeID' AND ap.provider COLLATE NOCASE = 'Password';
 "@
 
 $user = Get-PSWebSQLiteData -File $dbFile -Query $checkQuery
@@ -52,17 +52,17 @@ if ($confirmed) {
     Write-Verbose "Deleting user account: $userEmail (UserID: $ID)"
 
     # Delete from auth_user_provider table
-    $deleteAuthQuery = "DELETE FROM auth_user_provider WHERE UserID = '$safeID';"
+    $deleteAuthQuery = "DELETE FROM auth_user_provider WHERE UserID COLLATE NOCASE = '$safeID';"
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteAuthQuery
     Write-Verbose "Deleted from auth_user_provider table"
 
     # Delete from Users table
-    $deleteUserQuery = "DELETE FROM Users WHERE UserID = '$safeID';"
+    $deleteUserQuery = "DELETE FROM Users WHERE UserID COLLATE NOCASE = '$safeID';"
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteUserQuery
     Write-Verbose "Deleted from Users table"
 
     # Delete from LoginSessions if exists
-    $deleteSessionQuery = "DELETE FROM LoginSessions WHERE UserID = '$safeID';"
+    $deleteSessionQuery = "DELETE FROM LoginSessions WHERE UserID COLLATE NOCASE = '$safeID';"
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteSessionQuery
     Write-Verbose "Cleaned up login sessions"
 

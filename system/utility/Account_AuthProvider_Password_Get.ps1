@@ -32,7 +32,7 @@ if ($PSCmdlet.ParameterSetName -eq 'Email') {
 SELECT u.*, ap.UserName, ap.provider, ap.created as ProviderCreated, ap.enabled, ap.locked_out
 FROM Users u
 INNER JOIN auth_user_provider ap ON u.UserID = ap.UserID
-WHERE u.Email = '$safeEmail' AND ap.provider = 'Password';
+WHERE u.Email COLLATE NOCASE = '$safeEmail' AND ap.provider COLLATE NOCASE = 'Password';
 "@
     }
     else {
@@ -46,7 +46,7 @@ elseif ($PSCmdlet.ParameterSetName -eq 'UserID') {
 SELECT u.*, ap.UserName, ap.provider, ap.created as ProviderCreated, ap.enabled, ap.locked_out
 FROM Users u
 INNER JOIN auth_user_provider ap ON u.UserID = ap.UserID
-WHERE u.UserID = '$safeUserID' AND ap.provider = 'Password';
+WHERE u.UserID COLLATE NOCASE = '$safeUserID' AND ap.provider COLLATE NOCASE = 'Password';
 "@
     }
     else {
@@ -58,7 +58,7 @@ elseif ($PSCmdlet.ParameterSetName -eq 'TestAccounts') {
 SELECT u.*, ap.UserName, ap.provider, ap.created as ProviderCreated, ap.enabled, ap.locked_out
 FROM Users u
 INNER JOIN auth_user_provider ap ON u.UserID = ap.UserID
-WHERE u.Email LIKE 'TA_Password_%@%' AND ap.provider = 'Password';
+WHERE u.Email LIKE 'TA_Password_%@%' AND ap.provider COLLATE NOCASE = 'Password';
 "@
 }
 else {

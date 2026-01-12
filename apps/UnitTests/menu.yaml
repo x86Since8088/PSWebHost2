@@ -1,0 +1,27 @@
+- Name: Test Runner
+  url: /api/v1/ui/elements/unit-test-runner
+  hover_description: Run and monitor twin tests from the browser
+  icon: flask
+  tags:
+  - testing
+  - debug
+  - quality
+  - pester
+
+- Name: Coverage Report
+  url: /apps/unittests/api/v1/coverage
+  hover_description: View route test coverage statistics
+  icon: chart-bar
+  tags:
+  - testing
+  - coverage
+  - metrics
+
+- Name: Process Tracking
+  url: /apps/unittests/api/v1/processes
+  hover_description: View process leak detection report
+  icon: cogs
+  tags:
+  - testing
+  - processes
+  - debug

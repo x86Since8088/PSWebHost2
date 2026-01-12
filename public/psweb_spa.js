@@ -177,6 +177,31 @@ window.addEventListener('unhandledrejection', (event) => {
     });
 });
 
+// Intercept console.error and console.warn for server-side logging
+(function() {
+    const originalError = console.error;
+    const originalWarn = console.warn;
+
+    console.error = function(...args) {
+        originalError.apply(console, args);
+        // Forward to server (avoid logging the forward itself to prevent loops)
+        try {
+            window.logToServer('Error', 'ConsoleError', args.join(' '), { args: args });
+        } catch (e) {
+            // Silently fail to avoid infinite loops
+        }
+    };
+
+    console.warn = function(...args) {
+        originalWarn.apply(console, args);
+        try {
+            window.logToServer('Warn', 'ConsoleWarn', args.join(' '), { args: args });
+        } catch (e) {
+            // Silently fail to avoid infinite loops
+        }
+    };
+})();
+
 // --- Global Error Modal Handler ---
 window.showErrorModal = function(errorData) {
     // Create modal container if it doesn't exist
@@ -329,14 +354,17 @@ window.showErrorModal = function(errorData) {
         );
     };
 
-    // Render the modal
-    const root = ReactDOM.createRoot(modalContainer);
-    const handleClose = () => {
-        root.unmount();
-        modalContainer.remove();
-    };
-
-    root.render(React.createElement(ErrorModal, { errorData, onClose: handleClose }));
+    // Render the modal using React 17 API
+    ReactDOM.render(
+        React.createElement(ErrorModal, {
+            errorData,
+            onClose: () => {
+                ReactDOM.unmountComponentAtNode(modalContainer);
+                modalContainer.remove();
+            }
+        }),
+        modalContainer
+    );
 };
 
 // Add CSS for error modal
@@ -709,7 +737,9 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
     // IMPORTANT: Wrap in arrow function to prevent React from calling it as an initializer
     const [CardComponent, setCardComponent] = useState(() => initialComponent);
     const [errorInfo, setErrorInfo] = useState(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
     const contentRef = useRef(null);
+    const cardRef = useRef(null);
 
     // Monitor for when the component becomes available
     useEffect(() => {
@@ -725,6 +755,10 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
                     clearInterval(checkInterval);
                 } else if (attempts >= maxAttempts) {
                     clearInterval(checkInterval);
+                    // Log timeout to server for diagnostics
+                    window.logToServer('Warning', 'ComponentTimeout',
+                        `Component ${elementId} failed to load after ${maxAttempts * 50}ms`,
+                        { componentName: elementId, attempts: attempts });
                 }
             }, 50);
 
@@ -775,26 +809,60 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
         cardContent = <p>Loading component...</p>;
     }
 
+    // Fullscreen handling
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
+    const handleFullscreen = () => {
+        if (!cardRef.current) return;
+
+        if (!document.fullscreenElement) {
+            cardRef.current.requestFullscreen().catch(err => {
+                console.error('Error attempting to enable fullscreen:', err);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    };
+
+    // Helper to open help for this card
+    const openHelp = () => {
+        const helpFile = element.helpFile || `public/help/${elementId}.md`;
+        window.openCard(`/api/v1/ui/elements/help-viewer?file=${encodeURIComponent(helpFile)}`, `Help: ${helpFile}`);
+    };
+
     return (
-        <div className={`card ${isMaximized ? 'maximized' : ''}`} style={{height: '100%'}}>
-            <div className="card-title-bar">
+        <div className={`card ${isMaximized ? 'maximized' : ''} ${isFullscreen ? 'fullscreen' : ''}`} style={{height: '100%'}} ref={cardRef}>
+            <header className="card-header">
                 {element.icon && <img src={element.icon} className="card-icon" alt="icon" />}
-                <span>{title}</span>
+                <h3 className="card-title">{title}</h3>
+            </header>
+            <div className="card-actions">
                 <div className="spacer"></div>
-                <div className="maximize-icon" onClick={() => onMaximize(element.id)}>
+                <button className="card-action help-icon" onClick={openHelp} title="Open Help" aria-label="Open Help">&#10067;</button>
+                <button className="card-action fullscreen-icon" onClick={handleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'} aria-label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
+                    {isFullscreen ? '⛶' : '⛶'}
+                </button>
+                <button className="card-action maximize-icon" onClick={() => onMaximize(element.id)} title={isMaximized ? 'Restore' : 'Maximize'} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
                     {isMaximized ? '🗗' : '🗖'}
-                </div>
-                <div className="settings-icon" onClick={() => onOpenSettings(element.id)}>&#9881;</div>
-                <div className="close-icon" onClick={() => onRemove(element.id)}>&times;</div>
+                </button>
+                <button className="card-action settings-icon" onClick={() => onOpenSettings(element.id)} title="Settings" aria-label="Settings">&#9881;</button>
+                <button className="card-action close-icon" onClick={() => onRemove(element.id)} title="Close" aria-label="Close">&times;</button>
             </div>
-            <div className="card-content" ref={contentRef}>
+            <main className="card-content" ref={contentRef}>
                 {cardContent}
-            </div>
+            </main>
             {errorInfo && (
-                <div className="card-footer">
+                <footer className="card-footer">
                     {errorInfo.status && <span>{errorInfo.status}: {errorInfo.statusText}</span>}
                     <p>{errorInfo.message}</p>
-                </div>
+                </footer>
             )}
         </div>
     );
@@ -1527,7 +1595,7 @@ const App = () => {
                         cols={12}
                         rowHeight={15}
                         width={gridWidth}
-                        draggableHandle=".card-title-bar"
+                        draggableHandle=".card-header"
                         onLayoutChange={handleLayoutChange}
                         onResizeStart={handleResizeStart}
                         onResize={handleResize}

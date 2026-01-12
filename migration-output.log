@@ -1,0 +1,654 @@
+
+========================================
+OS & Container Apps Migration
+========================================
+
+
+========== WindowsAdmin ==========
+
+[1/16] Processing: routes/api/v1/system/services
+
+========================================
+Move Component to App
+========================================
+
+Component: routes/api/v1/system/services
+Target App: WindowsAdmin
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 1 files in component path
+  Checking for non-PowerShell files in component path...
+  Added 0 additional files from component directory
+  Total files to move: 1
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 1 file moves
+
+[5/5] Executing moves...
+  SKIP (not found): routes\api\v1\system\services\get.ps1
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update WindowsAdmin/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[2/16] Processing: routes/api/v1/system/tasks
+
+========================================
+Move Component to App
+========================================
+
+Component: routes/api/v1/system/tasks
+Target App: WindowsAdmin
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 1 files in component path
+  Checking for non-PowerShell files in component path...
+  Added 1 additional files from component directory
+  Total files to move: 1
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 1 file moves
+
+[5/5] Executing moves...
+  û MOVED: routes\api\v1\system\tasks\get.ps1
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update WindowsAdmin/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[3/16] Processing: public/elements/service-control
+
+========================================
+Move Component to App
+========================================
+
+Component: public/elements/service-control
+Target App: WindowsAdmin
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 0 files in component path
+  Found 1 UI element routes
+  Checking for non-PowerShell files in component path...
+  Added 1 additional files from component directory
+  Total files to move: 2
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 2 file moves
+
+[5/5] Executing moves...
+  û MOVED: routes\api\v1\ui\elements\service-control\get.ps1
+  û MOVED: public/elements/service-control/component.js
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update WindowsAdmin/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[4/16] Processing: routes/api/v1/ui/elements/service-control
+
+========================================
+Move Component to App
+========================================
+
+Component: routes/api/v1/ui/elements/service-control
+Target App: WindowsAdmin
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 1 files in component path
+  Found 0 public element files
+  Checking for non-PowerShell files in component path...
+  Added 1 additional files from component directory
+  Total files to move: 2
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 2 file moves
+
+[5/5] Executing moves...
+  SKIP (not found): routes\api\v1\ui\elements\service-control\get.ps1
+  û MOVED: routes/api/v1/ui/elements/service-control/get.security.json
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update WindowsAdmin/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[5/16] Processing: public/elements/task-scheduler
+
+========================================
+Move Component to App
+========================================
+
+Component: public/elements/task-scheduler
+Target App: WindowsAdmin
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 0 files in component path
+  Found 1 UI element routes
+  Checking for non-PowerShell files in component path...
+  Added 1 additional files from component directory
+  Total files to move: 2
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 2 file moves
+
+[5/5] Executing moves...
+  û MOVED: routes\api\v1\ui\elements\task-scheduler\get.ps1
+  û MOVED: public/elements/task-scheduler/component.js
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update WindowsAdmin/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[6/16] Processing: routes/api/v1/ui/elements/task-scheduler
+
+========================================
+Move Component to App
+========================================
+
+Component: routes/api/v1/ui/elements/task-scheduler
+Target App: WindowsAdmin
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 1 files in component path
+  Found 0 public element files
+  Checking for non-PowerShell files in component path...
+  Added 1 additional files from component directory
+  Total files to move: 2
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 2 file moves
+
+[5/5] Executing moves...
+  SKIP (not found): routes\api\v1\ui\elements\task-scheduler\get.ps1
+  û MOVED: routes/api/v1/ui/elements/task-scheduler/get.security.json
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update WindowsAdmin/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+========== LinuxAdmin ==========
+
+[7/16] Processing: routes/api/v1/ui/elements/linux-services
+
+========================================
+Move Component to App
+========================================
+
+Component: routes/api/v1/ui/elements/linux-services
+Target App: LinuxAdmin
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 1 files in component path
+  Found 0 public element files
+  Checking for non-PowerShell files in component path...
+  Added 1 additional files from component directory
+  Total files to move: 1
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 1 file moves
+
+[5/5] Executing moves...
+  û MOVED: routes\api\v1\ui\elements\linux-services\get.ps1
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update LinuxAdmin/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[8/16] Processing: public/elements/linux-services
+
+========================================
+Move Component to App
+========================================
+
+Component: public/elements/linux-services
+Target App: LinuxAdmin
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 0 files in component path
+  Found 1 UI element routes
+  Checking for non-PowerShell files in component path...
+  Total files to move: 1
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 1 file moves
+
+[5/5] Executing moves...
+  SKIP (not found): routes\api\v1\ui\elements\linux-services\get.ps1
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update LinuxAdmin/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[9/16] Processing: routes/api/v1/ui/elements/linux-cron
+
+========================================
+Move Component to App
+========================================
+
+Component: routes/api/v1/ui/elements/linux-cron
+Target App: LinuxAdmin
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 1 files in component path
+  Found 0 public element files
+  Checking for non-PowerShell files in component path...
+  Added 1 additional files from component directory
+  Total files to move: 1
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 1 file moves
+
+[5/5] Executing moves...
+  û MOVED: routes\api\v1\ui\elements\linux-cron\get.ps1
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update LinuxAdmin/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[10/16] Processing: public/elements/linux-cron
+
+========================================
+Move Component to App
+========================================
+
+Component: public/elements/linux-cron
+Target App: LinuxAdmin
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 0 files in component path
+  Found 1 UI element routes
+  Checking for non-PowerShell files in component path...
+  Total files to move: 1
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 1 file moves
+
+[5/5] Executing moves...
+  SKIP (not found): routes\api\v1\ui\elements\linux-cron\get.ps1
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update LinuxAdmin/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+========== WSLManager ==========
+
+[11/16] Processing: routes/api/v1/ui/elements/wsl-manager
+
+========================================
+Move Component to App
+========================================
+
+Component: routes/api/v1/ui/elements/wsl-manager
+Target App: WSLManager
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 1 files in component path
+  Found 0 public element files
+  Checking for non-PowerShell files in component path...
+  Added 1 additional files from component directory
+  Total files to move: 1
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 1 file moves
+
+[5/5] Executing moves...
+  û MOVED: routes\api\v1\ui\elements\wsl-manager\get.ps1
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update WSLManager/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[12/16] Processing: public/elements/wsl-manager
+
+========================================
+Move Component to App
+========================================
+
+Component: public/elements/wsl-manager
+Target App: WSLManager
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 0 files in component path
+  Found 1 UI element routes
+  Checking for non-PowerShell files in component path...
+  Total files to move: 1
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 1 file moves
+
+[5/5] Executing moves...
+  SKIP (not found): routes\api\v1\ui\elements\wsl-manager\get.ps1
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update WSLManager/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+========== DockerManager ==========
+
+[13/16] Processing: routes/api/v1/ui/elements/docker-manager
+
+========================================
+Move Component to App
+========================================
+
+Component: routes/api/v1/ui/elements/docker-manager
+Target App: DockerManager
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 1 files in component path
+  Found 0 public element files
+  Checking for non-PowerShell files in component path...
+  Added 2 additional files from component directory
+  Total files to move: 2
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 2 file moves
+
+[5/5] Executing moves...
+  û MOVED: routes\api\v1\ui\elements\docker-manager\get.ps1
+  û MOVED: routes/api/v1/ui/elements/docker-manager/get.security.json
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update DockerManager/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[14/16] Processing: public/elements/docker-manager
+
+========================================
+Move Component to App
+========================================
+
+Component: public/elements/docker-manager
+Target App: DockerManager
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 0 files in component path
+  Found 1 UI element routes
+  Checking for non-PowerShell files in component path...
+  Added 1 additional files from component directory
+  Total files to move: 2
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 2 file moves
+
+[5/5] Executing moves...
+  SKIP (not found): routes\api\v1\ui\elements\docker-manager\get.ps1
+  û MOVED: public/elements/docker-manager/component.js
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update DockerManager/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+========== KubernetesManager ==========
+
+[15/16] Processing: routes/api/v1/ui/elements/kubernetes-status
+
+========================================
+Move Component to App
+========================================
+
+Component: routes/api/v1/ui/elements/kubernetes-status
+Target App: KubernetesManager
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 1 files in component path
+  Found 0 public element files
+  Checking for non-PowerShell files in component path...
+  Added 1 additional files from component directory
+  Total files to move: 1
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 1 file moves
+
+[5/5] Executing moves...
+  û MOVED: routes\api\v1\ui\elements\kubernetes-status\get.ps1
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update KubernetesManager/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+[16/16] Processing: public/elements/kubernetes-status
+
+========================================
+Move Component to App
+========================================
+
+Component: public/elements/kubernetes-status
+Target App: KubernetesManager
+Mode: LIVE
+
+[1/5] Loading dependency analysis...
+  Loaded 2676 analyzed files
+
+[2/5] Finding related files...
+  Found 0 files in component path
+  Found 1 UI element routes
+  Checking for non-PowerShell files in component path...
+  Total files to move: 1
+
+[3/5] Analyzing dependencies...
+  û All files are safe to extract (score >= 60)
+
+[4/5] Planning file moves...
+  Planned 1 file moves
+
+[5/5] Executing moves...
+  SKIP (not found): routes\api\v1\ui\elements\kubernetes-status\get.ps1
+
+========================================
+Migration Complete
+========================================
+
+Next Steps:
+  1. Update KubernetesManager/menu.yaml with new menu items
+  2. Restart PSWebHost to load updated app
+  3. Test all moved functionality
+
+
+========================================
+Migration Complete!
+========================================
+
+Summary:
+  - Moved 16 component groups
+  - Updated 5 apps
+
+Next Steps:
+  1. Update each app's menu.yaml
+  2. Restart PSWebHost
+  3. Test all functionality
+  4. Consider moving tests and help files with -IncludeTests -IncludeHelp
+

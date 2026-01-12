@@ -1,0 +1,12 @@
+# Menu entries for Kubernetes Manager
+# These will be integrated into the main PSWebHost menu under:
+# Containers > Kubernetes
+
+- Name: Kubernetes Status
+  url: /apps/kubernetesmanager/api/v1/ui/elements/kubernetes-status
+  hover_description: View Kubernetes cluster status and resources
+  icon: cloud
+  tags:
+    - containers
+    - kubernetes
+    - k8s

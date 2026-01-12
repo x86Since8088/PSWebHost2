@@ -1,0 +1,21 @@
+enabled: true
+author: test
+features:
+  created: 2026-01-10
+subCategory:
+  name: Linux
+  order: 2
+routePrefix: /apps/linuxadmin
+name: Linux Administration
+version: 1.0.0
+description: Linux services, cron jobs, and system management
+requiredRoles:
+- admin
+- system_admin
+parentCategory:
+  id: operating-systems
+  name: Operating Systems
+  description: Operating system administration and management
+  icon: desktop
+  order: 1
+

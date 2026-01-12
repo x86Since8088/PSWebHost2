@@ -176,6 +176,29 @@
           "on_delete": "CASCADE"
         }
       ]
+    },
+    {
+      "name": "API_Keys",
+      "columns": [
+        { "name": "KeyID", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "Name", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "KeyHash", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "UserID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "AllowedIPs", "type": "TEXT", "constraint": "" },
+        { "name": "CreatedBy", "type": "TEXT", "constraint": "" },
+        { "name": "CreatedAt", "type": "TEXT", "constraint": "" },
+        { "name": "ExpiresAt", "type": "TEXT", "constraint": "" },
+        { "name": "LastUsed", "type": "TEXT", "constraint": "" },
+        { "name": "Enabled", "type": "INTEGER", "constraint": "DEFAULT 1" },
+        { "name": "Description", "type": "TEXT", "constraint": "" }
+      ],
+      "foreign_keys": [
+        {
+          "column": "UserID",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        }
+      ]
     }
   ]
 }

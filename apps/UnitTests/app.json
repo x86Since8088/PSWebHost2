@@ -1,0 +1,16 @@
+{
+    "name": "UnitTests",
+    "version": "1.0.0",
+    "description": "Browser-based twin test runner for PSWebHost with real-time execution, coverage tracking, and process leak detection",
+    "routePrefix": "/apps/unittests",
+    "enabled": true,
+    "requiredRoles": ["debug"],
+    "author": "PSWebHost",
+    "features": {
+        "realtime": true,
+        "processTracking": true,
+        "coverageReport": true,
+        "testHistory": true,
+        "testGeneration": false
+    }
+}

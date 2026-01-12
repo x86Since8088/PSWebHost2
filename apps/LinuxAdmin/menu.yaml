@@ -1,0 +1,21 @@
+# Menu entries for Linux Administration
+# These will be integrated into the main PSWebHost menu under:
+# Operating Systems > Linux
+
+- Name: Linux Services
+  url: /apps/linuxadmin/api/v1/ui/elements/linux-services
+  hover_description: Manage Linux systemd services
+  icon: settings
+  tags:
+    - operating systems
+    - linux
+    - services
+
+- Name: Linux Cron Jobs
+  url: /apps/linuxadmin/api/v1/ui/elements/linux-cron
+  hover_description: Manage Linux cron jobs
+  icon: clock
+  tags:
+    - operating systems
+    - linux
+    - cron

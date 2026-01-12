@@ -20,18 +20,18 @@ $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebh
 
 # Get group info
 $safeGroupID = Sanitize-SqlQueryString -String $GroupID
-$group = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM User_Groups WHERE GroupID = '$safeGroupID';"
+$group = Get-PSWebSQLiteData -File $dbFile -Query "SELECT * FROM User_Groups WHERE GroupID COLLATE NOCASE = '$safeGroupID';"
 
 if (-not $group) {
     throw "Group with GroupID '$GroupID' not found"
 }
 
 # Get member count
-$memberCountQuery = "SELECT COUNT(*) as Count FROM User_Groups_Map WHERE GroupID = '$safeGroupID';"
+$memberCountQuery = "SELECT COUNT(*) as Count FROM User_Groups_Map WHERE GroupID COLLATE NOCASE = '$safeGroupID';"
 $memberCount = (Get-PSWebSQLiteData -File $dbFile -Query $memberCountQuery).Count
 
 # Get role count
-$roleCountQuery = "SELECT COUNT(*) as Count FROM PSWeb_Roles WHERE PrincipalID = '$safeGroupID' AND PrincipalType = 'Group';"
+$roleCountQuery = "SELECT COUNT(*) as Count FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safeGroupID' AND PrincipalType COLLATE NOCASE = 'Group';"
 $roleCount = (Get-PSWebSQLiteData -File $dbFile -Query $roleCountQuery).Count
 
 Write-Verbose "$MyTag Group '$($group.Name)' has $memberCount members and $roleCount roles"
@@ -43,12 +43,12 @@ if ($Force) {
 if ($PSCmdlet.ShouldProcess("Group '$($group.Name)' (GroupID: $GroupID, Members: $memberCount, Roles: $roleCount)", "Remove")) {
 
     # Remove user-group mappings
-    $deleteMappingsQuery = "DELETE FROM User_Groups_Map WHERE GroupID = '$safeGroupID';"
+    $deleteMappingsQuery = "DELETE FROM User_Groups_Map WHERE GroupID COLLATE NOCASE = '$safeGroupID';"
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteMappingsQuery
     Write-Verbose "$MyTag Removed $memberCount user-group mappings"
 
     # Remove roles assigned to this group
-    $deleteRolesQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID = '$safeGroupID' AND PrincipalType = 'Group';"
+    $deleteRolesQuery = "DELETE FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safeGroupID' AND PrincipalType COLLATE NOCASE = 'Group';"
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteRolesQuery
     Write-Verbose "$MyTag Removed $roleCount role assignments"
 
@@ -57,7 +57,7 @@ if ($PSCmdlet.ShouldProcess("Group '$($group.Name)' (GroupID: $GroupID, Members:
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteDataQuery
 
     # Remove the group itself
-    $deleteGroupQuery = "DELETE FROM User_Groups WHERE GroupID = '$safeGroupID';"
+    $deleteGroupQuery = "DELETE FROM User_Groups WHERE GroupID COLLATE NOCASE = '$safeGroupID';"
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $deleteGroupQuery
     Write-Verbose "$MyTag Group '$($group.Name)' removed successfully"
 

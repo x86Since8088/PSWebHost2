@@ -1,7 +1,3 @@
-# Initialize test environment
-$InitializationScript = "$($psscriptroot -replace '[/\\]tests[\\/].*')\system\init.ps1"
-. $InitializationScript
-
 <#
 .SYNOPSIS
     Runs all tests in the twin test structure
@@ -45,17 +41,60 @@ $InitializationScript = "$($psscriptroot -replace '[/\\]tests[\\/].*')\system\in
 #>
 
 param(
-    [string]$Path = $PSScriptRoot,
+    [Parameter()]
+    [string]$Path,
+
+    [Parameter()]
     [string[]]$Tag,
+
+    [Parameter()]
     [string[]]$ExcludeTag,
+
+    [Parameter()]
     [ValidateSet('None', 'Minimal', 'Normal', 'Detailed', 'Diagnostic')]
-    [string]$Output = 'Detailed',
+    [string]$Output,
+
+    [Parameter()]
     [switch]$CodeCoverage
 )
+
+# Initialize test environment
+$InitializationScript = "$($psscriptroot -replace '[/\\]tests[\\/].*')\system\init.ps1"
+. $InitializationScript
+
+# Set testing mode flags - only initialize if null
+if ($null -eq $Global:PSWebHostTesting) {
+    $Global:PSWebHostTesting = $true
+}
+if ($null -eq $Global:PSWebHostTestingSession) {
+    $Global:PSWebHostTestingSession = $null
+}
+
+# Set default path to script root if not provided
+if (-not $Path) {
+    $Path = $PSScriptRoot
+}
+
+# Set default output level if not provided
+if (-not $Output) {
+    $Output = 'Detailed'
+}
 
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "PSWebHost Twin Test Suite" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
+
+# Capture initial pwsh processes
+Write-Host "Capturing initial PowerShell processes..." -ForegroundColor Yellow
+$initialProcesses = Get-Process pwsh -ErrorAction SilentlyContinue | Select-Object Id, StartTime, @{Name='CommandLine';Expression={$_.CommandLine}}
+$initialProcessIds = $initialProcesses.Id
+Write-Host "Found $($initialProcessIds.Count) existing pwsh processes: $($initialProcessIds -join ', ')`n" -ForegroundColor Gray
+
+# Initialize process tracking hashtable
+$script:processTracking = @{
+    TestProcessMap = @{}  # Maps test names to PIDs they created
+    AllNewProcesses = @() # All PIDs created during test run
+}
 
 # Ensure Pester module is available
 if (-not (Get-Module -ListAvailable -Name Pester)) {
@@ -101,11 +140,178 @@ if ($CodeCoverage) {
     $config.CodeCoverage.OutputFormat = 'JaCoCo'
 }
 
+# Add process tracking plugin
+$processTrackingPlugin = @{
+    Start = {
+        # Track processes at start of each test
+        param($Context)
+        if ($Context.Test) {
+            $Context.Test.PluginData.PreTestProcessIds = @(Get-Process pwsh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+        }
+    }
+    End = {
+        # Check for new processes after each test
+        param($Context)
+        if ($Context.Test) {
+            $postTestProcessIds = @(Get-Process pwsh -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+            $preTestProcessIds = $Context.Test.PluginData.PreTestProcessIds
+
+            $newProcesses = $postTestProcessIds | Where-Object { $_ -notin $preTestProcessIds -and $_ -notin $script:initialProcessIds }
+
+            if ($newProcesses.Count -gt 0) {
+                $testPath = $Context.Test.ExpandedPath
+                $script:processTracking.TestProcessMap[$testPath] = $newProcesses
+                $script:processTracking.AllNewProcesses += $newProcesses
+            }
+        }
+    }
+}
+
+# Register the plugin
+$config.TestExtension.Add($processTrackingPlugin)
+
 # Run tests
 $result = Invoke-Pester -Configuration $config
 
-# Display summary
+# Capture final pwsh processes
 Write-Host "`n========================================" -ForegroundColor Cyan
+Write-Host "Process Cleanup Analysis" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+
+$finalProcesses = Get-Process pwsh -ErrorAction SilentlyContinue | Select-Object Id, StartTime
+$finalProcessIds = $finalProcesses.Id
+$newProcessIds = $finalProcessIds | Where-Object { $_ -notin $initialProcessIds }
+
+Write-Host "Initial pwsh processes: $($initialProcessIds.Count)" -ForegroundColor Gray
+Write-Host "Final pwsh processes:   $($finalProcessIds.Count)" -ForegroundColor Gray
+Write-Host "New processes created:  $($newProcessIds.Count)" -ForegroundColor $(if ($newProcessIds.Count -gt 0) { 'Yellow' } else { 'Green' })
+
+if ($newProcessIds.Count -gt 0) {
+    Write-Host "`nNew process PIDs: $($newProcessIds -join ', ')" -ForegroundColor Yellow
+
+    # Display which tests created processes
+    if ($script:processTracking.TestProcessMap.Count -gt 0) {
+        Write-Host "`nTests that created processes:" -ForegroundColor Yellow
+        foreach ($test in $script:processTracking.TestProcessMap.Keys | Sort-Object) {
+            $pids = $script:processTracking.TestProcessMap[$test]
+            Write-Host "  [$($pids -join ', ')] $test" -ForegroundColor Cyan
+        }
+    }
+
+    # Attempt cleanup
+    Write-Host "`nAttempting to stop orphaned processes..." -ForegroundColor Yellow
+    $cleaned = 0
+    $failed = 0
+
+    foreach ($pid in $newProcessIds) {
+        try {
+            $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            if ($proc) {
+                Write-Host "  Stopping PID $pid..." -ForegroundColor Gray -NoNewline
+                Stop-Process -Id $pid -Force -ErrorAction Stop
+                $cleaned++
+                Write-Host " OK" -ForegroundColor Green
+            }
+        } catch {
+            $failed++
+            Write-Host " FAILED: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+
+    Write-Host "`nCleanup summary: $cleaned stopped, $failed failed`n" -ForegroundColor $(if ($failed -gt 0) { 'Yellow' } else { 'Green' })
+
+    # Write process tracking report
+    $reportPath = Join-Path $PSScriptRoot 'process-tracking-report.txt'
+    $reportContent = @"
+========================================
+Process Tracking Report
+========================================
+Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+
+Initial Processes: $($initialProcessIds.Count)
+Final Processes:   $($finalProcessIds.Count)
+New Processes:     $($newProcessIds.Count)
+Cleaned:           $cleaned
+Failed to Clean:   $failed
+
+Initial Process IDs:
+$($initialProcessIds -join ', ')
+
+New Process IDs:
+$($newProcessIds -join ', ')
+
+========================================
+Tests that Created Processes
+========================================
+
+"@
+
+    if ($script:processTracking.TestProcessMap.Count -gt 0) {
+        foreach ($test in $script:processTracking.TestProcessMap.Keys | Sort-Object) {
+            $pids = $script:processTracking.TestProcessMap[$test]
+            $reportContent += "[$($pids -join ', ')] $test`r`n"
+        }
+    } else {
+        $reportContent += "No tests tracked as creating processes`r`n"
+    }
+
+    $reportContent += @"
+
+========================================
+Areas for Improvement
+========================================
+
+"@
+
+    # Group tests by file to identify problematic test files
+    $testsByFile = @{}
+    foreach ($test in $script:processTracking.TestProcessMap.Keys) {
+        # Extract file name from test path (usually first component)
+        if ($test -match '^([^.]+)') {
+            $fileName = $matches[1]
+            if (-not $testsByFile.ContainsKey($fileName)) {
+                $testsByFile[$fileName] = @()
+            }
+            $testsByFile[$fileName] += $test
+        }
+    }
+
+    if ($testsByFile.Count -gt 0) {
+        $reportContent += "Test files with process leaks (sorted by count):`r`n`r`n"
+        foreach ($file in ($testsByFile.Keys | Sort-Object { $testsByFile[$_].Count } -Descending)) {
+            $count = $testsByFile[$file].Count
+            $reportContent += "  $file`: $count test(s) leaked processes`r`n"
+        }
+    } else {
+        $reportContent += "No process leaks detected - all tests cleaned up properly!`r`n"
+    }
+
+    $reportContent | Out-File -FilePath $reportPath -Encoding UTF8
+    Write-Host "Process tracking report saved to: $reportPath" -ForegroundColor Gray
+
+} else {
+    Write-Host "`nNo orphaned processes detected - excellent!`n" -ForegroundColor Green
+
+    # Write clean report
+    $reportPath = Join-Path $PSScriptRoot 'process-tracking-report.txt'
+    $reportContent = @"
+========================================
+Process Tracking Report
+========================================
+Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+
+Initial Processes: $($initialProcessIds.Count)
+Final Processes:   $($finalProcessIds.Count)
+New Processes:     0
+
+Result: No orphaned processes detected - all tests cleaned up properly!
+"@
+    $reportContent | Out-File -FilePath $reportPath -Encoding UTF8
+    Write-Host "Process tracking report saved to: $reportPath" -ForegroundColor Gray
+}
+
+# Display test summary
+Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Test Summary" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Total:  " -NoNewline

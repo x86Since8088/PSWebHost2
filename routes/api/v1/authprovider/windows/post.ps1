@@ -28,7 +28,7 @@ $username = $null
 $password = $null
 
 try {
-    Write-Host "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Processing Windows authentication POST from $($ipAddress)"
+    Write-PSWebHostLog -Severity 'Verbose' -Category 'Auth' -Message "$MyTag Processing Windows authentication POST from $ipAddress" -WriteHost
     $bodyContent = Get-RequestBody -Request $Request
     $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
     $username = $parsedBody["username"]
@@ -83,10 +83,13 @@ try {
 
     # 3. Attempt Authentication
     $credential = New-Object System.Management.Automation.PSCredential($username, (ConvertTo-SecureString $password -AsPlainText -Force))
+    if ($null -eq $global:PSWebServer -or $null -eq $global:PSWebServer.Project_Root) {
+        throw "PSWebServer global variable is not initialized in runspace"
+    }
     $AuthTestScript = Join-Path $global:PSWebServer.Project_Root.Path "\system\auth\Test-PSWebWindowsAuth.ps1"
-    Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Running '\system\auth\Test-PSWebWindowsAuth.ps1'" -Verbose
+    Write-PSWebHostLog -Severity 'Verbose' -Category 'Auth' -Message "$MyTag Running Test-PSWebWindowsAuth.ps1" -WriteHost
     $isAuthenticated = & $AuthTestScript -credential $credential
-    Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed '\system\auth\Test-PSWebWindowsAuth.ps1'" -Verbose
+    Write-PSWebHostLog -Severity 'Verbose' -Category 'Auth' -Message "$MyTag Completed Test-PSWebWindowsAuth.ps1 - Result: $isAuthenticated" -WriteHost
 
     if ($isAuthenticated) {
         # --- On Success ---

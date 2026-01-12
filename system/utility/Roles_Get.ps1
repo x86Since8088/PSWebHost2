@@ -35,7 +35,7 @@ if ($PSCmdlet.ParameterSetName -eq 'ByPrincipal') {
         throw "PrincipalID parameter is required for this parameter set"
     }
     $safePrincipalID = Sanitize-SqlQueryString -String $PrincipalID
-    $query = "SELECT * FROM PSWeb_Roles WHERE PrincipalID = '$safePrincipalID';"
+    $query = "SELECT * FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safePrincipalID';"
 }
 elseif ($PSCmdlet.ParameterSetName -eq 'ByRole') {
     if ([string]::IsNullOrEmpty($RoleName)) {
@@ -53,16 +53,16 @@ elseif ($PSCmdlet.ParameterSetName -eq 'ByUser') {
     if ($ExpandGroups) {
         # Get roles from direct assignment AND from groups the user is in
         $query = @"
-SELECT DISTINCT r.*, 'Direct' as Source FROM PSWeb_Roles r WHERE r.PrincipalID = '$safeUserID'
+SELECT DISTINCT r.*, 'Direct' as Source FROM PSWeb_Roles r WHERE r.PrincipalID COLLATE NOCASE = '$safeUserID'
 UNION
 SELECT DISTINCT r.*, g.Name as Source FROM PSWeb_Roles r
 INNER JOIN User_Groups_Map ugm ON r.PrincipalID = ugm.GroupID
 INNER JOIN User_Groups g ON ugm.GroupID = g.GroupID
-WHERE ugm.UserID = '$safeUserID' AND r.PrincipalType = 'Group';
+WHERE ugm.UserID COLLATE NOCASE = '$safeUserID' AND r.PrincipalType COLLATE NOCASE = 'Group';
 "@
     } else {
         # Only direct user role assignments
-        $query = "SELECT * FROM PSWeb_Roles WHERE PrincipalID = '$safeUserID' AND PrincipalType = 'User';"
+        $query = "SELECT * FROM PSWeb_Roles WHERE PrincipalID COLLATE NOCASE = '$safeUserID' AND PrincipalType COLLATE NOCASE = 'User';"
     }
 }
 elseif ($ListRoles) {
@@ -84,12 +84,12 @@ if ($roles) {
     foreach ($role in $roles) {
         if ($role.PSObject.Properties.Name -contains 'PrincipalID') {
             if ($role.PrincipalType -eq 'User') {
-                $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT Email FROM Users WHERE UserID = '$($role.PrincipalID)';"
+                $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT Email FROM Users WHERE UserID COLLATE NOCASE = '$($role.PrincipalID)';"
                 if ($principal) {
                     $role | Add-Member -NotePropertyName PrincipalName -NotePropertyValue $principal.Email -Force
                 }
             } elseif ($role.PrincipalType -eq 'Group') {
-                $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT Name FROM User_Groups WHERE GroupID = '$($role.PrincipalID)';"
+                $principal = Get-PSWebSQLiteData -File $dbFile -Query "SELECT Name FROM User_Groups WHERE GroupID COLLATE NOCASE = '$($role.PrincipalID)';"
                 if ($principal) {
                     $role | Add-Member -NotePropertyName PrincipalName -NotePropertyValue $principal.Name -Force
                 }

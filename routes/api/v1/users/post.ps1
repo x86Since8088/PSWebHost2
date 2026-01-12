@@ -27,17 +27,18 @@ if ($updateData.Count -gt 0) {
     }
     $setStatement = $setClauses -join ", "
     $safeUserID = Sanitize-SqlQueryString -String $userID
-    $query = "UPDATE Users SET $setStatement WHERE UserID = '$safeUserID';"
+    $query = "UPDATE Users SET $setStatement WHERE UserID COLLATE NOCASE = '$safeUserID';"
     Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Query $query
 }
 
 if ($files.profileImage) {
     $userDir = Join-Path $Global:PSWebServer.Project_Root.Path "public/users/$userID"
-    
+
     $makeIconsScript = Join-Path $Global:PSWebServer.Project_Root.Path "system/graphics/MakeIcons.ps1"
     & $makeIconsScript -bytes $files.profileImage.Content -OutputDir $userDir -Name "profile"
 }
 
-$user = Get-PSWebSQLiteData -File "pswebhost.db" -Query "SELECT * FROM Users WHERE UserID = '$userID';"
+$safeUserID = Sanitize-SqlQueryString -String $userID
+$user = Get-PSWebSQLiteData -File "pswebhost.db" -Query "SELECT * FROM Users WHERE UserID COLLATE NOCASE = '$safeUserID';"
 $responseString = $user | ConvertTo-Json -Depth 5
 context_reponse -Response $Response -String $responseString -ContentType "application/json"

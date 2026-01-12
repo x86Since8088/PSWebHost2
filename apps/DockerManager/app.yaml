@@ -1,0 +1,21 @@
+enabled: true
+version: 1.0.0
+description: Docker container and image management
+requiredRoles:
+- admin
+- system_admin
+routePrefix: /apps/dockermanager
+features:
+  created: 2026-01-10
+author: test
+subCategory:
+  name: Docker
+  order: 2
+name: Docker Manager
+parentCategory:
+  id: containers
+  name: Containers
+  description: Container orchestration and management
+  icon: box
+  order: 2
+

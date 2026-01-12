@@ -1,4 +1,3 @@
-
 param (
     [System.Net.HttpListenerContext]$Context,
     [System.Net.HttpListenerRequest]$Request=$Context.Request,
@@ -6,87 +5,9 @@ param (
     $sessiondata
 )
 
-# Cache configuration - cache results for 5 seconds to prevent repeated expensive queries
-$script:CacheDuration = 5
-if (-not $script:CachedStats) {
-    $script:CachedStats = @{
-        timestamp = [datetime]::MinValue
-        data = $null
-    }
-}
-
-# Timeout tracking - skip operations that have timed out recently
-$script:SkipDuration = 30
-if (-not $script:TimedOutOperations) {
-    $script:TimedOutOperations = @{}
-}
-
 # Helper function to create a JSON response
 function New-JsonResponse($status, $message) {
     return @{ status = $status; Message = $message } | ConvertTo-Json
-}
-
-# Helper function to check if operation should be skipped
-function Test-ShouldSkipOperation {
-    param([string]$OperationName)
-
-    if ($script:TimedOutOperations.ContainsKey($OperationName)) {
-        $timeSinceTimeout = ((Get-Date) - $script:TimedOutOperations[$OperationName]).TotalSeconds
-        if ($timeSinceTimeout -lt $script:SkipDuration) {
-            $remainingSkip = [math]::Round($script:SkipDuration - $timeSinceTimeout, 1)
-            Write-Verbose "[ServerHeatmap] Skipping '$OperationName' (timed out recently, retry in ${remainingSkip}s)"
-            return $true
-        } else {
-            # Enough time has passed, remove from skip list
-            $script:TimedOutOperations.Remove($OperationName)
-            Write-Verbose "[ServerHeatmap] Retry timeout period expired for '$OperationName', attempting again"
-            return $false
-        }
-    }
-    return $false
-}
-
-# Helper function to run command with timeout
-function Invoke-WithTimeout {
-    param(
-        [scriptblock]$ScriptBlock,
-        [int]$TimeoutSeconds = 3,
-        $DefaultValue = $null,
-        [string]$OperationName = "Unknown Operation"
-    )
-
-    try {
-        $job = Start-Job -ScriptBlock $ScriptBlock
-        $completed = Wait-Job -Job $job -Timeout $TimeoutSeconds
-
-        if ($completed) {
-            $result = Receive-Job -Job $job
-            Remove-Job -Job $job -Force
-
-            # Operation succeeded, remove from timeout tracking if it was there
-            if ($script:TimedOutOperations.ContainsKey($OperationName)) {
-                $script:TimedOutOperations.Remove($OperationName)
-                Write-Verbose "[ServerHeatmap] Operation '$OperationName' succeeded (previously timed out)"
-            }
-
-            return $result
-        } else {
-            Stop-Job -Job $job
-            Remove-Job -Job $job -Force
-
-            # Track this timeout
-            $script:TimedOutOperations[$OperationName] = Get-Date
-            Write-Verbose "[ServerHeatmap] TIMEOUT: Operation '$OperationName' timed out after $TimeoutSeconds seconds. Will skip for $script:SkipDuration seconds."
-
-            return $DefaultValue
-        }
-    } catch {
-        # Track this failure
-        $script:TimedOutOperations[$OperationName] = Get-Date
-        Write-Verbose "[ServerHeatmap] ERROR: Operation '$OperationName' failed with error: $($_.Exception.Message). Will skip for $script:SkipDuration seconds."
-
-        return $DefaultValue
-    }
 }
 
 # Check authentication
@@ -96,86 +17,101 @@ if (-not $sessiondata -or 'authenticated' -notin $sessiondata.Roles) {
     return
 }
 
-# Check cache
-$cacheAge = ((Get-Date) - $script:CachedStats.timestamp).TotalSeconds
-if ($cacheAge -lt $script:CacheDuration -and $script:CachedStats.data) {
-    Write-Verbose "[ServerHeatmap] Returning cached data (age: $([math]::Round($cacheAge, 1))s)"
-    $jsonResponse = $script:CachedStats.data | ConvertTo-Json -Depth 10 -Compress
-    context_reponse -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
-    return
-}
-
 try {
-    # Collect real system statistics
-    $systemStats = @{
-        timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-        hostname = $env:COMPUTERNAME
-        metrics = @{}
-        cached = $false
+    # Check query parameters for history request
+    $queryParams = $Request.QueryString
+    $historyMinutes = $queryParams['history']
+    $format = $queryParams['format']
+
+    # If history is requested, return aggregated data
+    if ($historyMinutes) {
+        $minutes = [int]$historyMinutes
+        if ($minutes -lt 1) { $minutes = 60 }
+        if ($minutes -gt 1440) { $minutes = 1440 }  # Max 24 hours
+
+        $historyData = Get-MetricsHistory -Source 'Aggregated' -Minutes $minutes
+
+        $response_data = @{
+            status = 'success'
+            type = 'history'
+            minutes = $minutes
+            recordCount = $historyData.Count
+            data = $historyData
+        }
+
+        $jsonResponse = $response_data | ConvertTo-Json -Depth 10 -Compress
+        context_reponse -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+        return
     }
 
-    # CPU Usage (per logical processor) - with timeout
-    if (-not (Test-ShouldSkipOperation -OperationName "CPU_Counters")) {
-        $cpuCounters = Invoke-WithTimeout -TimeoutSeconds 2 -OperationName "CPU_Counters" -ScriptBlock {
-            Get-Counter -Counter '\Processor(*)\% Processor Time' -ErrorAction Stop
-        }
+    # Get current metrics from global storage
+    $metrics = $null
+    if ($Global:PSWebServer.Metrics -and $Global:PSWebServer.Metrics.Current.Timestamp) {
+        $metrics = $Global:PSWebServer.Metrics.Current
+    }
 
-        if ($cpuCounters) {
-            $cpuData = @($cpuCounters.CounterSamples | Where-Object { $_.InstanceName -ne '_total' } | ForEach-Object {
-                @{
-                    name = "CPU $($_.InstanceName)"
-                    value = [math]::Round($_.CookedValue, 1)
-                    unit = "%"
-                    type = "cpu"
-                }
-            })
-            $systemStats.metrics.cpu = $cpuData
-        } else {
-            $systemStats.metrics.cpu = @(@{
-                name = "CPU Status"
-                value = "Error"
-                unit = ""
-                type = "cpu"
-            })
+    # If no metrics available yet, try to collect now
+    if (-not $metrics -or -not $metrics.Timestamp) {
+        try {
+            Invoke-MetricJobMaintenance -CollectOnly
+            $metrics = $Global:PSWebServer.Metrics.Current
+        } catch {
+            Write-Warning "[ServerHeatmap] Failed to collect metrics on-demand: $($_.Exception.Message)"
         }
+    }
+
+    # Build response in the format expected by the frontend
+    $systemStats = @{
+        timestamp = if ($metrics.Timestamp) { $metrics.Timestamp } else { (Get-Date).ToString("yyyy-MM-dd HH:mm:ss") }
+        hostname = if ($metrics.Hostname) { $metrics.Hostname } else { $env:COMPUTERNAME }
+        metrics = @{}
+        cached = $true  # Data is from the metrics cache
+    }
+
+    # CPU - Transform to frontend format
+    if ($metrics.Cpu -and -not $metrics.Cpu.Error) {
+        $cpuData = @()
+        $coreIndex = 0
+        foreach ($coreValue in $metrics.Cpu.Cores) {
+            $cpuData += @{
+                name = "CPU $coreIndex"
+                value = $coreValue
+                unit = "%"
+                type = "cpu"
+            }
+            $coreIndex++
+        }
+        # If no per-core data, create a single entry with total
+        if ($cpuData.Count -eq 0 -and $metrics.Cpu.TotalPercent) {
+            $cpuData += @{
+                name = "CPU Total"
+                value = $metrics.Cpu.TotalPercent
+                unit = "%"
+                type = "cpu"
+            }
+        }
+        $systemStats.metrics.cpu = $cpuData
+        $systemStats.metrics.cpuCoreCount = $metrics.Cpu.CoreCount
     } else {
         $systemStats.metrics.cpu = @(@{
             name = "CPU Status"
             value = "Error"
             unit = ""
             type = "cpu"
+            error = if ($metrics.Cpu.Error) { $metrics.Cpu.Error } else { "No data available" }
         })
+        $systemStats.metrics.cpuCoreCount = 0
     }
 
-    # Memory Usage - with timeout
-    if (-not (Test-ShouldSkipOperation -OperationName "Memory_Query")) {
-        $os = Invoke-WithTimeout -TimeoutSeconds 2 -OperationName "Memory_Query" -ScriptBlock {
-            Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
-        }
-
-        if ($os) {
-            $totalMemoryGB = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
-            $freeMemoryGB = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
-            $usedMemoryGB = [math]::Round($totalMemoryGB - $freeMemoryGB, 2)
-            $memoryPercent = [math]::Round(($usedMemoryGB / $totalMemoryGB) * 100, 1)
-
-            $systemStats.metrics.memory = @{
-                total = $totalMemoryGB
-                used = $usedMemoryGB
-                free = $freeMemoryGB
-                percentUsed = $memoryPercent
-                unit = "GB"
-                type = "memory"
-            }
-        } else {
-            $systemStats.metrics.memory = @{
-                total = "Error"
-                used = "Error"
-                free = "Error"
-                percentUsed = "Error"
-                unit = "GB"
-                type = "memory"
-            }
+    # Memory - Transform to frontend format
+    if ($metrics.Memory -and -not $metrics.Memory.Error) {
+        $systemStats.metrics.memory = @{
+            total = $metrics.Memory.TotalGB
+            used = $metrics.Memory.UsedGB
+            free = $metrics.Memory.FreeGB
+            percentUsed = $metrics.Memory.PercentUsed
+            unit = "GB"
+            type = "memory"
         }
     } else {
         $systemStats.metrics.memory = @{
@@ -185,44 +121,27 @@ try {
             percentUsed = "Error"
             unit = "GB"
             type = "memory"
+            error = if ($metrics.Memory.Error) { $metrics.Memory.Error } else { "No data available" }
         }
     }
 
-    # Disk Usage (all drives) - with timeout
-    if (-not (Test-ShouldSkipOperation -OperationName "Disk_Query")) {
-        $drives = Invoke-WithTimeout -TimeoutSeconds 2 -OperationName "Disk_Query" -ScriptBlock {
-            Get-CimInstance -ClassName Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction Stop
-        }
-
-        if ($drives) {
-            $diskData = @($drives | ForEach-Object {
-                $totalGB = [math]::Round($_.Size / 1GB, 2)
-                $freeGB = [math]::Round($_.FreeSpace / 1GB, 2)
-                $usedGB = [math]::Round($totalGB - $freeGB, 2)
-                $percentUsed = if ($totalGB -gt 0) { [math]::Round(($usedGB / $totalGB) * 100, 1) } else { 0 }
-
-                @{
-                    name = "$($_.DeviceID)"
-                    total = $totalGB
-                    used = $usedGB
-                    free = $freeGB
-                    percentUsed = $percentUsed
-                    unit = "GB"
-                    type = "disk"
-                }
-            })
-            $systemStats.metrics.disk = $diskData
-        } else {
-            $systemStats.metrics.disk = @(@{
-                name = "Disk Status"
-                total = "Error"
-                used = "Error"
-                free = "Error"
-                percentUsed = "Error"
+    # Disk - Transform to frontend format
+    if ($metrics.Disk -and -not $metrics.Disk.Error) {
+        $diskData = @()
+        foreach ($driveLetter in $metrics.Disk.Keys) {
+            if ($driveLetter -eq 'Error') { continue }
+            $drive = $metrics.Disk[$driveLetter]
+            $diskData += @{
+                name = $driveLetter
+                total = $drive.TotalGB
+                used = $drive.UsedGB
+                free = $drive.FreeGB
+                percentUsed = $drive.PercentUsed
                 unit = "GB"
                 type = "disk"
-            })
+            }
         }
+        $systemStats.metrics.disk = $diskData
     } else {
         $systemStats.metrics.disk = @(@{
             name = "Disk Status"
@@ -235,33 +154,20 @@ try {
         })
     }
 
-    # Network Interfaces - with timeout
-    if (-not (Test-ShouldSkipOperation -OperationName "Network_Counters")) {
-        $netCounters = Invoke-WithTimeout -TimeoutSeconds 2 -OperationName "Network_Counters" -ScriptBlock {
-            Get-Counter -Counter '\Network Interface(*)\Bytes Total/sec' -ErrorAction Stop
-        }
-
-        if ($netCounters) {
-            $netData = @($netCounters.CounterSamples | Where-Object {
-                $_.InstanceName -notmatch 'Loopback|isatap'
-            } | ForEach-Object {
-                $bytesPerSec = [math]::Round($_.CookedValue / 1KB, 1)
-                @{
-                    name = $_.InstanceName
-                    value = $bytesPerSec
-                    unit = "KB/s"
-                    type = "network"
-                }
-            })
-            $systemStats.metrics.network = $netData
-        } else {
-            $systemStats.metrics.network = @(@{
-                name = "Network Status"
-                value = "Error"
-                unit = ""
+    # Network - Transform to frontend format
+    if ($metrics.Network -and -not $metrics.Network.Error) {
+        $netData = @()
+        foreach ($ifaceName in $metrics.Network.Keys) {
+            if ($ifaceName -eq 'Error') { continue }
+            $iface = $metrics.Network[$ifaceName]
+            $netData += @{
+                name = $ifaceName
+                value = $iface.KBPerSec
+                unit = "KB/s"
                 type = "network"
-            })
+            }
         }
+        $systemStats.metrics.network = $netData
     } else {
         $systemStats.metrics.network = @(@{
             name = "Network Status"
@@ -271,60 +177,31 @@ try {
         })
     }
 
-    # Top Processes by CPU - optimized to avoid timeout
-    $topProcessesCPU = @(Get-Process -ErrorAction SilentlyContinue |
-        Where-Object { $_.CPU -gt 0 } |
-        Sort-Object CPU -Descending |
-        Select-Object -First 10 |
-        ForEach-Object {
-            @{
-                name = $_.ProcessName
-                cpu = [math]::Round($_.CPU, 2)
-                memory = [math]::Round($_.WorkingSet64 / 1MB, 1)
-                id = $_.Id
-                type = "process"
-            }
-        })
-    $systemStats.metrics.topProcessesCPU = $topProcessesCPU
-
-    # Top Processes by Memory - optimized
-    $topProcessesMem = @(Get-Process -ErrorAction SilentlyContinue |
-        Sort-Object WorkingSet64 -Descending |
-        Select-Object -First 10 |
-        ForEach-Object {
-            @{
-                name = $_.ProcessName
-                memory = [math]::Round($_.WorkingSet64 / 1MB, 1)
-                cpu = [math]::Round($_.CPU, 2)
-                id = $_.Id
-                type = "process"
-            }
-        })
-    $systemStats.metrics.topProcessesMem = $topProcessesMem
-
-    # System Uptime - with timeout
-    if (-not (Test-ShouldSkipOperation -OperationName "Uptime_Query")) {
-        $bootTime = Invoke-WithTimeout -TimeoutSeconds 2 -OperationName "Uptime_Query" -ScriptBlock {
-            (Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop).LastBootUpTime
+    # System Info (processes, threads, handles)
+    if ($metrics.System -and -not $metrics.System.Error) {
+        $systemStats.metrics.system = @{
+            processes = $metrics.System.Processes
+            threads = $metrics.System.Threads
+            handles = $metrics.System.Handles
+            type = "system"
         }
+    } else {
+        $systemStats.metrics.system = @{
+            processes = "Error"
+            threads = "Error"
+            handles = "Error"
+            type = "system"
+        }
+    }
 
-        if ($bootTime) {
-            $uptime = (Get-Date) - $bootTime
-            $systemStats.metrics.uptime = @{
-                days = $uptime.Days
-                hours = $uptime.Hours
-                minutes = $uptime.Minutes
-                totalHours = [math]::Round($uptime.TotalHours, 1)
-                type = "uptime"
-            }
-        } else {
-            $systemStats.metrics.uptime = @{
-                days = "Error"
-                hours = "Error"
-                minutes = "Error"
-                totalHours = "Error"
-                type = "uptime"
-            }
+    # Uptime
+    if ($metrics.Uptime -and -not $metrics.Uptime.Error) {
+        $systemStats.metrics.uptime = @{
+            days = $metrics.Uptime.Days
+            hours = $metrics.Uptime.Hours
+            minutes = $metrics.Uptime.Minutes
+            totalHours = $metrics.Uptime.TotalHours
+            type = "uptime"
         }
     } else {
         $systemStats.metrics.uptime = @{
@@ -336,31 +213,43 @@ try {
         }
     }
 
-    # Thread and Handle Count - OPTIMIZED: Use WMI performance counter instead of enumerating all threads
-    # This is much faster than accessing .Threads.Count on every process
-    $allProcesses = Get-Process -ErrorAction SilentlyContinue
-
-    # Use performance counter for thread count (much faster)
-    if (-not (Test-ShouldSkipOperation -OperationName "Thread_Count")) {
-        $threadCount = Invoke-WithTimeout -TimeoutSeconds 2 -OperationName "Thread_Count" -ScriptBlock {
-            (Get-CimInstance -ClassName Win32_PerfFormattedData_PerfProc_Process -ErrorAction Stop |
-                Measure-Object -Property ThreadCount -Sum).Sum
-        } -DefaultValue "Error"
+    # Top Processes by CPU
+    if ($metrics.TopProcessesCPU -and $metrics.TopProcessesCPU.Count -gt 0) {
+        $systemStats.metrics.topProcessesCPU = @($metrics.TopProcessesCPU | ForEach-Object {
+            @{
+                name = $_.Name
+                cpu = $_.Cpu
+                memory = $_.MemoryMB
+                id = $_.Id
+                type = "process"
+            }
+        })
     } else {
-        $threadCount = "Error"
+        $systemStats.metrics.topProcessesCPU = @()
     }
 
-    $systemStats.metrics.system = @{
-        processes = $allProcesses.Count
-        threads = $threadCount
-        handles = ($allProcesses | Measure-Object -Property Handles -Sum -ErrorAction SilentlyContinue).Sum
-        type = "system"
+    # Top Processes by Memory
+    if ($metrics.TopProcessesMem -and $metrics.TopProcessesMem.Count -gt 0) {
+        $systemStats.metrics.topProcessesMem = @($metrics.TopProcessesMem | ForEach-Object {
+            @{
+                name = $_.Name
+                memory = $_.MemoryMB
+                cpu = $_.Cpu
+                id = $_.Id
+                type = "process"
+            }
+        })
+    } else {
+        $systemStats.metrics.topProcessesMem = @()
     }
 
-    # Update cache
-    $script:CachedStats = @{
-        timestamp = Get-Date
-        data = $systemStats
+    # Add metrics job status info
+    $jobStatus = Get-MetricsJobStatus
+    $systemStats.metricsStatus = @{
+        samplesCollected = $jobStatus.SamplesCount
+        aggregatedMinutes = $jobStatus.AggregatedCount
+        lastCollection = if ($jobStatus.LastCollection) { $jobStatus.LastCollection.ToString("yyyy-MM-dd HH:mm:ss") } else { $null }
+        errorCount = $jobStatus.ErrorCount
     }
 
     $jsonResponse = $systemStats | ConvertTo-Json -Depth 10 -Compress

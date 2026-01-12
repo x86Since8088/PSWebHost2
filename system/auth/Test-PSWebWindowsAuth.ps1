@@ -1,9 +1,10 @@
 param (
     [pscredential]$credential
 )
+$MyTag = '[Test-PSWebWindowsAuth.ps1]'
 
 $isLocalAccountDomainName = $credential.GetNetworkCredential().Domain -in ('.','localhost',$env:computername)
-Write-Host "[Test-PSWebWindowsAuth.ps1] $($credential.UserName) isLocalAccountDomainName:$isLocalAccountDomainName"
+Write-PSWebHostLog -Severity 'Verbose' -Category 'Auth' -Message "$MyTag $($credential.UserName) isLocalAccountDomainName:$isLocalAccountDomainName" -WriteHost
 if ($credential.GetNetworkCredential().Domain -in ('.', 'localhost', $env:computername)) {
     $scriptBlock = {
         param($credential)
@@ -13,18 +14,17 @@ if ($credential.GetNetworkCredential().Domain -in ('.', 'localhost', $env:comput
     }
 
     $job = Start-Job -ScriptBlock $scriptBlock -ArgumentList $credential
-    $job | Wait-Job -Timeout 5
-    $job
+    $null = $job | Wait-Job -Timeout 5
     if ($job.State -eq 'Running') {
         Stop-Job $job
         Remove-Job $job
-        Write-Warning "failed authentication using System.DirectoryServices.AccountManagement.PrincipalContext"
+        Write-PSWebHostLog -Severity 'Warning' -Category 'Auth' -Message "$MyTag PrincipalContext auth timed out after 5s" -WriteHost
         return $false
     }
 
     $isAuthenticated = Receive-Job $job
     Remove-Job $job
-    Write-Host "Tested Authentication using System.DirectoryServices.AccountManagement.PrincipalContext $isAuthenticated"
+    Write-PSWebHostLog -Severity 'Verbose' -Category 'Auth' -Message "$MyTag Tested via PrincipalContext - Result: $isAuthenticated" -WriteHost
     return $isAuthenticated
 }
 
@@ -40,16 +40,15 @@ $scriptBlock = {
 }
 
 $job = Start-Job -ScriptBlock $scriptBlock -ArgumentList $credential
-$job | Wait-Job -Timeout 5
-$job
+$null = $job | Wait-Job -Timeout 5
 if ($job.State -eq 'Running') {
     Stop-Job $job
     Remove-Job $job
-    Write-Warning "failed authentication using System.DirectoryServices.DirectoryEntry"
+    Write-PSWebHostLog -Severity 'Warning' -Category 'Auth' -Message "$MyTag DirectoryEntry auth timed out after 5s" -WriteHost
     return $false
 }
 
 $isAuthenticated = Receive-Job $job
 Remove-Job $job
-Write-Host "Tested Authentication using System.DirectoryServices.DirectoryEntry $isAuthenticated"
+Write-PSWebHostLog -Severity 'Verbose' -Category 'Auth' -Message "$MyTag Tested via DirectoryEntry - Result: $isAuthenticated" -WriteHost
 return $isAuthenticated

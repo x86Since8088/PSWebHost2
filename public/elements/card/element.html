@@ -11,7 +11,7 @@
             margin-bottom: 3px;
             overflow: hidden; /* Ensures content respects border-radius */
         }
-        .card-title-bar {
+        .card-header {
             display: flex;
             align-items: center;
             background-color: var(--title-bar-color);
@@ -21,7 +21,7 @@
             cursor: grab; /* Indicate draggable */
             user-select: none; /* Prevent text selection during drag */
         }
-        .card-title-bar.dragging {
+        .card-header.dragging {
             cursor: grabbing;
         }
         .card-content {
@@ -48,7 +48,7 @@
         }
     </style>
     <div class="card">
-        <div class="card-title-bar">
+        <div class="card-header">
             <img class="card-icon" src="" alt="icon" style="display: none;">
             <span class="card-title"></span>
             <div class="settings-icon">⚙️</div>

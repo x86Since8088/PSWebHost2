@@ -16,7 +16,7 @@ if ($SessionData -and $SessionData.UserID -and -not $SessionData.Email) {
     try {
         $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
         $safeUserID = Sanitize-SqlQueryString -String $SessionData.UserID
-        $user = Get-PSWebSQLiteData -File $dbFile -Query "SELECT Email FROM Users WHERE UserID = '$safeUserID';"
+        $user = Get-PSWebSQLiteData -File $dbFile -Query "SELECT Email FROM Users WHERE UserID COLLATE NOCASE = '$safeUserID';"
         if ($user) {
             $SessionData | Add-Member -NotePropertyName Email -NotePropertyValue $user.Email -Force
         }
