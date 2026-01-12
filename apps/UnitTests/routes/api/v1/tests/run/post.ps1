@@ -100,7 +100,7 @@ try {
         StartTime = Get-Date
         TestPaths = $testPaths
         Tags = $tags
-        ExcludeT tags = $excludeTags
+        ExcludeTags = $excludeTags
         Output = $output
         Status = 'Running'
         UserId = $sessiondata.UserID

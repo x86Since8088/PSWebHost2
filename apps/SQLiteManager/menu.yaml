@@ -10,3 +10,14 @@
     - databases
     - sqlite
     - sql
+
+- Name: Query Editor
+  url: /apps/sqlitemanager/api/v1/ui/elements/sqlite-query-editor
+  hover_description: Execute SQL queries against the PSWebHost database
+  icon: code
+  tags:
+    - databases
+    - sqlite
+    - sql
+    - query
+    - editor

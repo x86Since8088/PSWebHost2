@@ -56,7 +56,11 @@ class TimeSeriesChartComponent extends HTMLElement {
 
     initializeLogger() {
         const loggingLevel = this.appConfig?.settings?.ConsoleToAPILoggingLevel || 'info';
-        this.logger = new ConsoleAPILogger('uplot', loggingLevel);
+        if (typeof ConsoleAPILogger !== 'undefined') {
+            this.logger = new ConsoleAPILogger('uplot', loggingLevel);
+        } else {
+            this.logger = { info: (...args) => console.log('[time-series:info]', ...args), warn: (...args) => console.warn('[time-series:warn]', ...args), error: (...args) => console.error('[time-series:error]', ...args), debug: (...args) => console.debug('[time-series:debug]', ...args), verbose: (...args) => console.log('[time-series:verbose]', ...args) };
+        }
     }
 
     async loadChartConfig() {
@@ -460,3 +464,24 @@ class TimeSeriesChartComponent extends HTMLElement {
 
 // Register custom element
 customElements.define('time-series-chart', TimeSeriesChartComponent);
+
+
+// Also register as a React component for SPA compatibility
+if (typeof window.cardComponents !== 'undefined') {
+    window.cardComponents['time-series'] = ({ element, url }) => {
+        const React = window.React;
+        const ref = React.useRef(null);
+
+        React.useEffect(() => {
+            if (ref.current && !ref.current.querySelector('time-series-chart')) {
+                const component = document.createElement('time-series-chart');
+                ref.current.appendChild(component);
+            }
+        }, []);
+
+        return React.createElement('div', {
+            ref: ref,
+            style: { width: '100%', height: '100%', overflow: 'auto' }
+        });
+    };
+}

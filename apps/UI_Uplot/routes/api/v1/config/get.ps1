@@ -2,66 +2,47 @@
 
 <#
 .SYNOPSIS
-    Get UI_Uplot app configuration
+    UI_Uplot App Configuration Endpoint
 .DESCRIPTION
-    Returns app configuration including ConsoleToAPILoggingLevel and other settings
+    Returns the app configuration including settings from app.yaml
 #>
 
 param($Request, $Response, $Session)
 
 try {
-    # Get app configuration from app.yaml
-    $appRoot = $Global:PSWebServer['UI_Uplot']['AppRoot']
-    $appYamlPath = Join-Path $appRoot 'app.yaml'
+    # Get app namespace
+    $appNamespace = $Global:PSWebServer['UI_Uplot']
 
-    if (-not (Test-Path $appYamlPath)) {
-        throw "App configuration file not found: $appYamlPath"
+    if (-not $appNamespace) {
+        $Response.StatusCode = 500
+        $Response.ContentType = 'application/json'
+        $Response.Write('{"error": "App not initialized"}')
+        return
     }
 
-    # Parse YAML configuration
-    # Note: This is a simplified YAML parser - for production use a proper YAML module
-    $yamlContent = Get-Content $appYamlPath -Raw
+    # Get manifest (app.yaml configuration)
+    $manifest = $appNamespace.Manifest
 
-    # Extract settings section
+    # Build configuration response
     $config = @{
-        name = 'uPlot Chart Builder'
-        version = '1.0.0'
-        settings = @{
-            ConsoleToAPILoggingLevel = 'info'
-            defaultChartHeight = 400
-            defaultChartWidth = 800
-            defaultRefreshInterval = 5
-            maxDataPoints = 1000
-            enableRealTimeUpdates = $true
-        }
-        chartTypes = @(
-            @{ id = 'time-series'; name = 'Time Series'; icon = 'chart-line' }
-            @{ id = 'area-chart'; name = 'Area Chart'; icon = 'chart-area' }
-            @{ id = 'bar-chart'; name = 'Bar Chart'; icon = 'chart-bar' }
-            @{ id = 'scatter-plot'; name = 'Scatter Plot'; icon = 'circle' }
-            @{ id = 'multi-axis'; name = 'Multi-Axis Chart'; icon = 'chart-gantt' }
-            @{ id = 'heatmap'; name = 'Heatmap'; icon = 'th' }
-        )
-        dataSources = @(
-            @{ id = 'rest-json'; name = 'REST API (JSON)' }
-            @{ id = 'rest-csv'; name = 'REST API (CSV)' }
-            @{ id = 'sql-js'; name = 'SQL.js Query' }
-            @{ id = 'metrics-db'; name = 'Metrics Database' }
-            @{ id = 'static-json'; name = 'Static JSON' }
-            @{ id = 'upload-csv'; name = 'Upload CSV' }
-        )
+        name = $manifest.name
+        version = $manifest.version
+        description = $manifest.description
+        author = $manifest.author
+        routePrefix = $manifest.routePrefix
+        settings = $manifest.settings
+        features = $manifest.features
+        parentCategory = $manifest.parentCategory
+        subCategory = $manifest.subCategory
     }
 
-    # Try to parse ConsoleToAPILoggingLevel from YAML if available
-    if ($yamlContent -match 'ConsoleToAPILoggingLevel:\s*(\w+)') {
-        $config.settings.ConsoleToAPILoggingLevel = $matches[1]
-    }
-
-    # Return configuration as JSON
+    $Response.StatusCode = 200
     $Response.ContentType = 'application/json'
     $Response.Write(($config | ConvertTo-Json -Depth 10))
+}
+catch {
+    Write-PSWebHostLog -Severity 'Error' -Category 'UI_Uplot' -Message "Error getting config: $($_.Exception.Message)"
 
-} catch {
     $Response.StatusCode = 500
     $Response.ContentType = 'application/json'
     $errorResponse = @{

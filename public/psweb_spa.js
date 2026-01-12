@@ -842,19 +842,18 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
             <header className="card-header">
                 {element.icon && <img src={element.icon} className="card-icon" alt="icon" />}
                 <h3 className="card-title">{title}</h3>
+                <div className="card-actions">
+                    <button className="card-action help-icon" onClick={openHelp} title="Open Help" aria-label="Open Help">&#10067;</button>
+                    <button className="card-action fullscreen-icon" onClick={handleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'} aria-label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
+                        {isFullscreen ? '⛶' : '⛶'}
+                    </button>
+                    <button className="card-action maximize-icon" onClick={() => onMaximize(element.id)} title={isMaximized ? 'Restore' : 'Maximize'} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
+                        {isMaximized ? '🗗' : '🗖'}
+                    </button>
+                    <button className="card-action settings-icon" onClick={() => onOpenSettings(element.id)} title="Settings" aria-label="Settings">&#9881;</button>
+                    <button className="card-action close-icon" onClick={() => onRemove(element.id)} title="Close" aria-label="Close">&times;</button>
+                </div>
             </header>
-            <div className="card-actions">
-                <div className="spacer"></div>
-                <button className="card-action help-icon" onClick={openHelp} title="Open Help" aria-label="Open Help">&#10067;</button>
-                <button className="card-action fullscreen-icon" onClick={handleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'} aria-label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
-                    {isFullscreen ? '⛶' : '⛶'}
-                </button>
-                <button className="card-action maximize-icon" onClick={() => onMaximize(element.id)} title={isMaximized ? 'Restore' : 'Maximize'} aria-label={isMaximized ? 'Restore' : 'Maximize'}>
-                    {isMaximized ? '🗗' : '🗖'}
-                </button>
-                <button className="card-action settings-icon" onClick={() => onOpenSettings(element.id)} title="Settings" aria-label="Settings">&#9881;</button>
-                <button className="card-action close-icon" onClick={() => onRemove(element.id)} title="Close" aria-label="Close">&times;</button>
-            </div>
             <main className="card-content" ref={contentRef}>
                 {cardContent}
             </main>

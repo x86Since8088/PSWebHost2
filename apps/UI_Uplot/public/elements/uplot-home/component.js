@@ -38,8 +38,22 @@ class UPlotHomeComponent extends HTMLElement {
 
     initializeLogger() {
         const loggingLevel = this.appConfig?.settings?.ConsoleToAPILoggingLevel || 'info';
-        this.logger = new ConsoleAPILogger('uplot', loggingLevel);
-        this.logger.info(`Logging initialized at level: ${loggingLevel}`);
+
+        // Check if ConsoleAPILogger is available
+        if (typeof ConsoleAPILogger !== 'undefined') {
+            this.logger = new ConsoleAPILogger('uplot', loggingLevel);
+            this.logger.info(`Logging initialized at level: ${loggingLevel}`);
+        } else {
+            // Fallback to console with compatible interface
+            this.logger = {
+                info: (...args) => console.log('[uplot:info]', ...args),
+                warn: (...args) => console.warn('[uplot:warn]', ...args),
+                error: (...args) => console.error('[uplot:error]', ...args),
+                debug: (...args) => console.debug('[uplot:debug]', ...args),
+                verbose: (...args) => console.log('[uplot:verbose]', ...args)
+            };
+            console.log('[uplot:info] Logging initialized (fallback mode)');
+        }
     }
 
     render() {
@@ -602,3 +616,23 @@ class UPlotHomeComponent extends HTMLElement {
 
 // Register custom element
 customElements.define('uplot-home-component', UPlotHomeComponent);
+
+// Also register as a React component for SPA compatibility
+if (typeof window.cardComponents !== 'undefined') {
+    window.cardComponents['uplot-home'] = ({ element, url }) => {
+        const React = window.React;
+        const ref = React.useRef(null);
+
+        React.useEffect(() => {
+            if (ref.current && !ref.current.querySelector('uplot-home-component')) {
+                const component = document.createElement('uplot-home-component');
+                ref.current.appendChild(component);
+            }
+        }, []);
+
+        return React.createElement('div', {
+            ref: ref,
+            style: { width: '100%', height: '100%', overflow: 'auto' }
+        });
+    };
+}

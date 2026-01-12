@@ -660,7 +660,7 @@ Get-ChildItem -Path $appsPath -Directory -ErrorAction SilentlyContinue | ForEach
                     New-Item -Path $centralDataPath -ItemType Directory -Force | Out-Null
                 }
 
-                $Global:PSWebServer.Apps[$appName] = @{
+                $appData = @{
                     Path = $appDir
                     Manifest = $manifest
                     ManifestPath = $manifestPath
@@ -669,6 +669,18 @@ Get-ChildItem -Path $appsPath -Directory -ErrorAction SilentlyContinue | ForEach
                     RoutesPath = Join-Path $appDir "routes"
                     PublicPath = Join-Path $appDir "public"
                     DataPath = $centralDataPath
+                }
+
+                # Register app by folder name
+                $Global:PSWebServer.Apps[$appName] = $appData
+
+                # Also register by routePrefix if it exists (allows /apps/uplot to map to UI_Uplot folder)
+                if ($manifest.routePrefix -and $manifest.routePrefix -match '^/apps/([a-zA-Z0-9_-]+)') {
+                    $routePrefixName = $matches[1]
+                    if ($routePrefixName -ne $appName) {
+                        $Global:PSWebServer.Apps[$routePrefixName] = $appData
+                        Write-Verbose "  Registered app '$appName' also as '$routePrefixName' (from routePrefix)" -Verbose
+                    }
                 }
 
                 Write-Host "[Init] Loaded app: $appName (v$($manifest.version))" -ForegroundColor Green

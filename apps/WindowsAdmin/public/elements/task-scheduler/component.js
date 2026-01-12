@@ -13,44 +13,33 @@ const TaskSchedulerComponent = ({ url, element }) => {
     const [platform, setPlatform] = React.useState('windows');
 
     React.useEffect(() => {
-        // TODO: Detect platform and fetch scheduled tasks
-        // Windows: Get-ScheduledTask or schtasks
-        // Linux: crontab -l, systemd timers
-        setLoading(false);
-        setTasks([
-            {
-                name: 'Daily Backup',
-                schedule: '0 2 * * *',
-                lastRun: '2024-01-02 02:00:00',
-                nextRun: '2024-01-03 02:00:00',
-                status: 'enabled',
-                result: 'success'
-            },
-            {
-                name: 'Log Cleanup',
-                schedule: '0 0 * * 0',
-                lastRun: '2023-12-31 00:00:00',
-                nextRun: '2024-01-07 00:00:00',
-                status: 'enabled',
-                result: 'success'
-            },
-            {
-                name: 'Database Maintenance',
-                schedule: '0 3 * * 6',
-                lastRun: '2023-12-30 03:00:00',
-                nextRun: '2024-01-06 03:00:00',
-                status: 'disabled',
-                result: 'skipped'
-            },
-            {
-                name: 'Certificate Renewal',
-                schedule: '0 4 1 * *',
-                lastRun: '2024-01-01 04:00:00',
-                nextRun: '2024-02-01 04:00:00',
-                status: 'enabled',
-                result: 'success'
-            }
-        ]);
+        // Fetch scheduled tasks from backend API
+        fetch('/apps/windowsadmin/api/v1/system/tasks')
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                return response.json();
+            })
+            .then(data => {
+                setPlatform(data.platform.toLowerCase());
+                // Map backend data to component format
+                const mappedTasks = data.tasks.map(task => ({
+                    name: task.name,
+                    path: task.path,
+                    schedule: task.schedule || 'N/A',
+                    lastRun: task.lastRun || 'Never',
+                    nextRun: task.nextRun || 'N/A',
+                    status: task.enabled ? 'enabled' : 'disabled',
+                    state: task.state,
+                    result: task.lastResult === 0 ? 'success' : (task.lastResult ? 'failed' : 'unknown')
+                }));
+                setTasks(mappedTasks);
+                setLoading(false);
+            })
+            .catch(error => {
+                console.error('Failed to load scheduled tasks:', error);
+                setLoading(false);
+                // Keep empty tasks array on error
+            });
     }, []);
 
     const getResultColor = (result) => {

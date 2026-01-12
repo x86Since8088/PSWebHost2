@@ -511,14 +511,64 @@ function Process-HttpRequest {
             Write-Verbose "$($MyTag) Handling public static file request: $($requestedPath)"
         $handled = $true
         $sanitizedPath = Sanitize-FilePath -FilePath $requestedPath.trim('/') -BaseDirectory $projectRoot
-        if ($sanitizedPath.Score -eq 'pass') {
-            Write-Verbose "$($MyTag) Static file sanitization passed, serving: $($sanitizedPath.Path)"
+        if ($sanitizedPath.Score -eq 'pass' -and (Test-Path $sanitizedPath.Path -PathType Leaf)) {
+            Write-Verbose "$($MyTag) Static file found in project root, serving: $($sanitizedPath.Path)"
             context_reponse -Response $response -Path $sanitizedPath.Path
             return
-        } else {
+        } elseif ($sanitizedPath.Score -eq 'pass' -and $requestedPath -match '^/public/elements/(?<component>[^/]+)/(?<filepath>.+)$') {
+            # File not in project root, check if this is a component file request
+            # Try to find it in app public directories
+            $componentName = $matches.component
+            $filePath = $matches.filepath
+            Write-Verbose "$($MyTag) Component file not in project root, searching apps: component=$componentName, file=$filePath"
+
+            # Map of known components to apps (for performance)
+            $componentAppMap = @{
+                'uplot-home' = 'uplot'; 'time-series' = 'uplot'; 'area-chart' = 'uplot'
+                'bar-chart' = 'uplot'; 'scatter-plot' = 'uplot'; 'multi-axis' = 'uplot'; 'heatmap' = 'uplot'
+                'windowsadmin-home' = 'WindowsAdmin'; 'service-control' = 'WindowsAdmin'; 'task-scheduler' = 'WindowsAdmin'
+                'sqlite-manager' = 'SQLiteManager'; 'sqlite-query-editor' = 'SQLiteManager'
+            }
+
+            $appKey = $componentAppMap[$componentName]
+            if ($appKey -and $Global:PSWebServer.Apps -and $Global:PSWebServer.Apps.ContainsKey($appKey)) {
+                $appInfo = $Global:PSWebServer.Apps[$appKey]
+                $appPublicDir = $appInfo.PublicPath
+                $componentFilePath = Join-Path $appPublicDir "elements/$componentName/$filePath"
+
+                if (Test-Path $componentFilePath -PathType Leaf) {
+                    Write-Verbose "$($MyTag) Component file found in app '$appKey': $componentFilePath"
+                    context_reponse -Response $response -Path $componentFilePath
+                    return
+                }
+            }
+
+            # Not in map, try searching all apps
+            if ($Global:PSWebServer.Apps) {
+                foreach ($appName in $Global:PSWebServer.Apps.Keys) {
+                    $appInfo = $Global:PSWebServer.Apps[$appName]
+                    $appPublicDir = $appInfo.PublicPath
+                    $componentFilePath = Join-Path $appPublicDir "elements/$componentName/$filePath"
+
+                    if (Test-Path $componentFilePath -PathType Leaf) {
+                        Write-Verbose "$($MyTag) Component file found in app '$appName': $componentFilePath"
+                        context_reponse -Response $response -Path $componentFilePath
+                        return
+                    }
+                }
+            }
+
+            Write-Verbose "$($MyTag) Component file not found in any app: $componentName/$filePath"
+            context_reponse -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "Component file not found"
+            return
+        } elseif ($sanitizedPath.Score -ne 'pass') {
             Write-Verbose "$($MyTag) Static file sanitization failed: $($sanitizedPath.Message)"
             Write-PSWebHostLog -Message "`t$MyTag $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
             context_reponse -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
+            return
+        } else {
+            Write-Verbose "$($MyTag) Static file not found: $($sanitizedPath.Path)"
+            context_reponse -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "File not found"
             return
         }
     }
