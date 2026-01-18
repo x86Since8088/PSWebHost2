@@ -23,7 +23,7 @@ try {
         # Return test history if no jobId specified
         $history = @($Global:PSWebServer.UnitTests.History)
 
-        context_reponse -Response $Response -StatusCode 200 -String (@{
+        context_response -Response $Response -StatusCode 200 -String (@{
             history = $history | Select-Object -Last 50 | Sort-Object -Property startTime -Descending
             count = $history.Count
         } | ConvertTo-Json -Depth 10) -ContentType "application/json"
@@ -32,7 +32,7 @@ try {
 
     # Check if job exists
     if (-not $Global:PSWebServer.UnitTests.Jobs.ContainsKey($jobId)) {
-        context_reponse -Response $Response -StatusCode 404 -String (@{
+        context_response -Response $Response -StatusCode 404 -String (@{
             error = "Job not found"
             jobId = $jobId
         } | ConvertTo-Json) -ContentType "application/json"
@@ -98,13 +98,13 @@ try {
         # Remove from active jobs
         $Global:PSWebServer.UnitTests.Jobs.Remove($jobId)
 
-        context_reponse -Response $Response -StatusCode 200 -String ($testResults | ConvertTo-Json -Depth 10) -ContentType "application/json"
+        context_response -Response $Response -StatusCode 200 -String ($testResults | ConvertTo-Json -Depth 10) -ContentType "application/json"
 
     } elseif ($jobState -eq 'Running') {
         # Job still running
         $elapsed = (Get-Date) - $jobInfo.StartTime
 
-        context_reponse -Response $Response -StatusCode 200 -String (@{
+        context_response -Response $Response -StatusCode 200 -String (@{
             status = 'Running'
             jobId = $jobId
             startTime = $jobInfo.StartTime.ToString('o')
@@ -116,7 +116,7 @@ try {
         # Job failed
         $jobError = $job.ChildJobs[0].JobStateInfo.Reason.Message
 
-        context_reponse -Response $Response -StatusCode 200 -String (@{
+        context_response -Response $Response -StatusCode 200 -String (@{
             status = 'Failed'
             success = $false
             error = $jobError
@@ -129,7 +129,7 @@ try {
 
     } else {
         # Unknown state
-        context_reponse -Response $Response -StatusCode 200 -String (@{
+        context_response -Response $Response -StatusCode 200 -String (@{
             status = $jobState
             jobId = $jobId
         } | ConvertTo-Json) -ContentType "application/json"
@@ -138,7 +138,7 @@ try {
 } catch {
     Write-PSWebHostLog -Message "Error retrieving test results: $($_.Exception.Message)" -Level 'Error' -Facility 'UnitTests'
 
-    context_reponse -Response $Response -StatusCode 500 -String (@{
+    context_response -Response $Response -StatusCode 500 -String (@{
         error = "Failed to retrieve test results"
         message = $_.Exception.Message
     } | ConvertTo-Json) -ContentType "application/json"

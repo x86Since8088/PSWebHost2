@@ -1,1 +1,1 @@
-{"Allowed_Roles":["authenticated"]}
+{"Allowed_Roles":["admin","database_admin","site_admin","system_admin"]}

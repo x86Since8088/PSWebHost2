@@ -1,12 +1,16 @@
-- Name: Test Runner
-  url: /api/v1/ui/elements/unit-test-runner
-  hover_description: Run and monitor twin tests from the browser
+- Name: Unit Test Runner
+  url: /apps/UnitTests/api/v1/ui/elements/unit-test-runner
+  hover_description: Run in-browser unit tests for PSWebHost components and libraries
+  parent: Admin Tools
   icon: flask
+  roles:
+    - debug
   tags:
   - testing
   - debug
   - quality
   - pester
+  - unit-tests
 
 - Name: Coverage Report
   url: /apps/unittests/api/v1/coverage

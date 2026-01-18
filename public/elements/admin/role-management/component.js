@@ -134,4 +134,4 @@ const RoleManagementComponent = ({ url, element }) => {
 };
 
 window.cardComponents = window.cardComponents || {};
-window.cardComponents['role-management'] = RoleManagementComponent;
+window.cardComponents['admin/role-management'] = RoleManagementComponent;

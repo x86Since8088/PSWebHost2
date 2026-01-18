@@ -336,7 +336,221 @@ end {
     $Loop_Start = Get-Date
     $lastSettingsCheck = Get-Date
     $lastSessionSync = Get-Date
-    
+    $lastGlobalCacheUpdate = Get-Date
+
+    # Initialize global cache structures
+    if (-not $Global:PSWebServer.Jobs) {
+        $Global:PSWebServer.Jobs = [hashtable]::Synchronized(@{})
+    }
+    if (-not $Global:PSWebServer.Runspaces) {
+        $Global:PSWebServer.Runspaces = [hashtable]::Synchronized(@{})
+    }
+    if (-not $Global:PSWebServer.CachedTasks) {
+        $Global:PSWebServer.CachedTasks = [hashtable]::Synchronized(@{})
+    }
+
+    function Update-GlobalCache {
+        <#
+        .SYNOPSIS
+            Updates global cache with Jobs, Runspaces, and Tasks data from main thread
+        .DESCRIPTION
+            This function runs in the main server loop and caches data that listener
+            runspaces need access to but cannot query directly (like Get-Job).
+            Data is stored in synchronized hashtables for thread-safe access.
+        #>
+        param()
+
+        try {
+            $updateStart = Get-Date
+
+            # Cache Jobs - Get all PowerShell jobs and their details
+            $allJobs = Get-Job -ErrorAction SilentlyContinue
+            $jobsCache = @{}
+
+            foreach ($job in $allJobs) {
+                try {
+                    $jobData = @{
+                        Id = $job.Id
+                        Name = $job.Name
+                        State = $job.State.ToString()
+                        HasMoreData = $job.HasMoreData
+                        Location = $job.Location
+                        Command = $job.Command
+                        PSBeginTime = $job.PSBeginTime
+                        PSEndTime = $job.PSEndTime
+                        ChildJobs = @()
+                    }
+
+                    # Collect child job info
+                    foreach ($childJob in $job.ChildJobs) {
+                        $jobData.ChildJobs += @{
+                            Id = $childJob.Id
+                            State = $childJob.State.ToString()
+                            HasMoreData = $childJob.HasMoreData
+                            Output = if ($childJob.HasMoreData -and $childJob.Output.Count -gt 0) {
+                                $childJob.Output.Count
+                            } else { 0 }
+                            Error = if ($childJob.Error.Count -gt 0) {
+                                $childJob.Error.Count
+                            } else { 0 }
+                        }
+                    }
+
+                    $jobsCache[$job.Id] = $jobData
+                } catch {
+                    Write-Verbose "[GlobalCache] Error caching job $($job.Id): $_"
+                }
+            }
+
+            # Update global cache
+            $Global:PSWebServer.Jobs.Clear()
+            foreach ($key in $jobsCache.Keys) {
+                $Global:PSWebServer.Jobs[$key] = $jobsCache[$key]
+            }
+
+            # Cache Runspaces - Get runspace information from main thread
+            $runspacesCache = @{}
+
+            # Get runspaces from jobs
+            foreach ($job in $allJobs) {
+                foreach ($childJob in $job.ChildJobs) {
+                    if ($childJob.Runspace) {
+                        try {
+                            $rs = $childJob.Runspace
+                            $rsData = @{
+                                Id = $rs.Id
+                                InstanceId = $rs.InstanceId.ToString()
+                                Name = $rs.Name
+                                Availability = $rs.RunspaceAvailability.ToString()
+                                State = $rs.RunspaceStateInfo.State.ToString()
+                                Reason = $rs.RunspaceStateInfo.Reason
+                                JobId = $job.Id
+                                JobName = $job.Name
+                                JobState = $job.State.ToString()
+                                ThreadOptions = if ($rs.ThreadOptions) { $rs.ThreadOptions.ToString() } else { $null }
+                                ApartmentState = if ($rs.ApartmentState) { $rs.ApartmentState.ToString() } else { $null }
+                            }
+
+                            $runspacesCache[$rs.InstanceId.ToString()] = $rsData
+                        } catch {
+                            Write-Verbose "[GlobalCache] Error caching runspace for job $($job.Id): $_"
+                        }
+                    }
+                }
+            }
+
+            # Include async worker runspaces if available
+            if ($Async -and $global:AsyncRunspacePool -and $global:AsyncRunspacePool.Workers) {
+                foreach ($worker in $global:AsyncRunspacePool.Workers) {
+                    if ($worker.Runspace) {
+                        try {
+                            $rs = $worker.Runspace
+                            $rsData = @{
+                                Id = $rs.Id
+                                InstanceId = $rs.InstanceId.ToString()
+                                Name = "AsyncWorker_$($worker.Id)"
+                                Availability = $rs.RunspaceAvailability.ToString()
+                                State = $rs.RunspaceStateInfo.State.ToString()
+                                Reason = $rs.RunspaceStateInfo.Reason
+                                WorkerId = $worker.Id
+                                WorkerState = $worker.State
+                                IsProcessing = $worker.IsProcessing
+                                RequestsProcessed = $worker.RequestsProcessed
+                                ThreadOptions = if ($rs.ThreadOptions) { $rs.ThreadOptions.ToString() } else { $null }
+                                ApartmentState = if ($rs.ApartmentState) { $rs.ApartmentState.ToString() } else { $null }
+                            }
+
+                            $runspacesCache[$rs.InstanceId.ToString()] = $rsData
+                        } catch {
+                            Write-Verbose "[GlobalCache] Error caching async worker runspace: $_"
+                        }
+                    }
+                }
+            }
+
+            # Update global cache
+            $Global:PSWebServer.Runspaces.Clear()
+            foreach ($key in $runspacesCache.Keys) {
+                $Global:PSWebServer.Runspaces[$key] = $runspacesCache[$key]
+            }
+
+            # Cache Tasks - Get task information from PSWebHostTasks module
+            $tasksCache = @{}
+
+            if ($Global:PSWebServer.Tasks) {
+                # Get all task definitions
+                if (Get-Command Get-AllTaskDefinitions -ErrorAction SilentlyContinue) {
+                    try {
+                        $allTasks = Get-AllTaskDefinitions
+
+                        foreach ($task in $allTasks) {
+                            $taskName = $task.name
+
+                            # Get running job info for this task
+                            $runningInfo = $Global:PSWebServer.Tasks.RunningJobs[$taskName]
+                            $lastRun = $Global:PSWebServer.Tasks.LastRun[$taskName]
+                            $failureCount = $Global:PSWebServer.Tasks.FailureCount[$taskName] ?? 0
+
+                            $taskData = @{
+                                Name = $taskName
+                                AppName = $task.appName
+                                Source = $task.source
+                                Enabled = $task.enabled
+                                Schedule = $task.schedule
+                                ScriptPath = $task.scriptPath
+                                LastRun = $lastRun
+                                FailureCount = $failureCount
+                                IsRunning = $runningInfo -ne $null
+                            }
+
+                            if ($runningInfo) {
+                                $taskData.RunningJobId = $runningInfo.Job.Id
+                                $taskData.RunningJobState = $runningInfo.Job.State.ToString()
+                                $taskData.StartTime = $runningInfo.StartTime
+                                $taskData.RuntimeSeconds = ((Get-Date) - $runningInfo.StartTime).TotalSeconds
+                            }
+
+                            $tasksCache[$taskName] = $taskData
+                        }
+                    } catch {
+                        Write-Verbose "[GlobalCache] Error getting task definitions: $_"
+                    }
+                }
+
+                # Add recent task history (last 10 entries)
+                if ($Global:PSWebServer.Tasks.History) {
+                    $tasksCache['__History__'] = @{
+                        RecentExecutions = $Global:PSWebServer.Tasks.History |
+                            Select-Object -Last 10 |
+                            ForEach-Object {
+                                @{
+                                    TaskName = $_.TaskName
+                                    AppName = $_.AppName
+                                    StartTime = $_.StartTime
+                                    EndTime = $_.EndTime
+                                    Duration = $_.Duration
+                                    Status = $_.Status
+                                }
+                            }
+                    }
+                }
+            }
+
+            # Update global cache
+            $Global:PSWebServer.CachedTasks.Clear()
+            foreach ($key in $tasksCache.Keys) {
+                $Global:PSWebServer.CachedTasks[$key] = $tasksCache[$key]
+            }
+
+            $updateDuration = ((Get-Date) - $updateStart).TotalMilliseconds
+            Write-Verbose "[GlobalCache] Updated cache: $($jobsCache.Count) jobs, $($runspacesCache.Count) runspaces, $($tasksCache.Count) tasks (${updateDuration}ms)"
+
+        } catch {
+            Write-Warning "[GlobalCache] Error updating global cache: $_"
+            Write-PSWebHostLog -Severity 'Error' -Category 'GlobalCache' -Message "Error updating global cache: $($_.Exception.Message)"
+        }
+    }
+
     function ProcessLogQueue {
         $LogEnd = $global:PSWebHostLogQueue.count
         if ($LogEnd -lt $script:Logpos) {
@@ -367,7 +581,13 @@ end {
             }
             $lastSettingsCheck = Get-Date
         }
-        
+
+        # Update global cache every 10 seconds
+        if ((Get-Date) - $lastGlobalCacheUpdate -gt [TimeSpan]::FromSeconds(10)) {
+            Update-GlobalCache
+            $lastGlobalCacheUpdate = Get-Date
+        }
+
         . Invoke-ModuleRefreshAsNeeded
 
         . ProcessLogQueue

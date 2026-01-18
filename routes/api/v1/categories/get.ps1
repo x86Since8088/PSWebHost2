@@ -49,10 +49,10 @@ try {
         generatedAt = Get-Date -Format 'o'
     }
 
-    context_reponse -Response $Response -String ($result | ConvertTo-Json -Depth 10) -ContentType 'application/json' -StatusCode 200
+    context_response -Response $Response -String ($result | ConvertTo-Json -Depth 10) -ContentType 'application/json' -StatusCode 200
 
 } catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'Categories' -Message "Error: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -SessionData $SessionData
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

@@ -1,0 +1,5 @@
+{
+  "requireAuthentication": true,
+  "requireRole": "",
+  "description": "Chunked file upload endpoint for large files (>25MB) with automatic assembly"
+}

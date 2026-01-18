@@ -5,14 +5,46 @@
             "Title": "PSWeb Server",
             "display-close-icon": false
         },
-        "main-menu": { "Type": "Menu", "Title": "Main Menu" },
-        "system-status": { "Type": "Log", "Title": "System Log" },
-        "world-map": { "Type": "Map", "Title": "World Map" },
-        "server-heatmap": { "Type": "Heatmap", "Title": "Server Load" },
-        "event-stream": { "Type": "Events", "Title": "Real-time Events" },
-        "header-icon": { "Type": "Icon", "Title": "Icon" },
-        "user-card": { "Type": "User", "Title": "User Management" },
-        "footer-info": { "Type": "card", "Title": "", "Content": "© 2024 PSWebHost" }
+        "main-menu": {
+            "Type": "Menu",
+            "Title": "Main Menu",
+            "componentPath": "/public/elements/main-menu/component.js"
+        },
+        "system-status": {
+            "Type": "Log",
+            "Title": "System Log",
+            "componentPath": "/public/elements/system-status/component.js"
+        },
+        "world-map": {
+            "Type": "Map",
+            "Title": "World Map",
+            "componentPath": "/public/elements/world-map/component.js"
+        },
+        "server-heatmap": {
+            "Type": "Heatmap",
+            "Title": "Server Metrics",
+            "componentPath": "/apps/WebHostMetrics/public/elements/server-heatmap/component.js"
+        },
+        "realtime-events": {
+            "Type": "Events",
+            "Title": "Real-time Events",
+            "componentPath": "/apps/WebhostRealtimeEvents/public/elements/realtime-events/component.js"
+        },
+        "header-icon": {
+            "Type": "Icon",
+            "Title": "Icon",
+            "componentPath": "/public/elements/header-icon/component.js"
+        },
+        "user-card": {
+            "Type": "User",
+            "Title": "User Management"
+        },
+        "footer-info": {
+            "Type": "footer",
+            "Title": "",
+            "Content": "© 2024 PSWebHost",
+            "componentPath": "/public/elements/footer-info/component.js"
+        }
     },
     "layout": {
         "title": {
@@ -25,7 +57,7 @@
             "bottom": []
         },
         "mainPane": {
-            "content": ["server-heatmap","event-stream"]
+            "content": ["server-heatmap","realtime-events"]
         },
         "rightPane": {
             "content": []
@@ -40,6 +72,6 @@
         { "i": "default", "w": 6, "h": 12 },
         { "i": "server-heatmap", "x": 0, "y": 0, "w": 6, "h": 12 },
         { "i": "file-explorer", "x": 0, "y": 2, "w": 6, "h": 12 },
-        { "i": "event-stream", "x": 0, "y": 4, "w": 12, "h": 12 }
+        { "i": "realtime-events", "x": 0, "y": 4, "w": 12, "h": 12 }
     ]
 }

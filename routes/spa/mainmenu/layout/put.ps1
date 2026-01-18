@@ -16,7 +16,7 @@ try {
     $null = $newLayoutContent | ConvertFrom-Json
 } catch {
     $jsonResponse = New-JsonResponse -status 'fail' -message "Invalid JSON: $($_.Exception.Message)"
-    context_reponse -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
     return
 }
 
@@ -34,4 +34,4 @@ if (Test-Path $layoutJsonPath) {
 Set-Content -Path $layoutJsonPath -Value $newLayoutContent
 
 $jsonResponse = New-JsonResponse -status 'success' -message "Layout saved successfully."
-context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
+context_response -Response $Response -String $jsonResponse -ContentType "application/json"

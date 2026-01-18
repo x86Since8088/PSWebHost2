@@ -94,12 +94,12 @@ try {
         generatedAt = Get-Date -Format 'o'
     }
 
-    context_reponse -Response $Response -StatusCode 200 -String ($result | ConvertTo-Json -Depth 10) -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String ($result | ConvertTo-Json -Depth 10) -ContentType "application/json"
 
 } catch {
     Write-PSWebHostLog -Message "Error generating coverage report: $($_.Exception.Message)" -Level 'Error' -Facility 'UnitTests'
 
-    context_reponse -Response $Response -StatusCode 500 -String (@{
+    context_response -Response $Response -StatusCode 500 -String (@{
         error = "Failed to generate coverage report"
         message = $_.Exception.Message
     } | ConvertTo-Json) -ContentType "application/json"

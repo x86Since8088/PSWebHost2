@@ -14,7 +14,7 @@ function New-JsonResponse($status, $message) {
 # Check authentication
 if (-not $sessiondata -or 'authenticated' -notin $sessiondata.Roles) {
     $jsonResponse = New-JsonResponse -status 'fail' -message 'Authentication required'
-    context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
     return
 }
 
@@ -92,7 +92,7 @@ try {
         $jsonData = '[]'
     }
 
-    context_reponse -Response $Response -StatusCode 200 -String $jsonData -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String $jsonData -ContentType "application/json"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'EventStream' -Message "Error processing event stream: $($_.Exception.Message)"
@@ -100,5 +100,5 @@ catch {
     # Generate detailed error report based on user role
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
 
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

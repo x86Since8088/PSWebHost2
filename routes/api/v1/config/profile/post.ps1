@@ -14,4 +14,4 @@ $response = @{
     message = 'Profile updated successfully.'
 } | ConvertTo-Json
 
-context_reponse -Response $Context.Response -String $response -ContentType "application/json"
+context_response -Response $Context.Response -String $response -ContentType "application/json"

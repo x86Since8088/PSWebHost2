@@ -1,0 +1,5 @@
+2026-01-16T15:19:27.214Z	2026-01-16T09:19:27.218-06:00	Info	TestCategory	Test message with auto-detected source	system/utility/Test-LoggingEnhancements.ps1::Test-FunctionLogging	Test-FunctionLogging				1	{}
+2026-01-16T15:19:27.214Z	2026-01-16T09:19:27.218-06:00	Info	Progress	Processing item 5 of 10	system/utility/Test-LoggingEnhancements.ps1::Test-ProgressTracking	Test-ProgressTracking	50			1	{}
+2026-01-16T15:19:27.214Z	2026-01-16T09:19:27.218-06:00	Info	Session	User action logged	routes/api/v1/users/get.ps1::Get-UserList	Get-UserList		user@example.com	session-abc-123	3	{}
+2026-01-16T15:19:27.214Z	2026-01-16T09:19:27.218-06:00	Warning	Security	Suspicious activity detected	SecurityMonitor::ThreatDetection	ThreatDetection	75	system	security-audit	5	{"IPAddress":"192.168.1.100","FailedAttempts":5}
+2026-01-16T15:19:27.214Z	2026-01-16T09:19:27.218-06:00	Error	Database	Query failed	routes/api/v1/data/query.ps1::Execute-Query	Execute-Query		admin@example.com	session-xyz-789	2	{"Query":"SELECT * FROM Users","Error":"Connection timeout","Duration":5000}

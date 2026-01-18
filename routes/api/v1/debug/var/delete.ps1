@@ -8,7 +8,7 @@ param (
 # Expect query parameter 'name' (variable name without leading $)
 $name = $Request.QueryString['name']
 if (-not $name) {
-    context_reponse -Response $Response -StatusCode 400 -String "Missing 'name' parameter"
+    context_response -Response $Response -StatusCode 400 -String "Missing 'name' parameter"
     return
 }
 $name = $name -replace '^\$',''
@@ -18,10 +18,10 @@ if ($null -ne $existing) {
     $__err = $null
     Remove-Variable -Name $name -Scope Global -ErrorAction SilentlyContinue -ErrorVariable __err
     if ($__err) {
-        context_reponse -Response $Response -StatusCode 500 -String "Failed to delete variable: $__err"
+        context_response -Response $Response -StatusCode 500 -String "Failed to delete variable: $__err"
     } else {
-        context_reponse -Response $Response -StatusCode 200 -String "Deleted"
+        context_response -Response $Response -StatusCode 200 -String "Deleted"
     }
 } else {
-    context_reponse -Response $Response -StatusCode 404 -String "Not found"
+    context_response -Response $Response -StatusCode 404 -String "Not found"
 }

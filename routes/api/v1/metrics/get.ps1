@@ -8,7 +8,7 @@ param (
 # Check authentication
 if (-not $sessiondata -or 'authenticated' -notin $sessiondata.Roles) {
     $jsonResponse = @{ status = 'fail'; message = 'Authentication required' } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
     return
 }
 
@@ -174,10 +174,10 @@ try {
     }
 
     $jsonResponse = $response_data | ConvertTo-Json -Depth 10 -Compress
-    context_reponse -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'Metrics' -Message "Error in metrics API: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

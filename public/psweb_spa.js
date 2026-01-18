@@ -449,6 +449,7 @@ if (!document.getElementById('error-modal-styles')) {
             padding: 24px;
             overflow-y: auto;
             flex: 1;
+            color: #000;
         }
 
         .error-section {
@@ -459,7 +460,7 @@ if (!document.getElementById('error-modal-styles')) {
             margin: 0 0 12px 0;
             font-size: 16px;
             font-weight: 600;
-            color: #333;
+            color: #000;
             border-bottom: 2px solid #f44336;
             padding-bottom: 8px;
         }
@@ -467,10 +468,12 @@ if (!document.getElementById('error-modal-styles')) {
         .error-field {
             margin-bottom: 12px;
             line-height: 1.6;
+            color: #000;
         }
 
         .error-field strong {
-            color: #555;
+            color: #000;
+            font-weight: 700;
         }
 
         .error-field code,
@@ -480,6 +483,7 @@ if (!document.getElementById('error-modal-styles')) {
             border-radius: 4px;
             font-family: 'Courier New', monospace;
             font-size: 13px;
+            color: #000;
         }
 
         .error-field pre {
@@ -499,6 +503,7 @@ if (!document.getElementById('error-modal-styles')) {
             margin-bottom: 8px;
             font-family: 'Courier New', monospace;
             font-size: 13px;
+            color: #000;
         }
 
         .variables-table {
@@ -513,11 +518,13 @@ if (!document.getElementById('error-modal-styles')) {
             text-align: left;
             font-weight: 600;
             border-bottom: 2px solid #ddd;
+            color: #000;
         }
 
         .variables-table td {
             padding: 8px 12px;
             border-bottom: 1px solid #eee;
+            color: #000;
         }
 
         .variables-table tr:hover {
@@ -533,13 +540,15 @@ if (!document.getElementById('error-modal-styles')) {
 
         .guidance p {
             margin: 0;
-            color: #1565c0;
+            color: #0d47a1;
+            font-weight: 500;
         }
 
         .request-id {
-            color: #666;
+            color: #333;
             font-size: 12px;
             margin-top: 8px;
+            font-weight: 500;
         }
 
         .error-modal-footer {
@@ -554,7 +563,8 @@ if (!document.getElementById('error-modal-styles')) {
 
         .timestamp {
             font-size: 12px;
-            color: #666;
+            color: #333;
+            font-weight: 500;
         }
 
         .btn-primary {
@@ -738,8 +748,12 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
     const [CardComponent, setCardComponent] = useState(() => initialComponent);
     const [errorInfo, setErrorInfo] = useState(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isHighContrast, setIsHighContrast] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
+    const [contrastFixCount, setContrastFixCount] = useState(0);
     const contentRef = useRef(null);
     const cardRef = useRef(null);
+    const pauseStateRef = useRef({ paused: false });
 
     // Monitor for when the component becomes available
     useEffect(() => {
@@ -774,6 +788,11 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
         }
     }, [CardComponent]); // Rerun when component changes
 
+    // Update pause state ref when isPaused changes
+    useEffect(() => {
+        pauseStateRef.current.paused = isPaused;
+    }, [isPaused]);
+
     const handleError = (error) => {
         if (error && typeof error === 'object') {
             setErrorInfo({
@@ -791,17 +810,354 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
         }
     };
 
+    const handleToggleHighContrast = () => {
+        const newState = !isHighContrast;
+        setIsHighContrast(newState);
+
+        if (newState && contentRef.current) {
+            // Apply contrast fixes when enabling high contrast
+            setTimeout(() => applyContrastFixes(contentRef.current), 100);
+        }
+    };
+
+    // Helper: Convert hex/rgb to RGB values
+    const parseColor = (color) => {
+        if (!color || color === 'transparent') return null;
+
+        // Handle hex colors
+        if (color.startsWith('#')) {
+            const hex = color.replace('#', '');
+            if (hex.length === 3) {
+                return {
+                    r: parseInt(hex[0] + hex[0], 16),
+                    g: parseInt(hex[1] + hex[1], 16),
+                    b: parseInt(hex[2] + hex[2], 16)
+                };
+            }
+            return {
+                r: parseInt(hex.substr(0, 2), 16),
+                g: parseInt(hex.substr(2, 2), 16),
+                b: parseInt(hex.substr(4, 2), 16)
+            };
+        }
+
+        // Handle rgb/rgba colors
+        const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        if (match) {
+            return {
+                r: parseInt(match[1]),
+                g: parseInt(match[2]),
+                b: parseInt(match[3])
+            };
+        }
+
+        return null;
+    };
+
+    // Calculate relative luminance (WCAG formula)
+    const getLuminance = (rgb) => {
+        if (!rgb) return null;
+
+        const rsRGB = rgb.r / 255;
+        const gsRGB = rgb.g / 255;
+        const bsRGB = rgb.b / 255;
+
+        const r = rsRGB <= 0.03928 ? rsRGB / 12.92 : Math.pow((rsRGB + 0.055) / 1.055, 2.4);
+        const g = gsRGB <= 0.03928 ? gsRGB / 12.92 : Math.pow((gsRGB + 0.055) / 1.055, 2.4);
+        const b = bsRGB <= 0.03928 ? bsRGB / 12.92 : Math.pow((bsRGB + 0.055) / 1.055, 2.4);
+
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+
+    // Calculate contrast ratio (WCAG formula)
+    const getContrastRatio = (lum1, lum2) => {
+        if (lum1 === null || lum2 === null) return null;
+        const lighter = Math.max(lum1, lum2);
+        const darker = Math.min(lum1, lum2);
+        return (lighter + 0.05) / (darker + 0.05);
+    };
+
+    // Get computed background color (traverse up DOM tree)
+    const getBackgroundColor = (element) => {
+        let el = element;
+        while (el) {
+            const bg = window.getComputedStyle(el).backgroundColor;
+            const parsed = parseColor(bg);
+            if (parsed && !(parsed.r === 0 && parsed.g === 0 && parsed.b === 0 && bg.includes('rgba'))) {
+                return parsed;
+            }
+            el = el.parentElement;
+        }
+        // Default to card background or white
+        return parseColor(backgroundColor || '#ffffff');
+    };
+
+    // Adjust color for better contrast
+    const adjustColorForContrast = (fgColor, bgColor, targetRatio = 4.5) => {
+        const bgLum = getLuminance(bgColor);
+        if (bgLum === null) return null;
+
+        // Determine if background is dark or light
+        const isDarkBg = bgLum < 0.5;
+
+        // For dark backgrounds, make text lighter
+        // For light backgrounds, make text darker
+        if (isDarkBg) {
+            // Start with white and darken if needed
+            return { r: 255, g: 255, b: 255 };
+        } else {
+            // Start with black
+            return { r: 0, g: 0, b: 0 };
+        }
+    };
+
+    // Apply contrast fixes to card content
+    const applyContrastFixes = (container) => {
+        if (!container) return;
+
+        const elements = container.querySelectorAll('*');
+        let fixCount = 0;
+
+        elements.forEach(el => {
+            const style = window.getComputedStyle(el);
+            const textColor = parseColor(style.color);
+            const bgColor = getBackgroundColor(el);
+
+            if (!textColor || !bgColor) return;
+
+            const textLum = getLuminance(textColor);
+            const bgLum = getLuminance(bgColor);
+            const ratio = getContrastRatio(textLum, bgLum);
+
+            // WCAG AA standard: 4.5:1 for normal text, 3:1 for large text (18pt+)
+            const fontSize = parseFloat(style.fontSize);
+            const isLargeText = fontSize >= 18 || (fontSize >= 14 && style.fontWeight >= 700);
+            const minRatio = isLargeText ? 3.0 : 4.5;
+
+            if (ratio !== null && ratio < minRatio) {
+                // Low contrast detected - fix it
+                const adjustedColor = adjustColorForContrast(textColor, bgColor, minRatio);
+                if (adjustedColor) {
+                    el.style.setProperty('color', `rgb(${adjustedColor.r}, ${adjustedColor.g}, ${adjustedColor.b})`, 'important');
+                    fixCount++;
+                }
+            }
+
+            // Check border contrast
+            const borderColor = parseColor(style.borderColor);
+            if (borderColor && bgColor) {
+                const borderLum = getLuminance(borderColor);
+                const borderRatio = getContrastRatio(borderLum, bgLum);
+
+                if (borderRatio !== null && borderRatio < 3.0) {
+                    const adjustedBorder = adjustColorForContrast(borderColor, bgColor, 3.0);
+                    if (adjustedBorder) {
+                        el.style.setProperty('border-color', `rgb(${adjustedBorder.r}, ${adjustedBorder.g}, ${adjustedBorder.b})`, 'important');
+                        fixCount++;
+                    }
+                }
+            }
+
+            // Check and fix inline style attributes
+            const inlineStyle = el.getAttribute('style');
+            if (inlineStyle && bgColor) {
+                const colorMatch = inlineStyle.match(/color\s*:\s*([^;]+)/i);
+                const bgMatch = inlineStyle.match(/background(?:-color)?\s*:\s*([^;]+)/i);
+
+                let updatedStyle = inlineStyle;
+                let inlineStyleFixed = false;
+
+                // Check inline text color
+                if (colorMatch) {
+                    const inlineTextColor = parseColor(colorMatch[1].trim());
+                    if (inlineTextColor) {
+                        const inlineTextLum = getLuminance(inlineTextColor);
+                        const inlineBgLum = bgMatch ? getLuminance(parseColor(bgMatch[1].trim())) || bgLum : bgLum;
+                        const inlineRatio = getContrastRatio(inlineTextLum, inlineBgLum);
+
+                        const minRatio = isLargeText ? 3.0 : 4.5;
+                        if (inlineRatio !== null && inlineRatio < minRatio) {
+                            const useBg = bgMatch ? parseColor(bgMatch[1].trim()) || bgColor : bgColor;
+                            const adjustedColor = adjustColorForContrast(inlineTextColor, useBg, minRatio);
+                            if (adjustedColor) {
+                                const newColorValue = `rgb(${adjustedColor.r}, ${adjustedColor.g}, ${adjustedColor.b}) !important`;
+                                updatedStyle = updatedStyle.replace(/color\s*:\s*[^;]+/i, `color: ${newColorValue}`);
+                                inlineStyleFixed = true;
+                            }
+                        }
+                    }
+                }
+
+                // Check inline background color contrast with parent background
+                if (bgMatch) {
+                    const inlineBgColor = parseColor(bgMatch[1].trim());
+                    if (inlineBgColor) {
+                        // Get parent background for comparison
+                        const parentBg = getBackgroundColor(el.parentElement);
+                        if (parentBg) {
+                            const inlineBgLum = getLuminance(inlineBgColor);
+                            const parentBgLum = getLuminance(parentBg);
+                            const bgRatio = getContrastRatio(inlineBgLum, parentBgLum);
+
+                            // Ensure some contrast between nested backgrounds
+                            if (bgRatio !== null && bgRatio < 1.5) {
+                                const adjustedBg = adjustColorForContrast(inlineBgColor, parentBg, 1.5);
+                                if (adjustedBg) {
+                                    const newBgValue = `rgb(${adjustedBg.r}, ${adjustedBg.g}, ${adjustedBg.b}) !important`;
+                                    updatedStyle = updatedStyle.replace(/background(?:-color)?\s*:\s*[^;]+/i, `background-color: ${newBgValue}`);
+                                    inlineStyleFixed = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Apply updated inline style if any fixes were made
+                if (inlineStyleFixed) {
+                    el.setAttribute('style', updatedStyle);
+                    fixCount++;
+                }
+            }
+        });
+
+        if (fixCount > 0) {
+            console.log(`[High Contrast] Fixed ${fixCount} low-contrast elements in ${elementId}`);
+            setContrastFixCount(fixCount);
+        } else {
+            setContrastFixCount(0);
+        }
+    };
+
+    const handleTogglePause = () => {
+        setIsPaused(!isPaused);
+        console.log(`Card ${elementId} ${!isPaused ? 'paused' : 'resumed'}`);
+    };
+
     const title = element.Title || 'Untitled';
 
     // Prepare props for component
     const componentProps = {
         element: element,
-        onError: handleError
+        onError: handleError,
+        isPaused: isPaused,
+        pauseStateRef: pauseStateRef  // Pass ref for components to check pause state
     };
 
     // Render component content
     let cardContent;
-    if (CardComponent && typeof CardComponent === 'function') {
+
+    // Check if there's HTML content to inject directly
+    if (element.htmlContent) {
+        console.log(`Injecting HTML content for ${elementId}`);
+        cardContent = (
+            <div
+                style={{
+                    width: '100%',
+                    height: '100%',
+                    overflow: 'auto',
+                    padding: 0,
+                    margin: 0
+                }}
+                dangerouslySetInnerHTML={{ __html: element.htmlContent }}
+            />
+        );
+    }
+    // Check if there's a load error from the endpoint
+    else if (element.loadError) {
+        const error = element.loadError;
+
+        // Get theme-aware error colors
+        const getErrorColors = () => {
+            // Try to get background from card settings or CSS variables
+            let bgColor = backgroundColor;
+            if (!bgColor) {
+                const rootStyles = getComputedStyle(document.documentElement);
+                bgColor = rootStyles.getPropertyValue('--card-bg-color').trim() || '#2a2a2a';
+            }
+
+            // Parse and get luminance
+            const bgRgb = parseColor(bgColor);
+            const isDarkTheme = bgRgb ? getLuminance(bgRgb) < 0.5 : false;
+
+            if (isDarkTheme) {
+                // Dark theme: Use amber/orange tones that work on dark backgrounds
+                return {
+                    containerBg: 'rgba(255, 152, 0, 0.15)',  // Dark amber with transparency
+                    containerBorder: '#ff9800',  // Orange
+                    headingColor: '#ffb74d',  // Light amber
+                    textColor: 'var(--text-color, #f0f0f0)',  // Use theme text color
+                    codeBg: 'rgba(0, 0, 0, 0.3)',  // Semi-transparent black
+                    codeBorder: 'rgba(255, 152, 0, 0.3)'  // Semi-transparent orange
+                };
+            } else {
+                // Light theme: Use traditional warning colors
+                return {
+                    containerBg: '#fff3cd',  // Light yellow
+                    containerBorder: '#ffc107',  // Amber
+                    headingColor: '#856404',  // Dark brown
+                    textColor: '#333',  // Dark text
+                    codeBg: '#f8f9fa',  // Light gray
+                    codeBorder: '#dee2e6'  // Light gray border
+                };
+            }
+        };
+
+        const errorColors = getErrorColors();
+
+        cardContent = (
+            <div style={{
+                padding: '20px',
+                fontFamily: 'monospace',
+                backgroundColor: errorColors.containerBg,
+                border: `2px solid ${errorColors.containerBorder}`,
+                borderRadius: '4px',
+                margin: '10px'
+            }}>
+                <h3 style={{ color: errorColors.headingColor, marginTop: 0 }}>
+                    ⚠️ Failed to Load Component
+                </h3>
+                <div style={{ marginBottom: '10px', color: errorColors.textColor }}>
+                    <strong>Status:</strong> {error.status} {error.statusText}
+                </div>
+                <div style={{ marginBottom: '10px', color: errorColors.textColor }}>
+                    <strong>URL:</strong> <code>{error.url}</code>
+                </div>
+                <div style={{ marginBottom: '10px', color: errorColors.textColor }}>
+                    <strong>Message:</strong>
+                    <pre style={{
+                        backgroundColor: errorColors.codeBg,
+                        color: errorColors.textColor,
+                        padding: '10px',
+                        borderRadius: '4px',
+                        overflow: 'auto',
+                        whiteSpace: 'pre-wrap',
+                        wordWrap: 'break-word',
+                        border: `1px solid ${errorColors.codeBorder}`
+                    }}>{error.message}</pre>
+                </div>
+                {error.body && error.body.trim() && (
+                    <div style={{ marginTop: '15px' }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: '5px', color: errorColors.headingColor }}>
+                            Response Body:
+                        </div>
+                        <pre style={{
+                            backgroundColor: errorColors.codeBg,
+                            color: errorColors.textColor,
+                            padding: '10px',
+                            borderRadius: '4px',
+                            overflow: 'auto',
+                            maxHeight: '400px',
+                            whiteSpace: 'pre-wrap',
+                            wordWrap: 'break-word',
+                            fontSize: '13px',
+                            border: `1px solid ${errorColors.codeBorder}`,
+                            margin: 0
+                        }}>{error.body}</pre>
+                    </div>
+                )}
+            </div>
+        );
+    } else if (CardComponent && typeof CardComponent === 'function') {
         cardContent = React.createElement(CardComponent, componentProps);
     } else if (CardComponent) {
         cardContent = <div>Error: Invalid component type for {elementId}</div>;
@@ -837,12 +1193,126 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
         window.openCard(`/api/v1/ui/elements/help-viewer?file=${encodeURIComponent(helpFile)}`, `Help: ${helpFile}`);
     };
 
+    // Get background color from element properties (from card settings)
+    const backgroundColor = element.backgroundColor || undefined;
+
+    // High contrast styles - detect if background is dark or light
+    const highContrastStyles = isHighContrast ? (() => {
+        let borderColor = '#000';
+        let finalBg = backgroundColor;
+
+        // If we have a background color, determine if it's dark or light
+        if (backgroundColor) {
+            const bgRgb = parseColor(backgroundColor);
+            if (bgRgb) {
+                const bgLum = getLuminance(bgRgb);
+                // Dark background gets white border, light background gets black border
+                borderColor = bgLum < 0.5 ? '#fff' : '#000';
+            }
+        } else {
+            // No background set - check CSS variables or default
+            const rootStyles = getComputedStyle(document.documentElement);
+            const cardBg = rootStyles.getPropertyValue('--card-bg-color').trim() || '#2a2a2a';
+            const cardRgb = parseColor(cardBg);
+            if (cardRgb) {
+                const cardLum = getLuminance(cardRgb);
+                borderColor = cardLum < 0.5 ? '#fff' : '#000';
+            }
+        }
+
+        return {
+            filter: 'contrast(1.3) saturate(1.2)',
+            border: `3px solid ${borderColor}`,
+            backgroundColor: finalBg,
+            boxShadow: `0 0 10px ${borderColor}40`
+        };
+    })() : {
+        backgroundColor: backgroundColor
+    };
+
+    // Render simplified footer card without header/actions
+    if (element.Type === 'footer') {
+        return (
+            <div
+                className="card card-footer-type"
+                style={{height: '100%', ...highContrastStyles}}
+                ref={cardRef}
+            >
+                <main className="card-content" ref={contentRef}>
+                    {cardContent}
+                </main>
+            </div>
+        );
+    }
+
     return (
-        <div className={`card ${isMaximized ? 'maximized' : ''} ${isFullscreen ? 'fullscreen' : ''}`} style={{height: '100%'}} ref={cardRef}>
+        <div
+            className={`card ${isMaximized ? 'maximized' : ''} ${isFullscreen ? 'fullscreen' : ''} ${isHighContrast ? 'high-contrast' : ''}`}
+            style={{height: '100%', ...highContrastStyles}}
+            ref={cardRef}
+        >
             <header className="card-header">
                 {element.icon && <img src={element.icon} className="card-icon" alt="icon" />}
                 <h3 className="card-title">{title}</h3>
+                {isPaused && (
+                    <span style={{
+                        marginLeft: '10px',
+                        padding: '2px 8px',
+                        backgroundColor: '#ffc107',
+                        color: '#000',
+                        fontSize: '11px',
+                        borderRadius: '3px',
+                        fontWeight: 'bold'
+                    }}>PAUSED</span>
+                )}
                 <div className="card-actions">
+                    <button
+                        className="card-action pause-icon"
+                        onClick={handleTogglePause}
+                        title={isPaused ? 'Resume Updates' : 'Pause Updates'}
+                        aria-label={isPaused ? 'Resume Updates' : 'Pause Updates'}
+                        style={{ color: isPaused ? '#ffc107' : 'inherit' }}
+                    >
+                        {isPaused ? '▶' : '⏸'}
+                    </button>
+                    <button
+                        className="card-action contrast-icon"
+                        onClick={handleToggleHighContrast}
+                        title={isHighContrast
+                            ? (contrastFixCount > 0
+                                ? `Normal Contrast (Fixed ${contrastFixCount} elements)`
+                                : 'Normal Contrast')
+                            : 'High Contrast - Auto-fix low contrast elements'}
+                        aria-label={isHighContrast ? 'Normal Contrast' : 'High Contrast'}
+                        style={{
+                            color: isHighContrast ? '#000' : 'inherit',
+                            backgroundColor: isHighContrast ? '#ffeb3b' : 'transparent',
+                            fontWeight: isHighContrast ? 'bold' : 'normal',
+                            position: 'relative'
+                        }}
+                    >
+                        ◐
+                        {isHighContrast && contrastFixCount > 0 && (
+                            <span style={{
+                                position: 'absolute',
+                                top: '-2px',
+                                right: '-2px',
+                                backgroundColor: '#f44336',
+                                color: '#fff',
+                                borderRadius: '50%',
+                                width: '14px',
+                                height: '14px',
+                                fontSize: '9px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontWeight: 'bold',
+                                lineHeight: '1'
+                            }}>
+                                {contrastFixCount > 9 ? '9+' : contrastFixCount}
+                            </span>
+                        )}
+                    </button>
                     <button className="card-action help-icon" onClick={openHelp} title="Open Help" aria-label="Open Help">&#10067;</button>
                     <button className="card-action fullscreen-icon" onClick={handleFullscreen} title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'} aria-label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
                         {isFullscreen ? '⛶' : '⛶'}
@@ -890,7 +1360,14 @@ const CardSettingsModal = ({ isOpen, onClose, cardLayout, onSave }) => {
     }, [cardLayout]);
 
     const handleChange = (e) => {
-        setLayout({ ...layout, [e.target.name]: parseInt(e.target.value, 10) });
+        const { name, value, type } = e.target;
+        // For color input, use string value directly. For numbers, parse as int
+        const parsedValue = type === 'color' || name === 'backgroundColor' ? value : parseInt(value, 10);
+        setLayout({ ...layout, [name]: parsedValue });
+    };
+
+    const handleClearColor = () => {
+        setLayout({ ...layout, backgroundColor: undefined });
     };
 
     const handleSave = () => {
@@ -917,6 +1394,26 @@ const CardSettingsModal = ({ isOpen, onClose, cardLayout, onSave }) => {
                 <div style={{ marginBottom: '10px' }}>
                     <label>Row (y)</label><br/>
                     <input type="number" name="y" value={layout.y} onChange={handleChange} />
+                </div>
+                <div style={{ marginBottom: '10px' }}>
+                    <label>Background Color Override</label><br/>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <input
+                            type="color"
+                            name="backgroundColor"
+                            value={layout.backgroundColor || '#ffffff'}
+                            onChange={handleChange}
+                            style={{ width: '60px', height: '32px' }}
+                        />
+                        <button onClick={handleClearColor} style={{ padding: '4px 8px' }}>
+                            Clear (Use Default)
+                        </button>
+                        {layout.backgroundColor && (
+                            <span style={{ fontSize: '0.85em', opacity: 0.7 }}>
+                                {layout.backgroundColor}
+                            </span>
+                        )}
+                    </div>
                 </div>
                 <button onClick={handleSave}>Save</button>
             </div>
@@ -987,13 +1484,35 @@ const App = () => {
                 const componentPromises = uniqueCardIds
                     .filter(id => id && id !== 'user-card' && id !== 'title')
                     .map(id => {
-                        return fetch(`/public/elements/${id}/component.js`)
-                            .then(res => res.text())
+                        // Get explicit component path from layout.json
+                        const element = initialData.elements[id];
+                        const componentPath = element?.componentPath;
+
+                        if (!componentPath) {
+                            console.error(`❌ No componentPath specified for element: ${id}`);
+                            console.error(`   Element definition:`, element);
+                            console.error(`   Component paths must be explicitly defined in layout.json`);
+                            console.error(`   Example: "componentPath": "/public/elements/${id}/component.js"`);
+                            return Promise.resolve(); // Skip this component
+                        }
+
+                        console.log(`Loading component for ${id} from: ${componentPath}`);
+                        return fetch(componentPath)
+                            .then(res => {
+                                if (!res.ok) {
+                                    throw new Error(`HTTP ${res.status}: ${res.statusText} for ${componentPath}`);
+                                }
+                                return res.text();
+                            })
                             .then(text => {
                                 if (text) {
                                     const transformed = Babel.transform(text, { presets: ['react'] }).code;
                                     (new Function(transformed))();
                                 }
+                            })
+                            .catch(err => {
+                                console.error(`❌ Failed to load component for ${id}:`, err);
+                                console.error(`   Path attempted: ${componentPath}`);
                             });
                     });
 
@@ -1003,8 +1522,6 @@ const App = () => {
 
                 Promise.all([...componentPromises, profilePromise])
                     .then(async () => {
-                        setData({ ...initialData, componentsReady: true });
-
                         // Fetch card settings for each card in mainPane
                         const mainPaneLayoutPromises = initialData.layout.mainPane.content.map(async (id, index) => {
                             const specificLayout = initialData.gridLayout.find(item => item.i === id);
@@ -1015,6 +1532,14 @@ const App = () => {
 
                             // Fetch card settings from database
                             const cardSettings = await fetchCardSettings(endpointGuid);
+
+                            // Apply backgroundColor from settings to element
+                            if (cardSettings?.backgroundColor) {
+                                initialData.elements[id] = {
+                                    ...initialData.elements[id],
+                                    backgroundColor: cardSettings.backgroundColor
+                                };
+                            }
 
                             // Priority: cardSettings (DB) > specificLayout (layout.json) > defaultLayout
                             // This ensures user preferences and DB defaults take precedence over static config
@@ -1029,6 +1554,9 @@ const App = () => {
 
                         const mainPaneLayout = await Promise.all(mainPaneLayoutPromises);
                         setGridLayout(mainPaneLayout);
+
+                        // Update data with backgroundColor applied to elements
+                        setData({ ...initialData, componentsReady: true });
                     })
                     .catch(setError);
             })
@@ -1136,67 +1664,234 @@ const App = () => {
     };
 
     // Helper function to load component script dynamically
-    const loadComponentScript = (elementId) => {
-        return new Promise((resolve, reject) => {
+    const loadComponentScript = async (elementId, explicitPath = null, endpointUrl = null) => {
+        return new Promise(async (resolve, reject) => {
             // Check if component is already loaded
             if (window.cardComponents[elementId]) {
-                resolve();
+                resolve({ success: true });
                 return;
             }
 
             console.log(`Loading component script for ${elementId}...`);
 
-            // Fetch and explicitly transform with Babel (same pattern as loadLayout)
-            fetch(`/public/elements/${elementId}/component.js`)
+            let componentPath = explicitPath;
+            let errorInfo = null;
+            let contentType = null;
+            let htmlContent = null;
+            let htmlTitle = null;
+
+            // If no explicit path provided, try to fetch from UI element endpoint
+            if (!componentPath) {
+                try {
+                    // Use provided endpoint URL or construct standard endpoint
+                    if (!endpointUrl) {
+                        endpointUrl = `/api/v1/ui/elements/${elementId}`;
+                    }
+
+                    console.log(`Fetching component metadata from: ${endpointUrl}`);
+                    const metadataRes = await fetch(endpointUrl);
+
+                    if (metadataRes.ok) {
+                        // Get Content-Type header
+                        contentType = metadataRes.headers.get('Content-Type') || 'application/json';
+                        console.log(`✓ Endpoint returned Content-Type: ${contentType}`);
+
+                        // Handle HTML responses directly
+                        if (contentType.includes('text/html')) {
+                            htmlContent = await metadataRes.text();
+
+                            // Extract title from HTML
+                            const titleMatch = htmlContent.match(/<title[^>]*>(.*?)<\/title>/i);
+                            htmlTitle = titleMatch ? titleMatch[1] : null;
+
+                            console.log(`✓ HTML content loaded, title: ${htmlTitle || 'none'}`);
+
+                            // Log content type observation to server
+                            window.logToServer('Info', 'ContentType',
+                                `Endpoint ${endpointUrl} returned HTML`,
+                                { elementId: elementId, contentType: contentType, hasTitle: !!htmlTitle }
+                            );
+
+                            resolve({
+                                success: true,
+                                type: 'html',
+                                contentType: contentType,
+                                htmlContent: htmlContent,
+                                htmlTitle: htmlTitle
+                            });
+                            return;
+                        }
+
+                        // Handle JSON metadata (standard component pattern)
+                        const metadata = await metadataRes.json();
+
+                        // Store metadata title if provided
+                        if (metadata.title) {
+                            htmlTitle = metadata.title;
+                        }
+
+                        if (metadata.scriptPath) {
+                            componentPath = metadata.scriptPath;
+                            console.log(`✓ Using scriptPath from endpoint: ${componentPath}`);
+
+                            // Log content type observation to server
+                            window.logToServer('Info', 'ContentType',
+                                `Endpoint ${endpointUrl} returned JSON with scriptPath`,
+                                { elementId: elementId, contentType: contentType, scriptPath: componentPath }
+                            );
+                        }
+                    } else {
+                        // Capture HTTP error details
+                        let errorBody = '';
+                        try {
+                            errorBody = await metadataRes.text();
+                        } catch (e) {
+                            // Ignore errors reading response body
+                        }
+
+                        errorInfo = {
+                            status: metadataRes.status,
+                            statusText: metadataRes.statusText,
+                            message: `HTTP ${metadataRes.status}: ${metadataRes.statusText}`,
+                            body: errorBody,
+                            url: endpointUrl
+                        };
+
+                        console.error(`❌ Endpoint ${endpointUrl} returned status ${metadataRes.status}:`, errorBody);
+                        window.logToServer('Error', 'ComponentLoad',
+                            `Endpoint ${endpointUrl} returned ${metadataRes.status}`,
+                            { elementId: elementId, status: metadataRes.status, statusText: metadataRes.statusText, body: errorBody }
+                        );
+
+                        // Resolve with error info so card can display it
+                        resolve({ success: false, error: errorInfo });
+                        return;
+                    }
+                } catch (err) {
+                    errorInfo = {
+                        status: 0,
+                        statusText: 'Network Error',
+                        message: err.message || 'Failed to fetch component metadata',
+                        url: endpointUrl
+                    };
+
+                    console.error(`❌ Network error fetching metadata for ${elementId}:`, err);
+                    window.logToServer('Error', 'ComponentLoad',
+                        `Network error fetching ${endpointUrl}: ${err.message}`,
+                        { elementId: elementId, error: err.toString() }
+                    );
+
+                    // Resolve with error info
+                    resolve({ success: false, error: errorInfo });
+                    return;
+                }
+            }
+
+            // Require explicit path (but allow direct .html or .js URLs from endpointUrl)
+            if (!componentPath) {
+                // Check if endpointUrl is a direct .html or .js file
+                if (endpointUrl && (endpointUrl.endsWith('.html') || endpointUrl.endsWith('.js'))) {
+                    componentPath = endpointUrl;
+                    console.log(`✓ Using direct file URL: ${componentPath}`);
+                } else {
+                    const errorMsg = `No component path found for ${elementId}. Component paths must be explicitly specified via:
+  1. componentPath in layout.json, OR
+  2. scriptPath in /api/v1/ui/elements/${elementId} endpoint response, OR
+  3. Direct URL to .js or .html file`;
+                    console.error(`❌ ${errorMsg}`);
+                    window.logToServer('Error', 'ComponentLoad', errorMsg, { elementId: elementId });
+
+                    // Return error info
+                    resolve({
+                        success: false,
+                        error: {
+                            status: 404,
+                            statusText: 'Not Found',
+                            message: errorMsg,
+                            url: endpointUrl
+                        }
+                    });
+                    return;
+                }
+            }
+
+            // Determine if this is an HTML file based on extension
+            const isHtmlFile = componentPath.endsWith('.html');
+
+            // Fetch and transform component
+            fetch(componentPath)
                 .then(res => {
                     if (!res.ok) {
                         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
                     }
+
+                    // Capture Content-Type from script/html file response
+                    const fileContentType = res.headers.get('Content-Type') || '';
+
+                    // Handle HTML files
+                    if (isHtmlFile || fileContentType.includes('text/html')) {
+                        return res.text().then(htmlText => {
+                            // Extract title from HTML
+                            const titleMatch = htmlText.match(/<title[^>]*>(.*?)<\/title>/i);
+                            const extractedTitle = titleMatch ? titleMatch[1] : null;
+
+                            console.log(`✓ HTML file loaded: ${componentPath}, title: ${extractedTitle || 'none'}`);
+
+                            // Log content type observation
+                            window.logToServer('Info', 'ContentType',
+                                `Direct HTML file loaded: ${componentPath}`,
+                                { elementId: elementId, contentType: fileContentType, hasTitle: !!extractedTitle }
+                            );
+
+                            resolve({
+                                success: true,
+                                type: 'html',
+                                contentType: fileContentType || 'text/html',
+                                htmlContent: htmlText,
+                                htmlTitle: extractedTitle || htmlTitle
+                            });
+                        });
+                    }
+
                     return res.text();
                 })
                 .then(text => {
-                    if (text) {
-                        console.log(`Transforming ${elementId} with Babel...`);
-                        const transformed = Babel.transform(text, { presets: ['react'] }).code;
-                        (new Function(transformed))();
+                    // Skip if we already resolved with HTML content
+                    if (!text || typeof text !== 'string') return;
 
-                        if (window.cardComponents[elementId]) {
-                            console.log(`✓ Component ${elementId} loaded and registered`);
-                        } else {
-                            console.warn(`⚠ Component ${elementId} loaded but not registered in window.cardComponents`);
-                            window.logToServer('Warning', 'ComponentLoad', `Component ${elementId} loaded but not registered`, { elementId: elementId });
-                        }
+                    console.log(`Transforming ${elementId} with Babel from ${componentPath}...`);
+                    const transformed = Babel.transform(text, { presets: ['react'] }).code;
+                    (new Function(transformed))();
+
+                    if (window.cardComponents[elementId]) {
+                        console.log(`✓ Component ${elementId} loaded and registered`);
+                    } else {
+                        console.warn(`⚠ Component ${elementId} loaded but not registered in window.cardComponents`);
+                        window.logToServer('Warning', 'ComponentLoad', `Component ${elementId} loaded but not registered`, { elementId: elementId, componentPath: componentPath });
                     }
-                    resolve();
+
+                    // Log content type observation for JS files
+                    window.logToServer('Info', 'ContentType',
+                        `JavaScript component loaded: ${componentPath}`,
+                        { elementId: elementId, contentType: 'application/javascript' }
+                    );
+
+                    resolve({ success: true, type: 'component', contentType: 'application/javascript' });
                 })
                 .catch(err => {
-                    console.log(`Failed to load component.js for ${elementId}, trying element.js fallback...`);
-                    window.logToServer('Warning', 'ComponentLoad', `Failed to load ${elementId}/component.js: ${err.message}`, { elementId: elementId, error: err.toString() });
+                    console.error(`❌ Failed to load ${elementId} component from ${componentPath}:`, err);
+                    window.logToServer('Error', 'ComponentLoad', `Failed to load ${elementId} from ${componentPath}: ${err.message}`, { elementId: elementId, componentPath: componentPath, error: err.toString() });
 
-                    // Try loading element.js as fallback (for legacy components)
-                    fetch(`/public/elements/${elementId}/element.js`)
-                        .then(res => {
-                            if (!res.ok) {
-                                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-                            }
-                            return res.text();
-                        })
-                        .then(text => {
-                            if (text) {
-                                console.log(`Transforming ${elementId} (fallback) with Babel...`);
-                                const transformed = Babel.transform(text, { presets: ['react'] }).code;
-                                (new Function(transformed))();
-
-                                if (window.cardComponents[elementId]) {
-                                    console.log(`✓ Component ${elementId} loaded (fallback)`);
-                                }
-                            }
-                            resolve();
-                        })
-                        .catch(fallbackErr => {
-                            console.error(`Failed to load ${elementId} component:`, fallbackErr);
-                            resolve(); // Resolve anyway to allow card creation
-                        });
+                    // Return error info
+                    resolve({
+                        success: false,
+                        error: {
+                            status: 500,
+                            statusText: 'Script Load Error',
+                            message: `Failed to load component script: ${err.message}`,
+                            url: componentPath
+                        }
+                    });
                 });
         });
     };
@@ -1204,27 +1899,52 @@ const App = () => {
     window.openCard = async (url, title) => {
         // Extract element ID from URL if it's an API endpoint
         // e.g., /api/v1/ui/elements/system-log -> system-log
+        // e.g., /api/v1/ui/elements/admin/users-management -> admin/users-management
         let elementId = 'iframe-card';
         let elementUrl = url;
 
-        const elementMatch = url.match(/\/api\/v1\/ui\/elements\/([^/?]+)/);
+        const elementMatch = url.match(/\/api\/v1\/ui\/elements\/(.+?)(?:[?]|$)/);
         if (elementMatch) {
             elementId = elementMatch[1];
             elementUrl = url; // Keep the full URL for fetching
         }
 
         // Load the component script if needed
+        let loadResult = { success: true };
         if (elementId !== 'iframe-card') {
-            await loadComponentScript(elementId);
+            loadResult = await loadComponentScript(elementId, null, elementUrl);
         }
 
         // Create the card
         const cardId = elementId + '-' + Date.now();
+
+        // Fetch card settings from database first to get backgroundColor
+        const endpointGuid = elementUrl || elementId;
+        const cardSettings = await fetchCardSettings(endpointGuid);
+
+        console.log('[openCard] Fetched card settings:', { endpointGuid, cardSettings });
+
+        // Determine final title based on content type and available metadata
+        let finalTitle = title;
+        if (loadResult.success && loadResult.type === 'html') {
+            // For HTML content, use format: "HTML - [title]"
+            const htmlTitlePart = loadResult.htmlTitle || title || elementUrl.split('/').pop() || 'Content';
+            finalTitle = `HTML - ${htmlTitlePart}`;
+        }
+
         const newElement = {
-            Title: title,
+            Title: finalTitle,
             Element_Id: elementId,
             url: elementUrl,
-            id: cardId
+            id: cardId,
+            backgroundColor: cardSettings?.backgroundColor,
+            // Include error information if component loading failed
+            loadError: loadResult.success ? null : loadResult.error,
+            // Include HTML content if returned
+            htmlContent: loadResult.htmlContent || null,
+            htmlTitle: loadResult.htmlTitle || null,
+            contentType: loadResult.contentType || null,
+            loadType: loadResult.type || 'component'
         };
 
         // Add the card to data first
@@ -1234,12 +1954,6 @@ const App = () => {
             newLayout.mainPane.content.push(cardId);
             return { ...prevData, elements: newElements, layout: newLayout };
         });
-
-        // Fetch card settings from database (endpoint_guid is the elementId or url)
-        const endpointGuid = elementUrl || elementId;
-        const cardSettings = await fetchCardSettings(endpointGuid);
-
-        console.log('[openCard] Fetched card settings:', { endpointGuid, cardSettings });
 
         // Add card with temporary small size first to allow it to render
         const tempPosition = findNextFreePosition(gridLayout, { w: 2, h: 2 });
@@ -1280,6 +1994,20 @@ const App = () => {
         const newGridLayout = gridLayout.map(item => item.i === newCardLayout.i ? newCardLayout : item);
         setGridLayout(newGridLayout);
 
+        // Update element with backgroundColor
+        if (newCardLayout.backgroundColor !== undefined) {
+            setData(prevData => {
+                const updatedElements = { ...prevData.elements };
+                if (updatedElements[newCardLayout.i]) {
+                    updatedElements[newCardLayout.i] = {
+                        ...updatedElements[newCardLayout.i],
+                        backgroundColor: newCardLayout.backgroundColor
+                    };
+                }
+                return { ...prevData, elements: updatedElements };
+            });
+        }
+
         // Save to backend
         try {
             // Extract the element from the card ID
@@ -1287,13 +2015,18 @@ const App = () => {
             if (element) {
                 const endpointGuid = element.url || element.Element_Id;
 
-                // Prepare layout data (w, h, x, y)
+                // Prepare layout data (w, h, x, y, backgroundColor)
                 const layoutData = {
                     w: newCardLayout.w,
                     h: newCardLayout.h,
                     x: newCardLayout.x,
                     y: newCardLayout.y
                 };
+
+                // Only include backgroundColor if it's defined
+                if (newCardLayout.backgroundColor !== undefined) {
+                    layoutData.backgroundColor = newCardLayout.backgroundColor;
+                }
 
                 const response = await window.psweb_fetchWithAuthHandling('/spa/card_settings', {
                     method: 'POST',

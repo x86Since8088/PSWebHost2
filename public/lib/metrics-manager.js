@@ -15,7 +15,7 @@ class MetricsManager {
         // Configuration
         this.config = {
             historicalEndpoint: '/api/v1/perfhistorylogs',
-            pollingEndpoint: '/api/v1/metrics',
+            pollingEndpoint: '/apps/WebHostMetrics/api/v1/metrics',
             defaultPollInterval: 5000, // 5 seconds
             maxCacheAge: 24 * 60 * 60 * 1000, // 24 hours
             ...options

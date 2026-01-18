@@ -94,6 +94,22 @@ div { padding-right: 5px; }
 .card-content { padding: 3px; flex-grow: 1; overflow: auto; }
 .card td { padding-right: 4px; }
 
+/* Footer card type - simplified styling without header */
+.card-footer-type {
+    border: none;
+    box-shadow: none;
+    background-color: transparent;
+    margin-bottom: 0;
+}
+.card-footer-type .card-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+}
+
 /* --- Maximized --- */
 .maximized {
     position: fixed !important;

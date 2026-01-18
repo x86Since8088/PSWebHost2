@@ -6,4 +6,4 @@ param (
 
 # Serve the registration.html file.
 $registrationHtmlPath = Join-Path $PSScriptRoot 'registration.html'
-context_reponse -Response $Response -Path $registrationHtmlPath
+context_response -Response $Response -Path $registrationHtmlPath

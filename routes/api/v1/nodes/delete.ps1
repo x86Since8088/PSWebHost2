@@ -65,7 +65,7 @@ try {
     Write-PSWebHostLog -Severity 'Info' -Category 'Nodes' -Message "Removed node: $($data.guid)"
 
     $jsonResponse = $result | ConvertTo-Json -Depth 3
-    context_reponse -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'Nodes' -Message "Error removing node: $($_.Exception.Message)"
@@ -75,5 +75,5 @@ catch {
     } | ConvertTo-Json
 
     $statusCode = if ($_.Exception.Message -like "*not found*") { 404 } else { 400 }
-    context_reponse -Response $Response -StatusCode $statusCode -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode $statusCode -String $errorResponse -ContentType "application/json"
 }

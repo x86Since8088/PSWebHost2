@@ -76,10 +76,10 @@ try {
     }
 
     $jsonResponse = $result | ConvertTo-Json -Depth 5
-    context_reponse -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'ServiceControl' -Message "Error getting service status: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

@@ -54,7 +54,7 @@ try {
     $parsedBody = [System.Web.HttpUtility]::ParseQueryString($bodyContent)
     $pageName = $parsedBody["page"]
 } catch {
-    context_reponse -Response $Response -StatusCode 400 -String "Invalid request body."
+    context_response -Response $Response -StatusCode 400 -String "Invalid request body."
     return
 }
 
@@ -65,7 +65,7 @@ if ([string]::IsNullOrEmpty($pageName)) {
     $page = Get-SurveyPage -pageName 'ProvideEmail'
     $html = New-HtmlForm -page $page
     $jsonResponse = New-JsonResponse -status 'continue' -html $html
-    context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -String $jsonResponse -ContentType "application/json"
     return
 }
 
@@ -77,7 +77,7 @@ if ($pageName -eq 'ProvideEmail') {
         $page = Get-SurveyPage -pageName 'ProvideEmail'
         $html = "<p class='error'>Invalid email address format.</p>" + (New-HtmlForm -page $page)
         $jsonResponse = New-JsonResponse -status 'fail' -html $html
-        context_reponse -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
         return
     }
 
@@ -103,7 +103,7 @@ if ($pageName -eq 'ProvideEmail') {
     $html = $html.Replace('{email}', $email)
     
     $jsonResponse = New-JsonResponse -status 'continue' -html $html
-    context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -String $jsonResponse -ContentType "application/json"
     return
 }
 
@@ -118,14 +118,14 @@ if ($pageName -eq 'ConfirmEmail') {
         $page = Get-SurveyPage -pageName 'RegistrationComplete'
         $html = "<h2>$($page.title)</h2><p>$($page.message)</p>"
         $jsonResponse = New-JsonResponse -status 'success' -html $html
-        context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -String $jsonResponse -ContentType "application/json"
     } else {
         $page = Get-SurveyPage -pageName 'ConfirmEmail'
         $html = New-HtmlForm -page $page
         $html = $html.Replace('{email}', $email)
         $html = "<p><i>(Not confirmed yet. Please check your email or wait a moment.)</i></p>" + $html
         $jsonResponse = New-JsonResponse -status 'continue' -html $html
-        context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -String $jsonResponse -ContentType "application/json"
     }
     return
 }

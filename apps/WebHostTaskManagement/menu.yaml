@@ -1,0 +1,14 @@
+# WebHostTaskManagement App Menu
+# Task scheduling, job monitoring, and runspace management
+
+- Name: Task Management
+  parent: System Management\WebHost
+  url: /apps/WebHostTaskManagement/api/v1/ui/elements/task-manager
+  hover_description: Manage scheduled tasks, monitor background jobs, and view active runspaces
+  icon: tasks
+  tags:
+  - tasks
+  - jobs
+  - runspaces
+  - scheduling
+  - automation

@@ -1,0 +1,15 @@
+# WebhostRealtimeEvents App Menu
+# Real-time event and log monitoring for PSWebHost
+
+- Name: Real-time Events
+  parent: Main Menu
+  url: /apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events
+  hover_description: Monitor PSWebHost events and logs in real-time with advanced filtering and sorting
+  icon: activity
+  roles:
+    - authenticated
+  tags:
+  - events
+  - real-time
+  - monitoring
+  - logs

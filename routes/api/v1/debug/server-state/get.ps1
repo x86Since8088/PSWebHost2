@@ -16,11 +16,11 @@ try {
     }
 
     $jsonResponse = $diagnostics | ConvertTo-Json -Depth 5 -Compress
-    context_reponse -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
 } catch {
     $errorResponse = @{
         error = $_.Exception.Message
         stackTrace = $_.ScriptStackTrace
     } | ConvertTo-Json -Compress
-    context_reponse -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
 }

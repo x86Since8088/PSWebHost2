@@ -14,4 +14,4 @@ $profileData = @{
 }
 
 $jsonResponse = $profileData | ConvertTo-Json
-context_reponse -Response $Context.Response -String $jsonResponse -ContentType "application/json"
+context_response -Response $Context.Response -String $jsonResponse -ContentType "application/json"

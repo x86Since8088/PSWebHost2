@@ -17,7 +17,7 @@
 - Name: powershell-yaml
   Repository: PSGallery
   # This module is required by Validate3rdPartyModules.ps1 to parse this YAML file.
-  Version: 0.4.2
+  Version: 0.4.12
 
 - Name: QRCodeGenerator
   Repository: PSGallery

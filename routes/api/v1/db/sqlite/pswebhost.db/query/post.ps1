@@ -6,4 +6,4 @@ param (
 
 $errorMessage = "This endpoint is disabled due to a critical security vulnerability."
 Write-Error $errorMessage
-context_reponse -Response $Response -StatusCode 501 -String $errorMessage
+context_response -Response $Response -StatusCode 501 -String $errorMessage

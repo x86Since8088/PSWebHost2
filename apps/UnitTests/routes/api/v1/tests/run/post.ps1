@@ -16,7 +16,7 @@ try {
     $output = if ($body.output) { $body.output } else { 'Detailed' }
 
     if (-not $testPaths -or $testPaths.Count -eq 0) {
-        context_reponse -Response $Response -StatusCode 400 -String (@{
+        context_response -Response $Response -StatusCode 400 -String (@{
             error = "testPaths parameter is required"
         } | ConvertTo-Json) -ContentType "application/json"
         return
@@ -108,7 +108,7 @@ try {
     }
 
     # Return job ID immediately (202 Accepted - processing)
-    context_reponse -Response $Response -StatusCode 202 -String (@{
+    context_response -Response $Response -StatusCode 202 -String (@{
         jobId = $jobId
         message = "Test execution started"
         testCount = $testPaths.Count
@@ -118,7 +118,7 @@ try {
 } catch {
     Write-PSWebHostLog -Message "Error starting test execution: $($_.Exception.Message)" -Level 'Error' -Facility 'UnitTests'
 
-    context_reponse -Response $Response -StatusCode 500 -String (@{
+    context_response -Response $Response -StatusCode 500 -String (@{
         error = "Failed to start test execution"
         message = $_.Exception.Message
     } | ConvertTo-Json) -ContentType "application/json"

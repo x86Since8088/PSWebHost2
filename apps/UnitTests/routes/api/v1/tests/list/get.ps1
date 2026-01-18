@@ -9,7 +9,7 @@ try {
     $testsPath = $Global:PSWebServer.UnitTests.TestsPath
 
     if (-not (Test-Path $testsPath)) {
-        context_reponse -Response $Response -StatusCode 404 -String (@{
+        context_response -Response $Response -StatusCode 404 -String (@{
             error = "Tests directory not found"
             path = $testsPath
         } | ConvertTo-Json) -ContentType "application/json"
@@ -50,12 +50,12 @@ try {
         testsPath = $testsPath
     }
 
-    context_reponse -Response $Response -StatusCode 200 -String ($result | ConvertTo-Json -Depth 10) -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String ($result | ConvertTo-Json -Depth 10) -ContentType "application/json"
 
 } catch {
     Write-PSWebHostLog -Message "Error listing tests: $($_.Exception.Message)" -Level 'Error' -Facility 'UnitTests'
 
-    context_reponse -Response $Response -StatusCode 500 -String (@{
+    context_response -Response $Response -StatusCode 500 -String (@{
         error = "Failed to list tests"
         message = $_.Exception.Message
     } | ConvertTo-Json) -ContentType "application/json"

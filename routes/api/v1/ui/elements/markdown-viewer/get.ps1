@@ -15,7 +15,7 @@ if ([string]::IsNullOrEmpty($filePath)) {
         status = 'error'
         message = 'No file specified. Use ?file=path/to/file.md'
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
     return
 }
 
@@ -49,7 +49,7 @@ if (-not $foundPath) {
         message = "File not found: $filePath"
         searched = $searchPaths
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 404 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 404 -String $errorResponse -ContentType "application/json"
     return
 }
 
@@ -77,11 +77,11 @@ try {
         canEdit = $canEdit
     } | ConvertTo-Json -Depth 10
 
-    context_reponse -Response $Response -String $successResponse -ContentType "application/json"
+    context_response -Response $Response -String $successResponse -ContentType "application/json"
 } catch {
     $errorResponse = @{
         status = 'error'
         message = "Error reading file: $($_.Exception.Message)"
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
 }

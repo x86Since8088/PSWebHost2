@@ -12,9 +12,9 @@ Describe "system/Functions.ps1" {
         . $ScriptPath
     }
 
-    Context "context_reponse function" {
+    Context "context_response function" {
         It "Should be defined" {
-            Get-Command context_reponse -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
+            Get-Command context_response -ErrorAction SilentlyContinue | Should -Not -BeNullOrEmpty
         }
 
         It "Should accept Response parameter" {

@@ -492,7 +492,7 @@ function Process-HttpRequest {
             Write-Verbose "$($MyTag) API key authentication failed for bearer token"
             Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "$($MyTag) Invalid API key bearer token from $($request.RemoteEndPoint.Address)"
             # Invalid API key - return 401 Unauthorized immediately
-            context_reponse -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Invalid API key"
+            context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Invalid API key"
             return
         }
     }
@@ -500,7 +500,7 @@ function Process-HttpRequest {
     # For new sessions without API key auth, redirect to establish cookie
     if (-not $sessionCookie -and -not $apiKeyAuthenticated) {
         Write-Verbose "$($MyTag) Redirecting to same page to ensure cookie is sent: $($request.Url.AbsoluteUri)"
-        context_reponse -Response $response -StatusCode 302 -RedirectLocation $request.Url.AbsoluteUri
+        context_response -Response $response -StatusCode 302 -RedirectLocation $request.Url.AbsoluteUri
         return
     }
 
@@ -513,62 +513,82 @@ function Process-HttpRequest {
         $sanitizedPath = Sanitize-FilePath -FilePath $requestedPath.trim('/') -BaseDirectory $projectRoot
         if ($sanitizedPath.Score -eq 'pass' -and (Test-Path $sanitizedPath.Path -PathType Leaf)) {
             Write-Verbose "$($MyTag) Static file found in project root, serving: $($sanitizedPath.Path)"
-            context_reponse -Response $response -Path $sanitizedPath.Path
+            context_response -Response $response -Path $sanitizedPath.Path
             return
-        } elseif ($sanitizedPath.Score -eq 'pass' -and $requestedPath -match '^/public/elements/(?<component>[^/]+)/(?<filepath>.+)$') {
+        } elseif ($sanitizedPath.Score -eq 'pass' -and $requestedPath -match '^/public/elements/(?<fullpath>.+)$') {
             # File not in project root, check if this is a component file request
             # Try to find it in app public directories
-            $componentName = $matches.component
-            $filePath = $matches.filepath
-            Write-Verbose "$($MyTag) Component file not in project root, searching apps: component=$componentName, file=$filePath"
+            # Support nested paths like: /public/elements/admin/users-management/component.js
+            $fullPath = $matches.fullpath
+            Write-Verbose "$($MyTag) Component file not in project root, searching apps: $fullPath"
+
+            # Extract component name (may be nested like "admin/users-management")
+            # by checking what's registered in our known components map
+            $componentName = $null
+            $filePath = $null
 
             # Map of known components to apps (for performance)
+            # Supports both flat and nested component paths
             $componentAppMap = @{
                 'uplot-home' = 'uplot'; 'time-series' = 'uplot'; 'area-chart' = 'uplot'
                 'bar-chart' = 'uplot'; 'scatter-plot' = 'uplot'; 'multi-axis' = 'uplot'; 'heatmap' = 'uplot'
                 'windowsadmin-home' = 'WindowsAdmin'; 'service-control' = 'WindowsAdmin'; 'task-scheduler' = 'WindowsAdmin'
                 'sqlite-manager' = 'SQLiteManager'; 'sqlite-query-editor' = 'SQLiteManager'
+                'admin/users-management' = 'admin'; 'admin/role-management' = 'admin'
             }
 
-            $appKey = $componentAppMap[$componentName]
-            if ($appKey -and $Global:PSWebServer.Apps -and $Global:PSWebServer.Apps.ContainsKey($appKey)) {
-                $appInfo = $Global:PSWebServer.Apps[$appKey]
-                $appPublicDir = $appInfo.PublicPath
-                $componentFilePath = Join-Path $appPublicDir "elements/$componentName/$filePath"
-
-                if (Test-Path $componentFilePath -PathType Leaf) {
-                    Write-Verbose "$($MyTag) Component file found in app '$appKey': $componentFilePath"
-                    context_reponse -Response $response -Path $componentFilePath
-                    return
+            # Try to match against known component paths (longest first for nested paths)
+            $sortedComponents = $componentAppMap.Keys | Sort-Object { $_.Length } -Descending
+            foreach ($knownComponent in $sortedComponents) {
+                if ($fullPath.StartsWith("$knownComponent/")) {
+                    $componentName = $knownComponent
+                    $filePath = $fullPath.Substring($knownComponent.Length + 1)
+                    break
                 }
             }
 
-            # Not in map, try searching all apps
-            if ($Global:PSWebServer.Apps) {
-                foreach ($appName in $Global:PSWebServer.Apps.Keys) {
-                    $appInfo = $Global:PSWebServer.Apps[$appName]
+            # Try mapped component first
+            if ($componentName -and $componentAppMap[$componentName]) {
+                $appKey = $componentAppMap[$componentName]
+                if ($Global:PSWebServer.Apps -and $Global:PSWebServer.Apps.ContainsKey($appKey)) {
+                    $appInfo = $Global:PSWebServer.Apps[$appKey]
                     $appPublicDir = $appInfo.PublicPath
                     $componentFilePath = Join-Path $appPublicDir "elements/$componentName/$filePath"
 
                     if (Test-Path $componentFilePath -PathType Leaf) {
-                        Write-Verbose "$($MyTag) Component file found in app '$appName': $componentFilePath"
-                        context_reponse -Response $response -Path $componentFilePath
+                        Write-Verbose "$($MyTag) Component file found in app '$appKey': $componentFilePath"
+                        context_response -Response $response -Path $componentFilePath
                         return
                     }
                 }
             }
 
-            Write-Verbose "$($MyTag) Component file not found in any app: $componentName/$filePath"
-            context_reponse -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "Component file not found"
+            # Not in map or not found, try searching all apps with full path
+            if ($Global:PSWebServer.Apps) {
+                foreach ($appName in $Global:PSWebServer.Apps.Keys) {
+                    $appInfo = $Global:PSWebServer.Apps[$appName]
+                    $appPublicDir = $appInfo.PublicPath
+                    $componentFilePath = Join-Path $appPublicDir "elements/$fullPath"
+
+                    if (Test-Path $componentFilePath -PathType Leaf) {
+                        Write-Verbose "$($MyTag) Component file found in app '$appName': $componentFilePath"
+                        context_response -Response $response -Path $componentFilePath
+                        return
+                    }
+                }
+            }
+
+            Write-Verbose "$($MyTag) Component file not found in any app: $fullPath"
+            context_response -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "Component file not found"
             return
         } elseif ($sanitizedPath.Score -ne 'pass') {
             Write-Verbose "$($MyTag) Static file sanitization failed: $($sanitizedPath.Message)"
             Write-PSWebHostLog -Message "`t$MyTag $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
-            context_reponse -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
+            context_response -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
             return
         } else {
             Write-Verbose "$($MyTag) Static file not found: $($sanitizedPath.Path)"
-            context_reponse -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "File not found"
+            context_response -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "File not found"
             return
         }
     }
@@ -576,7 +596,7 @@ function Process-HttpRequest {
     if (-not $handled -and $requestedPath -eq "/" -and $httpMethod -eq "get") {
         Write-Verbose "$($MyTag) Root path redirect: '/' -> '/spa'"
         Write-PSWebHostLog -Severity 'Info' -Category 'Routing' -Message "$($MyTag) Redirecting '/' to '/spa'" -WriteHost:$Verbose.ispresent
-        context_reponse -Response $response -StatusCode 302 -RedirectLocation "/spa"
+        context_response -Response $response -StatusCode 302 -RedirectLocation "/spa"
         $handled = $true
     }
 
@@ -596,12 +616,12 @@ function Process-HttpRequest {
                 $sanitizedPath = Sanitize-FilePath -FilePath $filePath -BaseDirectory $appPublicDir
                 if ($sanitizedPath.Score -eq 'pass') {
                     Write-Verbose "$($MyTag) Apps static file sanitization passed, serving: $($sanitizedPath.Path)"
-                    context_reponse -Response $response -Path $sanitizedPath.Path
+                    context_response -Response $response -Path $sanitizedPath.Path
                     return
                 } else {
                     Write-Verbose "$($MyTag) Apps static file sanitization failed: $($sanitizedPath.Message)"
                     Write-PSWebHostLog -Message "`t$MyTag $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
-                    context_reponse -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
+                    context_response -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
                     return
                 }
             }
@@ -638,7 +658,7 @@ function Process-HttpRequest {
                     if (-not $hasRequiredRole) {
                         Write-Verbose "$($MyTag) User lacks required roles for app '$appName': $($manifest.requiredRoles -join ', ')"
                         Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "Unauthorized app access: $appName requires roles: $($manifest.requiredRoles -join ', ')"
-                        context_reponse -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized - App requires: $($manifest.requiredRoles -join ', ')"
+                        context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized - App requires: $($manifest.requiredRoles -join ', ')"
                         return
                     }
                 }
@@ -678,7 +698,7 @@ function Process-HttpRequest {
         if (-not $isAuthorized) {
             Write-Verbose "$MyTag App route authorization failed"
             Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "Unauthorized app route access: $requestedPath"
-            context_reponse -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized"
+            context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized"
             return
         }
 
@@ -695,7 +715,7 @@ function Process-HttpRequest {
             & $appScriptPath @scriptParams
         } catch {
             Write-PSWebHostLog -Severity 'Error' -Category 'Apps' -Message "$MyTag Error executing app route: $($_.Exception.Message)" -WriteHost
-            context_reponse -Response $response -StatusCode 500 -StatusDescription "Internal Server Error" -String "App Error: $($_.Exception.Message)"
+            context_response -Response $response -StatusCode 500 -StatusDescription "Internal Server Error" -String "App Error: $($_.Exception.Message)"
         }
         return
     }
@@ -731,7 +751,7 @@ function Process-HttpRequest {
             if (-not $isAuthorized) {
                 Write-Verbose "$MyTag Authorization failed - user not in allowed roles"
                 Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "Unauthorized access to $requestedPath by user $($session.UserID) with roles: $($session.Roles -join ', ')"
-                context_reponse -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized"
+                context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized"
                 return
                 $handled = $true
             } else {
@@ -837,7 +857,7 @@ function Process-HttpRequest {
                     }
                     catch{
                         Write-PSWebHostLog -Severity 'Error' -Category 'Routing' -Message "$MyTag Error executing route script: $($_.Exception.Message + "`n" + $_.InvocationInfo.PositionMessage)" -Data @{ ScriptPath = $scriptPath; SessionID = $sessionID; PositionMessage = $_.InvocationInfo.PositionMessage; Message = $_.Exception.Message } -WriteHost
-                        context_reponse -Response $response -StatusCode 500 -StatusDescription "Internal Server Error" -String "Internal Server Error"
+                        context_response -Response $response -StatusCode 500 -StatusDescription "Internal Server Error" -String "Internal Server Error"
                         $scriptStatusCode = 500
                     }
                     Write-Verbose "$MyTag Route script execution completed"
@@ -879,11 +899,11 @@ function Process-HttpRequest {
         $DefaultFavicon = Join-Path $PSWebServer.Project_Root.Path "public/favicon.ico"
         if ($requestedPath -eq "/favicon.ico") {
             Write-Verbose "$MyTag Serving favicon: $DefaultFavicon"
-            context_reponse -Response $response -Path $DefaultFavicon
+            context_response -Response $response -Path $DefaultFavicon
         } else {
             Write-Verbose "$MyTag No handler found for request, returning 404: $requestedPath"
             Write-PSWebHostLog -Severity 'Info' -Category 'Routing' -Message "$MyTag 404 Not Found: $requestedPath from $($request.RemoteEndPoint)"
-            context_reponse -Response $response -StatusCode 404 -String "404 Not Found" -ContentType "text/plain"
+            context_response -Response $response -StatusCode 404 -String "404 Not Found" -ContentType "text/plain"
         }
     }
 }
@@ -896,13 +916,111 @@ function Write-PSWebHostLog {
         [string]$Severity,
         [Parameter(Mandatory=$true)] [string]$Category,
         [hashtable]$Data,
-        [string]$UserID = $Session.UserID,
-        [string]$SessionID = $SessionID,
+        [string]$UserID,
+        [string]$SessionID,
+        [string]$Source,
+        [string]$ActivityName,
+        [int]$PercentComplete = -1,
+        [string]$RunspaceID,
         [switch]$WriteHost,
         [string]$State = 'Unspecified',
         [string]$ForeGroundColor,
         [string]$BackGroundColor = ($host.UI.RawUI.BackgroundColor, "Black"|Where-Object{$_ -match '\w'}|Select-Object -First 1)
     )
+
+    # Auto-detect Source from calling script if not provided
+    if ([string]::IsNullOrWhiteSpace($Source)) {
+        try {
+            $callStack = Get-PSCallStack
+            # Skip the current function (Write-PSWebHostLog) and get the caller
+            if ($callStack.Count -gt 1) {
+                $caller = $callStack[1]
+                if ($caller.ScriptName) {
+                    # Get relative path from project root
+                    $projectRoot = $Global:PSWebServer.Project_Root.Path
+                    if ($projectRoot -and $caller.ScriptName.StartsWith($projectRoot)) {
+                        $Source = $caller.ScriptName.Substring($projectRoot.Length).TrimStart('\', '/')
+                    } else {
+                        $Source = Split-Path $caller.ScriptName -Leaf
+                    }
+                    # Include function name if available
+                    if ($caller.FunctionName -and $caller.FunctionName -ne '<ScriptBlock>') {
+                        $Source = "$Source::$($caller.FunctionName)"
+                    }
+                } elseif ($caller.FunctionName -and $caller.FunctionName -ne '<ScriptBlock>') {
+                    $Source = $caller.FunctionName
+                } else {
+                    $Source = "Unknown"
+                }
+            } else {
+                $Source = "Unknown"
+            }
+        } catch {
+            $Source = "Unknown"
+        }
+    }
+
+    # Auto-detect UserID from session if not provided
+    if ([string]::IsNullOrWhiteSpace($UserID)) {
+        try {
+            if ($null -ne $Session -and $null -ne $Session.UserID) {
+                $UserID = $Session.UserID
+            } elseif ($null -ne $sessiondata -and $null -ne $sessiondata.UserID) {
+                $UserID = $sessiondata.UserID
+            } else {
+                $UserID = ""
+            }
+        } catch {
+            $UserID = ""
+        }
+    }
+
+    # Auto-detect SessionID from various sources if not provided
+    if ([string]::IsNullOrWhiteSpace($SessionID)) {
+        try {
+            if ($null -ne $Session -and $null -ne $Session.SessionID) {
+                $SessionID = $Session.SessionID
+            } elseif ($null -ne $sessiondata -and $null -ne $sessiondata.SessionID) {
+                $SessionID = $sessiondata.SessionID
+            } elseif ($null -ne $PSBoundParameters['SessionID']) {
+                $SessionID = $PSBoundParameters['SessionID']
+            } else {
+                $SessionID = ""
+            }
+        } catch {
+            $SessionID = ""
+        }
+    }
+
+    # Auto-detect RunspaceID if not provided
+    if ([string]::IsNullOrWhiteSpace($RunspaceID)) {
+        try {
+            $RunspaceID = [runspace]::DefaultRunspace.Id.ToString()
+        } catch {
+            $RunspaceID = ""
+        }
+    }
+
+    # Auto-detect ActivityName from calling function/script if not provided
+    if ([string]::IsNullOrWhiteSpace($ActivityName)) {
+        try {
+            $callStack = Get-PSCallStack
+            if ($callStack.Count -gt 1) {
+                $caller = $callStack[1]
+                if ($caller.FunctionName -and $caller.FunctionName -ne '<ScriptBlock>') {
+                    $ActivityName = $caller.FunctionName
+                } elseif ($caller.Command) {
+                    $ActivityName = $caller.Command
+                } else {
+                    $ActivityName = ""
+                }
+            } else {
+                $ActivityName = ""
+            }
+        } catch {
+            $ActivityName = ""
+        }
+    }
     if ($WriteHost.IsPresent) {
         if ($ForeGroundColor -eq '') {
             if ($Severity -eq 'Critical' -or $Severity -eq 'Error') {
@@ -937,7 +1055,14 @@ function Write-PSWebHostLog {
             $dataString = $json
         }
     }
-    $logEntry = "$utcTime`t$localTime`t$Severity`t$Category`t$escapedMessage`t$SessionID`t$UserID`t$dataString"
+
+    # Format PercentComplete (use empty string if -1 or not applicable)
+    $percentString = if ($PercentComplete -ge 0 -and $PercentComplete -le 100) { $PercentComplete.ToString() } else { "" }
+
+    # New log format with additional context fields (Source, ActivityName, PercentComplete, UserID, SessionID, RunspaceID come before Data)
+    # Format: UTCTime, LocalTime, Severity, Category, Message, Source, ActivityName, PercentComplete, UserID, SessionID, RunspaceID, Data
+    $logEntry = "$utcTime`t$localTime`t$Severity`t$Category`t$escapedMessage`t$Source`t$ActivityName`t$percentString`t$UserID`t$SessionID`t$RunspaceID`t$dataString"
+
     if ($null -ne $global:PSWebHostLogQueue) {
         $global:PSWebHostLogQueue.Enqueue($logEntry)
     }
@@ -961,6 +1086,10 @@ function Write-PSWebHostLog {
             UserID = $UserID
             Provider = $Category
             SessionID = $SessionID
+            Source = $Source
+            ActivityName = $ActivityName
+            PercentComplete = $PercentComplete
+            RunspaceID = $RunspaceID
             Data = @{ Message = $Message; Severity = $Severity; Details = $Data }
             CompletionDate = Get-Date
         }
@@ -1019,17 +1148,82 @@ function Read-PSWebHostLog {
         [datetime]$StartTime = (Get-Date).AddDays(-1),
         [datetime]$EndTime = (Get-Date),
         [string]$Category = "*",
-        [string]$Severity = "*"
+        [string]$Severity = "*",
+        [string]$Source = "*",
+        [string]$UserID = "*",
+        [string]$SessionID = "*",
+        [string]$ActivityName = "*",
+        [string]$RunspaceID = "*"
     )
-    $baseDirectory = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data"
-    $logFile = Join-Path $baseDirectory "Logs" "log.tsv"
-    if (-not (Test-Path $logFile)) { Write-Warning "Log file not found at $logFile"; return }
-    Import-Csv -Path $logFile -Delimiter "`t" -Header "Date", "Severity", "Category", "Message", "Data" | Where-Object {
-        $_.Date -as [datetime] -ge $StartTime -and $_.Date -as [datetime] -le $EndTime -and $_.Category -like $Category -and $_.Severity -like $Severity
+    # Try Logs/PSWebHost.log first (standard location)
+    $logFile = Join-Path $Global:PSWebServer.Project_Root.Path "Logs\PSWebHost.log"
+
+    # If not found, try PsWebHost_Data/Logs/ directory (look for most recent .tsv file)
+    if (-not (Test-Path $logFile)) {
+        $baseDirectory = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data"
+        $logDirectory = Join-Path $baseDirectory "Logs"
+
+        if (Test-Path $logDirectory) {
+            # Get most recent .tsv file
+            $logFile = Get-ChildItem -Path $logDirectory -Filter "*.tsv" -File |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1 -ExpandProperty FullName
+        }
+    }
+
+    if (-not $logFile -or -not (Test-Path $logFile)) {
+        Write-Warning "No log file found. Checked Logs\PSWebHost.log and PsWebHost_Data\Logs\*.tsv"
+        return @()
+    }
+
+    # New format: UTCTime, LocalTime, Severity, Category, Message, Source, ActivityName, PercentComplete, UserID, SessionID, RunspaceID, Data
+    # Old format: UTCTime, LocalTime, Severity, Category, Message, SessionID, UserID, Data
+    # Auto-detect format by checking column count
+    $firstLine = Get-Content -Path $logFile -TotalCount 1
+    $columnCount = ($firstLine -split "`t").Count
+
+    if ($columnCount -ge 12) {
+        # New format with enhanced context fields
+        $headers = @("UTCTime", "LocalTime", "Severity", "Category", "Message", "Source", "ActivityName", "PercentComplete", "UserID", "SessionID", "RunspaceID", "Data")
+        $results = @(Import-Csv -Path $logFile -Delimiter "`t" -Header $headers | Where-Object {
+            try {
+                ($_.UTCTime -as [datetime]) -ge $StartTime -and
+                ($_.UTCTime -as [datetime]) -le $EndTime -and
+                $_.Category -like $Category -and
+                $_.Severity -like $Severity -and
+                $_.Source -like $Source -and
+                $_.UserID -like $UserID -and
+                $_.SessionID -like $SessionID -and
+                $_.ActivityName -like $ActivityName -and
+                $_.RunspaceID -like $RunspaceID
+            } catch {
+                $false
+            }
+        })
+        return $results
+    } elseif ($columnCount -ge 8) {
+        # Old format (backwards compatibility)
+        $headers = @("UTCTime", "LocalTime", "Severity", "Category", "Message", "SessionID", "UserID", "Data")
+        $results = @(Import-Csv -Path $logFile -Delimiter "`t" -Header $headers | Where-Object {
+            try {
+                ($_.UTCTime -as [datetime]) -ge $StartTime -and
+                ($_.UTCTime -as [datetime]) -le $EndTime -and
+                $_.Category -like $Category -and
+                $_.Severity -like $Severity -and
+                $_.UserID -like $UserID -and
+                $_.SessionID -like $SessionID
+            } catch {
+                $false
+            }
+        } | Select-Object *, @{Name='Source';Expression={''}}, @{Name='ActivityName';Expression={''}}, @{Name='PercentComplete';Expression={''}}, @{Name='RunspaceID';Expression={''}})
+        return $results
+    } else {
+        Write-Warning "Unrecognized log format (expected 8+ or 12+ columns, found $columnCount)"
+        return @()
     }
 }
 
-function context_reponse {
+function context_response {
     [CmdletBinding(DefaultParameterSetName = 'String')]
     param(
         [Parameter(Mandatory=$true)] [System.Net.HttpListenerResponse]$Response,
@@ -1130,7 +1324,7 @@ function context_reponse {
         if ($_.Exception.Message -match 'response has been submitted|stream.*closed') {
             Write-Verbose "Response already sent or stream closed: $($_.Exception.Message)"
         } else {
-            Write-PSWebHostLog -Severity 'Error' -Category 'Response' -Message "Invalid operation in context_reponse: $($_.Exception.Message)"
+            Write-PSWebHostLog -Severity 'Error' -Category 'Response' -Message "Invalid operation in context_response: $($_.Exception.Message)"
         }
     } catch {
         # Other errors - try to send error response only if possible

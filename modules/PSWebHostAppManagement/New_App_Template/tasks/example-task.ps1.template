@@ -1,0 +1,70 @@
+#Requires -Version 7
+
+<#
+.SYNOPSIS
+    Example scheduled task for {{AppName}}
+
+.DESCRIPTION
+    This is a template for scheduled tasks. This script will be executed
+    by the PSWebHost task engine according to the schedule defined in
+    config/tasks.yaml.
+
+.NOTES
+    Task: {{AppName}}_ExampleTask
+    App: {{AppName}}
+    Author: {{AppAuthor}}
+#>
+
+param(
+    [hashtable]$TaskContext
+)
+
+$MyTag = '[{{AppName}}:Task:Example]'
+
+Write-Host "$MyTag Starting example task..." -ForegroundColor Cyan
+
+try {
+    # Access environment variables passed from task configuration
+    $appName = $env:APP_NAME
+    $logLevel = $env:LOG_LEVEL
+
+    Write-Host "$MyTag App: $appName, LogLevel: $logLevel" -ForegroundColor Gray
+
+    # Example: Access global PSWebServer state
+    if ($Global:PSWebServer -and $Global:PSWebServer.ContainsKey('{{AppName}}')) {
+        $appState = $Global:PSWebServer['{{AppName}}']
+        Write-Host "$MyTag App initialized at: $($appState.Initialized)" -ForegroundColor Gray
+    }
+
+    # Example: Perform task operations
+    Write-Host "$MyTag Performing task operations..." -ForegroundColor White
+
+    # Simulate work
+    Start-Sleep -Seconds 2
+
+    # Example: Update statistics
+    if ($Global:PSWebServer -and $Global:PSWebServer.ContainsKey('{{AppName}}')) {
+        $Global:PSWebServer['{{AppName}}'].Stats.LastOperation = Get-Date
+        $Global:PSWebServer['{{AppName}}'].Stats.OperationsPerformed++
+    }
+
+    Write-Host "$MyTag Task completed successfully" -ForegroundColor Green
+
+    # Return success status
+    return @{
+        Success = $true
+        Message = "Task completed successfully"
+        ItemsProcessed = 10
+        Duration = 2
+    }
+
+} catch {
+    Write-Error "$MyTag Task failed: $_"
+
+    # Return failure status
+    return @{
+        Success = $false
+        Error = $_.Exception.Message
+        StackTrace = $_.ScriptStackTrace
+    }
+}

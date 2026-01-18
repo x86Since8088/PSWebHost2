@@ -1,0 +1,150 @@
+# {{AppName}}
+
+{{AppDescription}}
+
+## Overview
+
+Brief overview of what this app does and its main features.
+
+## Features
+
+- Feature 1
+- Feature 2
+- Feature 3
+
+## Installation
+
+This app is already installed in the PSWebHost apps directory. To enable it:
+
+```powershell
+Enable-PSWebHostApp -AppName {{AppName}}
+```
+
+Then restart the PSWebHost server.
+
+## Configuration
+
+### App Settings
+
+Edit `app.yaml` to configure:
+
+- **requiredRoles**: Roles needed to access this app
+- **enabled**: Set to `true` to enable the app
+
+### Data Storage
+
+App data is stored in: `PsWebHost_Data/apps/{{AppName}}/`
+
+### Tasks
+
+Scheduled tasks are defined in `config/tasks.yaml`. Runtime overrides can be configured through the Task Management UI.
+
+## API Endpoints
+
+### GET {{AppRoutePrefix}}/api/v1/status
+
+Returns the current status of the {{AppName}} service.
+
+**Response:**
+```json
+{
+  "status": "operational",
+  "version": "{{AppVersion}}",
+  "uptime": 3600
+}
+```
+
+### Additional Endpoints
+
+Document your other API endpoints here.
+
+## UI Components
+
+### Main Dashboard
+
+Access the main dashboard at: {{AppRoutePrefix}}/api/v1/ui/elements/dashboard
+
+### Additional Components
+
+Document your UI components here.
+
+## Development
+
+### Module Structure
+
+The main module is located at: `modules/{{ModuleName}}/{{ModuleName}}.psm1`
+
+Key functions:
+- `Initialize-{{AppName}}` - Initializes the app
+- Add your other exported functions here
+
+### Adding New Endpoints
+
+1. Create a new PowerShell script in `routes/api/v1/your-endpoint/`
+2. Name it `get.ps1`, `post.ps1`, `put.ps1`, or `delete.ps1`
+3. Add security rules in `get.security.json` (or matching HTTP method)
+4. Implement the endpoint logic
+
+### Adding UI Components
+
+1. Create a directory in `public/elements/component-name/`
+2. Add `component.js` with your web component class
+3. Optionally add `styles.css`
+4. Register the component in your endpoint's layout.json
+
+## Testing
+
+### Manual Testing
+
+Test endpoints directly:
+
+```powershell
+# Source the endpoint with test mode
+. .\apps\{{AppName}}\routes\api\v1\status\get.ps1
+Invoke-Expression (Get-Content .\apps\{{AppName}}\routes\api\v1\status\get.ps1 -Raw)
+
+# Call with test parameters
+& {
+    param($Context, $Request, $Response, $sessiondata, [switch]$Test, [string[]]$Roles, [hashtable]$Query)
+    # Endpoint code here
+} -Test -Roles @('authenticated') -Query @{}
+```
+
+### Unit Tests
+
+Add unit tests to the `tests/` directory.
+
+## Troubleshooting
+
+### App Not Loading
+
+1. Check app.yaml has `enabled: true`
+2. Verify app_init.ps1 ran without errors (check server logs)
+3. Ensure required modules are present
+
+### Endpoints Returning 404
+
+1. Verify route paths match the pattern: `{{AppRoutePrefix}}/api/v1/...`
+2. Check that .ps1 files exist in routes directory
+3. Verify security.json files are present
+
+### UI Components Not Rendering
+
+1. Check browser console for JavaScript errors
+2. Verify component.js path in layout.json
+3. Ensure component class is properly registered
+
+## Changelog
+
+### Version {{AppVersion}} ({{CurrentDate}})
+
+- Initial release
+- Core functionality implemented
+
+## License
+
+Copyright (c) {{CurrentYear}} {{AppAuthor}}
+
+## Support
+
+For issues or questions, please contact the development team.

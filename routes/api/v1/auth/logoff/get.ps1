@@ -16,4 +16,4 @@ if ($sessionCookie) {
 }
 
 # Redirect to the home page
-context_reponse -Response $Response -StatusCode 302 -RedirectLocation "/"
+context_response -Response $Response -StatusCode 302 -RedirectLocation "/"

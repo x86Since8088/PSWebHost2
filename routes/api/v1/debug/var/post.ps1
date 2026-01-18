@@ -8,18 +8,18 @@ param (
 # Expect JSON body: { Name: "...", OriginalType: "System.String", NewText: "..." }
 $body = Get-RequestBody -Request $Request
 if (-not $body) {
-    context_reponse -Response $Response -StatusCode 400 -String "Empty body"
+    context_response -Response $Response -StatusCode 400 -String "Empty body"
     return
 }
 
 try {
     $payload = $body | ConvertFrom-Json
 } catch {
-    context_reponse -Response $Response -StatusCode 400 -String "Invalid JSON: $_"
+    context_response -Response $Response -StatusCode 400 -String "Invalid JSON: $_"
     return
 }
 
-if (-not $payload.Name) { context_reponse -Response $Response -StatusCode 400 -String "Missing Name"; return }
+if (-not $payload.Name) { context_response -Response $Response -StatusCode 400 -String "Missing Name"; return }
 
 $name = $payload.Name -replace '^\$',''
 $origType = $payload.OriginalType
@@ -83,10 +83,10 @@ function Convert-TextToType($txt, $typeName){
 
 $conversion = Convert-TextToType -txt $newText -typeName $origType
 if (-not $conversion.Success) {
-    context_reponse -Response $Response -StatusCode 400 -String "Failed to convert variable '$name': $($conversion.Error)"
+    context_response -Response $Response -StatusCode 400 -String "Failed to convert variable '$name': $($conversion.Error)"
     return
 }
 
 # set variable in global scope, overwrite if exists
 Set-Variable -Name $name -Value $conversion.Value -Scope Global -Force
-context_reponse -Response $Response -StatusCode 200 -String "OK"
+context_response -Response $Response -StatusCode 200 -String "OK"

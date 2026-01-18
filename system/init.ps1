@@ -772,85 +772,9 @@ foreach ($catId in ($Global:PSWebServer.Categories.Keys | Sort-Object)) {
 
 # --- End Apps Framework Initialization ---
 
-# --- Metrics System Initialization ---
-Write-Host "[Init] Initializing metrics collection system..." -ForegroundColor Cyan
-try {
-    Import-Module PSWebHost_Metrics -Force -ErrorAction Stop
-    Initialize-PSWebMetrics -SampleIntervalSeconds 5 -RetentionHours 24 -CsvRetentionDays 30
-
-    # Clean up any existing metrics job to prevent duplicates
-    if ($Global:PSWebServer.MetricsJob) {
-        Stop-Job -Job $Global:PSWebServer.MetricsJob -ErrorAction SilentlyContinue
-        Remove-Job -Job $Global:PSWebServer.MetricsJob -Force -ErrorAction SilentlyContinue
-        $Global:PSWebServer.MetricsJob = $null
-    }
-
-    # Initialize execution state in synchronized hashtable
-    if (-not $Global:PSWebServer.Metrics.JobState.ContainsKey('IsExecuting')) {
-        $Global:PSWebServer.Metrics.JobState.IsExecuting = $false
-    }
-    if (-not $Global:PSWebServer.Metrics.JobState.ContainsKey('ShouldStop')) {
-        $Global:PSWebServer.Metrics.JobState.ShouldStop = $false
-    }
-
-    # Create a PowerShell job for metrics collection
-    # This runs in a loop with 5-second intervals to collect system metrics
-    $Global:PSWebServer.MetricsJob = Start-Job -Name "PSWebHost_MetricsCollection" -ScriptBlock {
-        param($MetricsState, $ModulePath)
-
-        # Import required module in the job context
-        Import-Module (Join-Path $ModulePath "PSWebHost_Metrics") -Force -ErrorAction Stop
-
-        while (-not $MetricsState.ShouldStop) {
-            try {
-                # Prevent concurrent execution if previous run still active
-                if ($MetricsState.IsExecuting) {
-                    $elapsed = ((Get-Date) - $MetricsState.ExecutionStartTime).TotalSeconds
-                    Write-Verbose "[MetricsJob] Skipped execution - previous run still in progress ($($elapsed)s elapsed)"
-
-                    # If execution has been stuck for >30 seconds, force release the lock
-                    if ($MetricsState.ExecutionStartTime -and $elapsed -gt 30) {
-                        Write-Warning "[MetricsJob] Force-releasing stuck execution lock after 30 seconds"
-                        $MetricsState.IsExecuting = $false
-                    }
-                } else {
-                    # Set execution lock
-                    $MetricsState.IsExecuting = $true
-                    $MetricsState.ExecutionStartTime = Get-Date
-
-                    # Execute metrics maintenance
-                    Invoke-MetricJobMaintenance
-
-                    # Release execution lock
-                    $MetricsState.IsExecuting = $false
-                }
-            } catch {
-                # Log error but don't crash the job
-                Write-Warning "[MetricsJob] Error: $($_.Exception.Message)"
-                if ($MetricsState.Errors.Count -lt 100) {
-                    [void]$MetricsState.Errors.Add(@{
-                        Timestamp = Get-Date
-                        Message = $_.Exception.Message
-                    })
-                }
-                # Always release execution lock on error
-                $MetricsState.IsExecuting = $false
-            }
-
-            # Sleep for 5 seconds before next collection
-            Start-Sleep -Seconds 5
-        }
-    } -ArgumentList $Global:PSWebServer.Metrics.JobState, $Global:PSWebServer.ModulesPath
-
-    # Note: Initial metrics collection will happen asynchronously via job (within 5 seconds)
-    # Removed synchronous initial collection to prevent startup hangs on slow performance counter queries
-
-    Write-Host "[Init] Metrics collection system started (5-second intervals)" -ForegroundColor Green
-} catch {
-    Write-Warning "[Init] Failed to initialize metrics system: $($_.Exception.Message)"
-    Write-Warning "[Init] Server will continue without metrics collection"
-}
-# --- End Metrics System Initialization ---
+# NOTE: App-specific initialization (modules, background jobs, data directories, etc.)
+# is now handled by each app's app_init.ps1 file, which is automatically discovered
+# and executed by the app framework above. See apps/*/app_init.ps1 for details.
 
 # ============================================================================
 # Mark init.ps1 as loaded to prevent duplicate loading

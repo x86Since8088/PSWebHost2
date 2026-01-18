@@ -1,0 +1,26 @@
+name: WebHost Realtime Events
+version: 1.0.0
+description: Real-time event monitoring and log viewer for PSWebHost with advanced filtering and sorting
+author: PSWebHost
+enabled: true
+routePrefix: /apps/WebhostRealtimeEvents
+consoleToAPILoggingLevel: Warning
+
+parentCategory:
+  id: monitoring
+  name: Monitoring
+  description: System monitoring and observability
+  icon: chart-line
+  order: 3
+
+subCategory:
+  name: Logs
+  order: 1
+
+features:
+  timeRangeFiltering: true
+  advancedFiltering: true
+  sortable: true
+  export: true
+  enhancedLogFormat: true
+  created: 2026-01-16

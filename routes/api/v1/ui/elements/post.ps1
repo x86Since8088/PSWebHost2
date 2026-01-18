@@ -10,7 +10,7 @@ param (
 # 1. Read the JSON body from the POST request
 $bodyContent = Get-RequestBody -Request $Request
 if ([string]::IsNullOrEmpty($bodyContent)) {
-    context_reponse -Response $Response -StatusCode 400 -String "Request body is empty." -ContentType "text/plain"
+    context_response -Response $Response -StatusCode 400 -String "Request body is empty." -ContentType "text/plain"
     return
 }
 $requestBody = $bodyContent | ConvertFrom-Json -AsHashtable
@@ -74,4 +74,4 @@ $responseBody.update = $updates
 
 $responseJson = $responseBody | ConvertTo-Json -Depth 5
 
-context_reponse -Response $Response -String $responseJson -ContentType "application/json"
+context_response -Response $Response -String $responseJson -ContentType "application/json"

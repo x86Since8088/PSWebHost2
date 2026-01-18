@@ -1,0 +1,14 @@
+- Name: Server Metrics
+  url: /apps/WebHostMetrics/api/v1/ui/elements/server-heatmap
+  hover_description: Real-time system performance metrics and monitoring
+  roles:
+    - authenticated
+  tags:
+    - metrics
+    - monitoring
+    - performance
+    - cpu
+    - memory
+    - disk
+    - network
+  parent: Main Menu

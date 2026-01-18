@@ -12,4 +12,4 @@ $html = @`"
 <kubernetesmanager-home></kubernetesmanager-home>
 `"@
 
-context_reponse -Response $Response -String $html -ContentType 'text/html' -StatusCode 200
+context_response -Response $Response -String $html -ContentType 'text/html' -StatusCode 200

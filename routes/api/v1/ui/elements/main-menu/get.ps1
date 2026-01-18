@@ -60,141 +60,299 @@ function Get-RelativePath {
     return $relativePath.TrimStart('\', '/')
 }
 
-function Build-CategoryMenuStructure {
+function Discover-Apps {
     <#
     .SYNOPSIS
-        Builds hierarchical category menu structure from apps
+        Discovers apps in the apps directory if not already loaded
     #>
     param()
 
-    if (-not ($Global:PSWebServer.Categories -and $Global:PSWebServer.Categories.Count -gt 0)) {
-        return @()
+    if (-not $Global:PSWebServer.ContainsKey('Project_Root')) {
+        # If Project_Root not set, calculate from script root
+        # Script is in: routes/api/v1/ui/elements/main-menu/get.ps1
+        # Need to go up 6 levels to project root
+        $projectRoot = Split-Path (Split-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) -Parent) -Parent
+        $Global:PSWebServer.Project_Root = @{ Path = $projectRoot }
     }
 
-    Write-Verbose "[MainMenu] Building categorized app menu from $($Global:PSWebServer.Categories.Count) categories"
-
-    $categoryMenuItems = @()
-    $sortedCategories = $Global:PSWebServer.Categories.GetEnumerator() | Sort-Object { $_.Value.order }
-
-    foreach ($catEntry in $sortedCategories) {
-        $category = $catEntry.Value
-
-        $categoryMenuItem = @{
-            Name = $category.name
-            hover_description = $category.description
-            roles = @('authenticated')
-            collapsed = $true
-            tags = @($category.id)
-            children = @()
-        }
-
-        # Build subcategories
-        $sortedSubCategories = $category.subCategories.GetEnumerator() | Sort-Object { $_.Value.order }
-
-        foreach ($subCatEntry in $sortedSubCategories) {
-            $subCategory = $subCatEntry.Value
-
-            $subCategoryMenuItem = @{
-                Name = $subCategory.name
-                hover_description = "$($category.name) - $($subCategory.name)"
-                roles = @('authenticated')
-                collapsed = $true
-                children = @()
-            }
-
-            # Add app menu items to subcategory
-            foreach ($appInfo in $subCategory.apps) {
-                $appMenuItems = Get-AppMenuItems -AppName $appInfo.name -CategoryId $category.id -SubCategoryName $subCategory.name
-                $subCategoryMenuItem.children += $appMenuItems
-            }
-
-            # Add subcategory if it has items
-            if ($subCategoryMenuItem.children.Count -gt 0) {
-                $categoryMenuItem.children += $subCategoryMenuItem
-            }
-        }
-
-        # Add category if it has subcategories with items
-        if ($categoryMenuItem.children.Count -gt 0) {
-            $categoryMenuItems += $categoryMenuItem
-            Write-Verbose "[MainMenu] Added category '$($category.name)' with $($categoryMenuItem.children.Count) subcategories"
-        }
+    $appsPath = Join-Path $Global:PSWebServer.Project_Root.Path "apps"
+    if (-not (Test-Path $appsPath)) {
+        Write-Verbose "[MainMenu] Apps directory not found: $appsPath"
+        return
     }
 
-    return $categoryMenuItems
+    $appDirs = Get-ChildItem -Path $appsPath -Directory
+    foreach ($appDir in $appDirs) {
+        $appName = $appDir.Name
+        if (-not $Global:PSWebServer.Apps.ContainsKey($appName)) {
+            $Global:PSWebServer.Apps[$appName] = @{
+                Path = $appDir.FullName
+                Name = $appName
+                Manifest = $null
+                Menu = @()
+            }
+            Write-Verbose "[MainMenu] Discovered app: $appName"
+        }
+    }
 }
 
-function Get-AppMenuItems {
+function Update-AppMenuData {
     <#
     .SYNOPSIS
-        Loads menu items from an app's menu.yaml file
+        Parses app.yaml and menu.yaml files and updates $Global:PSWebServer.Apps.[AppId].Menu
     #>
-    param(
-        [string]$AppName,
-        [string]$CategoryId,
-        [string]$SubCategoryName
-    )
+    param()
 
-    if (-not $Global:PSWebServer.Apps.ContainsKey($AppName)) {
-        return @()
-    }
+    Write-Verbose "[MainMenu] Updating app menu data..."
 
-    $app = $Global:PSWebServer.Apps[$AppName]
-    $appMenuPath = Join-Path $app.Path "menu.yaml"
-
-    if (-not (Test-Path $appMenuPath)) {
-        return @()
-    }
-
-    try {
-        $appMenuContent = Get-Content -Path $appMenuPath -Raw
-        $appMenuData = $appMenuContent | ConvertFrom-Yaml
-
-        # Get app manifest for roles
-        $manifest = $app.Manifest
-        $appRoles = if ($manifest.requiredRoles) { $manifest.requiredRoles } else { @('authenticated') }
-
-        $menuItems = @()
-        foreach ($menuItem in $appMenuData) {
-            # Inherit app's required roles if item doesn't specify its own
-            if (-not $menuItem.roles) {
-                $menuItem.roles = $appRoles
-            }
-
-            # Add category tags for searchability
-            if (-not $menuItem.tags) {
-                $menuItem.tags = @()
-            }
-            $menuItem.tags += $CategoryId
-            $menuItem.tags += $SubCategoryName.ToLower()
-
-            # Add ConfigSource for troubleshooting
-            $menuItem.ConfigSource = Get-RelativePath -AbsolutePath $appMenuPath
-
-            $menuItems += $menuItem
+    # Import YAML module
+    if (-not (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue)) {
+        $__err = $null
+        # Try local module first
+        $localYamlPath = Join-Path $Global:PSWebServer.Project_Root.Path "ModuleDownload/powershell-yaml/0.4.2/powershell-yaml.psm1"
+        if (Test-Path $localYamlPath) {
+            Import-Module $localYamlPath -DisableNameChecking -ErrorAction SilentlyContinue -ErrorVariable __err
+        } else {
+            Import-Module powershell-yaml -DisableNameChecking -ErrorAction SilentlyContinue -ErrorVariable __err
         }
 
-        Write-Verbose "[MainMenu] Loaded $($menuItems.Count) menu items for app: $AppName"
-        return $menuItems
-
-    } catch {
-        Write-PSWebHostLog -Severity 'Warning' -Category 'Menu' -Message "Failed to load menu for app '$AppName': $($_.Exception.Message)"
-        return @()
+        if ($__err) {
+            if (Get-Command Write-PSWebHostLog -ErrorAction SilentlyContinue) {
+                Write-PSWebHostLog -Severity 'Error' -Category 'Modules' -Message "Failed to import 'powershell-yaml' module: $__err"
+            } else {
+                Write-Warning "Failed to import 'powershell-yaml' module: $__err"
+            }
+            return
+        }
     }
+
+    # Discover apps if not already loaded
+    Discover-Apps
+
+    # Process each app
+    if (-not $Global:PSWebServer.Apps -or $Global:PSWebServer.Apps.Count -eq 0) {
+        Write-Verbose "[MainMenu] No apps found"
+        return
+    }
+
+    foreach ($appName in $Global:PSWebServer.Apps.Keys) {
+        $app = $Global:PSWebServer.Apps[$appName]
+
+        # Parse app.yaml to get manifest if not already loaded
+        $appYamlPath = Join-Path $app.Path "app.yaml"
+        if (Test-Path $appYamlPath) {
+            try {
+                $appYamlContent = Get-Content -Path $appYamlPath -Raw
+                $manifest = $appYamlContent | ConvertFrom-Yaml
+                $app.Manifest = $manifest
+            } catch {
+                $msg = "Failed to parse app.yaml for '$appName': $($_.Exception.Message)"
+                if (Get-Command Write-PSWebHostLog -ErrorAction SilentlyContinue) {
+                    Write-PSWebHostLog -Severity 'Warning' -Category 'Menu' -Message $msg
+                } else {
+                    Write-Warning $msg
+                }
+            }
+        }
+
+        # Parse menu.yaml
+        $menuYamlPath = Join-Path $app.Path "menu.yaml"
+        if (Test-Path $menuYamlPath) {
+            try {
+                $menuYamlContent = Get-Content -Path $menuYamlPath -Raw
+                $menuData = $menuYamlContent | ConvertFrom-Yaml
+
+                # Get app's required roles from manifest
+                $appRoles = if ($app.Manifest -and $app.Manifest.requiredRoles) {
+                    $app.Manifest.requiredRoles
+                } else {
+                    @('authenticated')
+                }
+
+                # Process each menu item
+                $processedMenuItems = @()
+                foreach ($menuItem in $menuData) {
+                    # Inherit app's required roles if item doesn't specify its own
+                    if (-not $menuItem.roles) {
+                        $menuItem.roles = $appRoles
+                    }
+
+                    # Ensure roles is always an array (YAML may parse single role as string)
+                    if ($menuItem.roles -is [string]) {
+                        $menuItem.roles = @($menuItem.roles)
+                    } elseif ($menuItem.roles -isnot [array]) {
+                        $menuItem.roles = @($menuItem.roles)
+                    }
+
+                    # Set default parent path if not specified
+                    if (-not $menuItem.parent) {
+                        $menuItem.parent = "Apps\$appName"
+                    }
+
+                    # Ensure tags array exists
+                    if (-not $menuItem.tags) {
+                        $menuItem.tags = @()
+                    }
+
+                    # Ensure tags is always an array (YAML may parse single tag as string)
+                    if ($menuItem.tags -is [string]) {
+                        $menuItem.tags = @($menuItem.tags)
+                    } elseif ($menuItem.tags -isnot [array]) {
+                        $menuItem.tags = @($menuItem.tags)
+                    }
+
+                    # Add app name as tag for searchability
+                    if ($menuItem.tags -notcontains $appName) {
+                        $menuItem.tags += $appName
+                    }
+
+                    # Add ConfigSource for troubleshooting
+                    $menuItem.ConfigSource = Get-RelativePath -AbsolutePath $menuYamlPath
+
+                    $processedMenuItems += $menuItem
+                }
+
+                # Store in app's Menu property
+                $app.Menu = $processedMenuItems
+                Write-Verbose "[MainMenu] Loaded $($processedMenuItems.Count) menu items for app: $appName"
+
+            } catch {
+                $msg = "Failed to load menu.yaml for app '$appName': $($_.Exception.Message)"
+                if (Get-Command Write-PSWebHostLog -ErrorAction SilentlyContinue) {
+                    Write-PSWebHostLog -Severity 'Warning' -Category 'Menu' -Message $msg
+                } else {
+                    Write-Warning $msg
+                }
+                $app.Menu = @()
+            }
+        } else {
+            # No menu.yaml file
+            $app.Menu = @()
+        }
+    }
+
+    Write-Verbose "[MainMenu] App menu data updated"
+}
+
+function Build-HierarchicalMenu {
+    <#
+    .SYNOPSIS
+        Builds hierarchical menu structure from main-menu.yaml and app menus using parent paths
+    #>
+    param(
+        [array]$MainMenuData
+    )
+
+    Write-Verbose "[MainMenu] Building hierarchical menu structure..."
+
+    # Start with main menu items
+    $menuStructure = $MainMenuData
+
+    # Collect all app menu items
+    $allAppMenuItems = @()
+    if ($Global:PSWebServer.Apps) {
+        foreach ($appName in $Global:PSWebServer.Apps.Keys) {
+            $app = $Global:PSWebServer.Apps[$appName]
+            if ($app.Menu) {
+                $allAppMenuItems += $app.Menu
+            }
+        }
+    }
+
+    Write-Verbose "[MainMenu] Collected $($allAppMenuItems.Count) app menu items"
+
+    # Insert app menu items into hierarchy based on parent paths
+    foreach ($appMenuItem in $allAppMenuItems) {
+        $parentPath = $appMenuItem.parent
+        if (-not $parentPath) { continue }
+
+        # Split parent path (e.g., "System Management\WebHost" -> ["System Management", "WebHost"])
+        $pathParts = $parentPath -split '\\'
+
+        # Find or create the parent hierarchy
+        $currentLevel = $menuStructure
+        $currentLevelParent = $null
+
+        for ($i = 0; $i -lt $pathParts.Count; $i++) {
+            $partName = $pathParts[$i]
+
+            # Find existing item at this level
+            $existingItem = $null
+            foreach ($item in $currentLevel) {
+                if ($item.Name -eq $partName) {
+                    $existingItem = $item
+                    break
+                }
+            }
+
+            if (-not $existingItem) {
+                # Create parent item if it doesn't exist
+                $newParentItem = @{
+                    Name = $partName
+                    hover_description = $partName
+                    roles = @('authenticated')
+                    collapsed = $true
+                    children = @()
+                }
+
+                # Add to current level (use .Add() for ArrayList or direct assignment)
+                if ($currentLevel -is [System.Collections.ArrayList]) {
+                    [void]$currentLevel.Add($newParentItem)
+                } else {
+                    $currentLevel += $newParentItem
+                }
+                $existingItem = $newParentItem
+            }
+
+            # Ensure children array exists
+            if (-not $existingItem.children) {
+                $existingItem.children = @()
+            }
+
+            # Move to next level
+            $currentLevelParent = $existingItem
+            $currentLevel = $existingItem.children
+        }
+
+        # Add the app menu item to the final level
+        if ($currentLevel -is [System.Collections.ArrayList]) {
+            [void]$currentLevel.Add($appMenuItem)
+        } else {
+            # Must modify the parent's children array directly
+            if ($currentLevelParent) {
+                $currentLevelParent.children += $appMenuItem
+            } else {
+                # Top level addition
+                $menuStructure += $appMenuItem
+            }
+        }
+    }
+
+    Write-Verbose "[MainMenu] Hierarchical menu structure built"
+    return $menuStructure
 }
 
 function Test-MenuCacheValid {
     <#
     .SYNOPSIS
-        Checks if menu cache needs to be refreshed
+        Checks if menu cache needs to be refreshed (once per minute)
     #>
     param()
 
     $now = Get-Date
-    $cacheExpired = ($now - $Global:PSWebServer.MainMenu.LastFileCheck).TotalSeconds -ge 60
+    $lastCheck = $Global:PSWebServer.MainMenu.LastFileCheck
+
+    # If never checked, cache is invalid
+    if ($lastCheck -eq [DateTime]::MinValue) {
+        Write-Verbose "[MainMenu] No previous cache check found"
+        return $false
+    }
+
+    $secondsSinceLastCheck = ($now - $lastCheck).TotalSeconds
+    $cacheExpired = $secondsSinceLastCheck -ge 60
 
     if (-not $cacheExpired) {
-        $secondsUntilNextCheck = 60 - ($now - $Global:PSWebServer.MainMenu.LastFileCheck).TotalSeconds
+        $secondsUntilNextCheck = 60 - $secondsSinceLastCheck
         Write-Verbose "[MainMenu] Using cached menu (next check in $([int]$secondsUntilNextCheck)s)"
         return $true
     }
@@ -255,38 +413,71 @@ function Test-MenuCacheValid {
 function Build-CompleteMenu {
     <#
     .SYNOPSIS
-        Builds complete menu structure (main menu + app categories)
+        Builds complete menu structure (main menu + app menus via parent paths)
     #>
     param()
 
     Write-Verbose "[MainMenu] Rebuilding menu cache..."
 
     # Import YAML module
-    $__err = $null
-    Import-Module powershell-yaml -DisableNameChecking -ErrorAction SilentlyContinue -ErrorVariable __err
-    if ($__err) {
-        Write-PSWebHostLog -Severity 'Error' -Category 'Modules' -Message "Failed to import 'powershell-yaml' module: $__err"
-        return @()
+    if (-not (Get-Command ConvertFrom-Yaml -ErrorAction SilentlyContinue)) {
+        $__err = $null
+        # Try local module first
+        $localYamlPath = Join-Path $Global:PSWebServer.Project_Root.Path "ModuleDownload/powershell-yaml/0.4.2/powershell-yaml.psm1"
+        if (Test-Path $localYamlPath) {
+            Import-Module $localYamlPath -DisableNameChecking -ErrorAction SilentlyContinue -ErrorVariable __err
+        } else {
+            Import-Module powershell-yaml -DisableNameChecking -ErrorAction SilentlyContinue -ErrorVariable __err
+        }
+
+        if ($__err) {
+            $msg = "Failed to import 'powershell-yaml' module: $__err"
+            if (Get-Command Write-PSWebHostLog -ErrorAction SilentlyContinue) {
+                Write-PSWebHostLog -Severity 'Error' -Category 'Modules' -Message $msg
+            } else {
+                Write-Warning $msg
+            }
+            return @()
+        }
     }
+
+    # Update app menu data (parse app.yaml and menu.yaml files)
+    Update-AppMenuData
 
     # Load main menu from main-menu.yaml
     $yamlPath = Join-Path $PSScriptRoot "main-menu.yaml"
-    $menuData = @()
+    $mainMenuData = @()
 
     if (Test-Path $yamlPath) {
         $yamlContent = Get-Content -Path $yamlPath -Raw
-        $menuData = $yamlContent | ConvertFrom-Yaml
+        $mainMenuData = $yamlContent | ConvertFrom-Yaml
     } else {
-        Write-PSWebHostLog -Severity 'Warning' -Category 'Menu' -Message "main-menu.yaml not found: $yamlPath"
+        $msg = "main-menu.yaml not found: $yamlPath"
+        if (Get-Command Write-PSWebHostLog -ErrorAction SilentlyContinue) {
+            Write-PSWebHostLog -Severity 'Warning' -Category 'Menu' -Message $msg
+        } else {
+            Write-Warning $msg
+        }
     }
 
-    # Build and append category menu structure
-    $categoryMenus = Build-CategoryMenuStructure
-    $menuData += $categoryMenus
+    # Build hierarchical structure using parent paths
+    $menuData = Build-HierarchicalMenu -MainMenuData $mainMenuData
 
     # Cache the complete menu
     $Global:PSWebServer.MainMenu.CachedMenu = $menuData
-    Write-Verbose "[MainMenu] Menu cache rebuilt with $($menuData.Count) items ($($categoryMenus.Count) from apps)"
+
+    # Count total items including app menus
+    $appMenuCount = 0
+    if ($Global:PSWebServer.Apps) {
+        foreach ($appName in $Global:PSWebServer.Apps.Keys) {
+            $app = $Global:PSWebServer.Apps[$appName]
+            if ($app.Menu) {
+                $appMenuCount += $app.Menu.Count
+            }
+        }
+    }
+
+    Write-Verbose "[MainMenu] Menu cache rebuilt with $($mainMenuData.Count) main items + $appMenuCount app items"
 
     return $menuData
 }
@@ -313,13 +504,10 @@ function Convert-To-Menu-Format {
         # Add default roles if none specified
         if ($item.roles.count -eq 0) { $item.roles += 'unauthenticated', 'authenticated' }
 
-        # Check if user has required role
-        if (!($item.roles | Where-Object { $_ -in $Roles })) { continue }
-
         # Build the full path for this menu item (for preferences lookup)
         $currentPath = if ($ParentPath) { "$ParentPath/$($item.Name)" } else { $item.Name }
 
-        # Process children first (if any)
+        # Process children first (if any) - do this BEFORE role check so we can include parents with matching children
         $processedChildren = @()
         $hasMatchingChildren = $false
         if ($item.children) {
@@ -327,11 +515,14 @@ function Convert-To-Menu-Format {
             $hasMatchingChildren = ($processedChildren.Count -gt 0)
         }
 
+        # Check if user has required role
+        $userHasRole = ($item.roles | Where-Object { $_ -in $Roles }).Count -gt 0
+
         # Check if this item matches the search
         $itemMatches = Test-ItemMatchesSearch -item $item -SearchRegexArr $SearchRegexArr
 
-        # Include item if it matches search OR has matching children
-        if (-not $itemMatches -and -not $hasMatchingChildren) { continue }
+        # Include item if (user has role AND item matches search) OR has matching children
+        if (-not (($userHasRole -and $itemMatches) -or $hasMatchingChildren)) { continue }
 
         # Build output item
         $newItem = @{
@@ -422,7 +613,13 @@ if ($search -match '^regex:') {
 }
 
 # Initialize menu cache
-if (-not $Global:PSWebServer.MainMenu) {
+if (-not $Global:PSWebServer) {
+    $Global:PSWebServer = @{}
+}
+if (-not $Global:PSWebServer.ContainsKey('Apps')) {
+    $Global:PSWebServer.Apps = [hashtable]::Synchronized(@{})
+}
+if (-not $Global:PSWebServer.ContainsKey('MainMenu')) {
     $Global:PSWebServer.MainMenu = [hashtable]::Synchronized(@{
         LastFileCheck = [DateTime]::MinValue
         CachedMenu = $null
@@ -430,7 +627,7 @@ if (-not $Global:PSWebServer.MainMenu) {
     })
 }
 
-# Check cache and rebuild if needed
+# Check cache and rebuild if needed (once per minute)
 $cacheValid = Test-MenuCacheValid
 if (-not $cacheValid) {
     $menuData = Build-CompleteMenu
@@ -452,15 +649,15 @@ if ($menuItems.count -eq 0) {
 }
 
 # Convert to JSON
-[string]$body = $menuItems | ConvertTo-Json -Depth 5
+[string]$body = $menuItems | ConvertTo-Json -Depth 8
 if ('' -eq $body) {
     $body = '[{"text":"No Data"}]'
 }
 
 # Return response
 if ($test.IsPresent) {
-    return write-host $body -ForegroundColor Yellow
+    return $body
 }
-context_reponse -Response $Response -String $body -ContentType 'application/json' -StatusCode 200 -CacheDuration 60
+context_response -Response $Response -String $body -ContentType 'application/json' -StatusCode 200 -CacheDuration 60
 
 #endregion

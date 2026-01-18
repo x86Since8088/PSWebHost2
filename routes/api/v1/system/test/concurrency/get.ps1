@@ -41,4 +41,4 @@ $result = @{
     success = $true
 }
 
-context_reponse -Response $Response -String ($result | ConvertTo-Json) -ContentType 'application/json' -StatusCode 200
+context_response -Response $Response -String ($result | ConvertTo-Json) -ContentType 'application/json' -StatusCode 200

@@ -13,7 +13,7 @@ try {
 
     if (-not (Test-Path $componentPath)) {
         $errorHtml = "<div style='padding: 20px; color: red;'>Component file not found: $componentPath</div>"
-        context_reponse -Response $Response -StatusCode 404 -String $errorHtml -ContentType "text/html"
+        context_response -Response $Response -StatusCode 404 -String $errorHtml -ContentType "text/html"
         return
     }
 
@@ -112,10 +112,10 @@ try {
 </html>
 "@
 
-    context_reponse -Response $Response -StatusCode 200 -String $html -ContentType "text/html"
+    context_response -Response $Response -StatusCode 200 -String $html -ContentType "text/html"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'SQLiteManager' -Message "Error serving query editor: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

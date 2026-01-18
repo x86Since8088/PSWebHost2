@@ -15,4 +15,4 @@ $mapPins = @(
 )
 
 $jsonData = $mapPins | ConvertTo-Json
-context_reponse -Response $Response -String $jsonData -ContentType "application/json"
+context_response -Response $Response -String $jsonData -ContentType "application/json"

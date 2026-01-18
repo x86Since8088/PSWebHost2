@@ -1,0 +1,48 @@
+name: WebHost Metrics
+version: 1.0.0
+description: System metrics collection, aggregation, and visualization for PSWebHost
+author: PSWebHost Team
+category: monitoring
+subcategory: performance
+enabled: true
+routePrefix: /apps/WebHostMetrics
+
+# Module to load on app initialization
+modules:
+  - PSWebHost_Metrics
+
+# Dependencies
+dependencies:
+  - PSWebHost_Support
+  - PSWebHost_Database
+
+# Required roles to access this app
+requiredRoles:
+  - authenticated
+
+# Features provided by this app
+features:
+  - Real-time metrics collection (5-second intervals)
+  - CPU usage monitoring (per-core and total)
+  - Memory usage tracking
+  - Disk I/O statistics
+  - Network traffic monitoring
+  - Historical data retention (24 hours in-memory, 30 days on disk)
+  - CSV export for long-term storage
+  - Interactive visualization dashboard
+  - Background job management
+
+# Configuration
+config:
+  # Metrics collection settings
+  sampleIntervalSeconds: 5
+  retentionHours: 24
+  csvRetentionDays: 30
+
+  # Performance monitoring
+  enablePerformanceMonitoring: true
+  performanceJobEnabled: true
+
+  # Data storage
+  metricsDirectory: PsWebHost_Data/metrics
+  useSQLiteStorage: true

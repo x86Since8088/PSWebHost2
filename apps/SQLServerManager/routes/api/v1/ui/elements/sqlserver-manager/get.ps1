@@ -57,10 +57,10 @@ try {
 </html>
 "@
 
-    context_reponse -Response $Response -StatusCode 200 -String $html -ContentType "text/html"
+    context_response -Response $Response -StatusCode 200 -String $html -ContentType "text/html"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'SQLServerManager' -Message "Error: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

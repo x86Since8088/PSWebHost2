@@ -54,7 +54,7 @@ try {
     if ($Fail.count -ne 0) {
         write-pswebhostlog -Severity 'Warning' -Category 'Auth' -Message "$MyTag Validation failed for Password auth POST from $ipAddress. Errors: $($Fail -join '; ')" -Data @{ IPAddress = $ipAddress; Body = $bodyContent } -WriteHost
         $jsonResponse = New-JsonResponse -status 'fail' -message ($Fail -join '<br>')
-        context_reponse -Response $Response -StatusCode 422 -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -StatusCode 422 -String $jsonResponse -ContentType "application/json"
         return
     }
 
@@ -64,7 +64,7 @@ try {
         $retryAfter = $lockoutStatus.LockedUntil.ToString("o")
         $jsonResponse = New-JsonResponse -status 'fail' -message $lockoutStatus.Message
         $Response.AddHeader("Retry-After", $retryAfter)
-        context_reponse -Response $Response -StatusCode 429 -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -StatusCode 429 -String $jsonResponse -ContentType "application/json"
         return
     }
 
@@ -81,14 +81,14 @@ try {
         Set-PSWebSession -SessionID $sessionID -UserID $user.UserID -Roles $user.Roles -Provider 'Password' -Request $Request
         
         $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
-        context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
+        context_response -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
 
     } else {
         # --- On Failure ---
         PSWebLogon -ProviderName "Password" -Result "Fail" -Request $Request -UserID $email
         
         $jsonResponse = New-JsonResponse -status 'fail' -message 'Authentication failed. Please check your credentials.'
-        context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
     }
 } catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'Auth' -Message "Invalid request body for Password auth POST: $($_.Exception.Message)" -Data @{ IPAddress = $ipAddress; Body = $bodyContent }
@@ -97,5 +97,5 @@ try {
     # Generate detailed error report based on user role
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
 
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

@@ -18,7 +18,7 @@ try {
             success = $false
             error = 'Service name is required'
         } | ConvertTo-Json
-        context_reponse -Response $Response -StatusCode 400 -String $errorResult -ContentType "application/json"
+        context_response -Response $Response -StatusCode 400 -String $errorResult -ContentType "application/json"
         return
     }
 
@@ -38,7 +38,7 @@ try {
         if (-not $service) {
             $result.error = "Service '$serviceName' not found"
             $jsonResponse = $result | ConvertTo-Json
-            context_reponse -Response $Response -StatusCode 404 -String $jsonResponse -ContentType "application/json"
+            context_response -Response $Response -StatusCode 404 -String $jsonResponse -ContentType "application/json"
             return
         }
 
@@ -47,7 +47,7 @@ try {
             $result.error = "Service '$($service.DisplayName)' cannot be stopped"
             $result.message = "Service cannot be restarted (system critical service)"
             $jsonResponse = $result | ConvertTo-Json
-            context_reponse -Response $Response -StatusCode 403 -String $jsonResponse -ContentType "application/json"
+            context_response -Response $Response -StatusCode 403 -String $jsonResponse -ContentType "application/json"
             return
         }
 
@@ -103,10 +103,10 @@ try {
 
     $statusCode = if ($result.success) { 200 } else { 500 }
     $jsonResponse = $result | ConvertTo-Json -Depth 3
-    context_reponse -Response $Response -StatusCode $statusCode -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode $statusCode -String $jsonResponse -ContentType "application/json"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'ServiceControl' -Message "Error restarting service: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

@@ -1,0 +1,15 @@
+# WebhostFileExplorer App Menu
+# User file management and exploration interface
+
+- Name: File Explorer
+  parent: Main Menu
+  url: /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer
+  hover_description: User file management and exploration interface with folder creation, file upload, and tree view
+  icon: folder
+  roles:
+    - authenticated
+  tags:
+    - files
+    - storage
+    - user-data
+    - folders

@@ -1,0 +1,35 @@
+name: WebHost App Manager
+version: 1.0.0
+description: Manage PSWebHost applications - view installed apps, their status, and configuration
+author: PSWebHost Team
+category: administration
+subcategory: system
+enabled: true
+routePrefix: /apps/WebHostAppManager
+
+# No modules required for this simple app
+modules: []
+
+# Dependencies
+dependencies:
+  - PSWebHost_Support
+
+# Required roles to access this app
+requiredRoles:
+  - site_admin
+
+# Features provided by this app
+features:
+  - View all installed PSWebHost apps
+  - Display app metadata (name, version, description)
+  - Show app status (enabled/disabled)
+  - View required roles per app
+  - Display load timestamps
+  - App details viewer
+
+# Configuration
+config:
+  # Display settings
+  enableAppActions: true
+  showLoadTimestamps: true
+  showNodeGuid: true

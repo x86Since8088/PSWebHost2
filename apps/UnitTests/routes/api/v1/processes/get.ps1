@@ -10,7 +10,7 @@ try {
     $reportPath = Join-Path $testsPath 'process-tracking-report.txt'
 
     if (-not (Test-Path $reportPath)) {
-        context_reponse -Response $Response -StatusCode 404 -String (@{
+        context_response -Response $Response -StatusCode 404 -String (@{
             error = "No process tracking report found"
             message = "Run tests to generate process tracking data"
             reportPath = $reportPath
@@ -72,12 +72,12 @@ try {
         rawReport = $reportContent
     }
 
-    context_reponse -Response $Response -StatusCode 200 -String ($result | ConvertTo-Json -Depth 10) -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String ($result | ConvertTo-Json -Depth 10) -ContentType "application/json"
 
 } catch {
     Write-PSWebHostLog -Message "Error retrieving process tracking data: $($_.Exception.Message)" -Level 'Error' -Facility 'UnitTests'
 
-    context_reponse -Response $Response -StatusCode 500 -String (@{
+    context_response -Response $Response -StatusCode 500 -String (@{
         error = "Failed to retrieve process tracking data"
         message = $_.Exception.Message
     } | ConvertTo-Json) -ContentType "application/json"

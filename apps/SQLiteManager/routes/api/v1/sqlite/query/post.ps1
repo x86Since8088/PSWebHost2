@@ -19,7 +19,7 @@ try {
             success = $false
             error = 'Request body is required'
         } | ConvertTo-Json
-        context_reponse -Response $Response -StatusCode 400 -String $errorResult -ContentType "application/json"
+        context_response -Response $Response -StatusCode 400 -String $errorResult -ContentType "application/json"
         return
     }
 
@@ -30,7 +30,7 @@ try {
             success = $false
             error = 'SQL query is required'
         } | ConvertTo-Json
-        context_reponse -Response $Response -StatusCode 400 -String $errorResult -ContentType "application/json"
+        context_response -Response $Response -StatusCode 400 -String $errorResult -ContentType "application/json"
         return
     }
 
@@ -42,7 +42,7 @@ try {
             success = $false
             error = 'Database file not found'
         } | ConvertTo-Json
-        context_reponse -Response $Response -StatusCode 404 -String $errorResult -ContentType "application/json"
+        context_response -Response $Response -StatusCode 404 -String $errorResult -ContentType "application/json"
         return
     }
 
@@ -145,10 +145,10 @@ try {
 
     $statusCode = if ($result.success) { 200 } else { 400 }
     $jsonResponse = $result | ConvertTo-Json -Depth 10
-    context_reponse -Response $Response -StatusCode $statusCode -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode $statusCode -String $jsonResponse -ContentType "application/json"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'SQLiteManager' -Message "Error in query endpoint: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

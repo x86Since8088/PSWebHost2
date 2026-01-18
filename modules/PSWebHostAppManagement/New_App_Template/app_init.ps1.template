@@ -1,0 +1,74 @@
+#Requires -Version 7
+
+# {{AppName}} App Initialization Script
+# This script runs during PSWebHost startup when the {{AppName}} app is loaded
+
+param(
+    [hashtable]$PSWebServer,
+    [string]$AppRoot
+)
+
+$MyTag = '[{{AppName}}:Init]'
+
+Write-Host "$MyTag Initializing {{AppName}}..." -ForegroundColor Cyan
+
+try {
+    # 1. Import app module
+    $modulePath = Join-Path $AppRoot "modules\{{ModuleName}}\{{ModuleName}}.psm1"
+    if (Test-Path $modulePath) {
+        Import-Module $modulePath -Force
+        Write-Verbose "$MyTag Loaded {{ModuleName}} module" -Verbose
+    }
+
+    # 2. Initialize app namespace in global state
+    $PSWebServer['{{AppName}}'] = [hashtable]::Synchronized(@{
+        AppRoot = $AppRoot
+        DataPath = Join-Path $PSWebServer['DataRoot'] "apps\{{AppName}}"
+        Initialized = Get-Date
+
+        # App-specific settings
+        Settings = @{
+            # Add your app settings here
+            ExampleSetting = $true
+        }
+
+        # Statistics tracking
+        Stats = [hashtable]::Synchronized(@{
+            RequestsProcessed = 0
+            OperationsPerformed = 0
+            LastOperation = $null
+        })
+    })
+
+    # 3. Ensure data directories exist
+    $DataPath = Join-Path $PSWebServer['DataRoot'] "apps\{{AppName}}"
+    if (-not (Test-Path $DataPath)) {
+        New-Item -Path $DataPath -ItemType Directory -Force | Out-Null
+        Write-Verbose "$MyTag Created data directory: $DataPath" -Verbose
+    }
+
+    # Create subdirectories as needed
+    @('exports', 'logs', 'cache') | ForEach-Object {
+        $subDir = Join-Path $DataPath $_
+        if (-not (Test-Path $subDir)) {
+            New-Item -Path $subDir -ItemType Directory -Force | Out-Null
+        }
+    }
+
+    # 4. Initialize any background jobs or scheduled tasks here
+    # Example:
+    # if (Get-Command Start-{{AppName}}BackgroundJob -ErrorAction SilentlyContinue) {
+    #     Start-{{AppName}}BackgroundJob
+    # }
+
+    # 5. Register any event handlers or hooks here
+    # Example:
+    # Register-EngineEvent -SourceIdentifier "{{AppName}}_Event" -Action { ... }
+
+    Write-Host "$MyTag {{AppName}} initialized successfully" -ForegroundColor Green
+    Write-Verbose "$MyTag Data path: $DataPath"
+
+} catch {
+    Write-Warning "$MyTag Failed to initialize: $($_.Exception.Message)"
+    Write-Warning "$MyTag Server will continue without {{AppName}}"
+}

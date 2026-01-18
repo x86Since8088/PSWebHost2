@@ -1,0 +1,311 @@
+/**
+ * Task Manager Styles
+ * Theme-aware styling using CSS variables
+ */
+
+/* Theme Variables - Light and Dark mode support */
+:host {
+    /* Background Colors */
+    --tm-bg-primary: var(--bg-color, #f5f5f5);
+    --tm-bg-secondary: var(--card-bg-color, white);
+    --tm-bg-sidebar: var(--sidebar-bg-color, #2c3e50);
+    --tm-bg-hover: var(--hover-bg-color, #f9f9f9);
+
+    /* Text Colors */
+    --tm-text-primary: var(--text-color, #333);
+    --tm-text-secondary: var(--text-secondary, #666);
+    --tm-text-muted: var(--text-muted, #999);
+    --tm-text-light: rgba(255, 255, 255, 0.8);
+    --tm-text-white: white;
+
+    /* Border Colors */
+    --tm-border-light: var(--border-color, #eee);
+    --tm-border-lighter: #f0f0f0;
+    --tm-border-dark: rgba(0, 0, 0, 0.1);
+
+    /* Status Colors - Success */
+    --tm-success-bg: #d4edda;
+    --tm-success-text: #155724;
+    --tm-success-primary: #27ae60;
+    --tm-success-hover: #229954;
+
+    /* Status Colors - Danger */
+    --tm-danger-bg: #f8d7da;
+    --tm-danger-text: #721c24;
+    --tm-danger-primary: #e74c3c;
+    --tm-danger-hover: #c0392b;
+    --tm-danger-border: #f5c6cb;
+
+    /* Status Colors - Warning */
+    --tm-warning-bg: #fff3cd;
+    --tm-warning-text: #856404;
+
+    /* Status Colors - Info */
+    --tm-info-bg: #d1ecf1;
+    --tm-info-text: #0c5460;
+
+    /* Status Colors - Secondary */
+    --tm-secondary-bg: #e2e3e5;
+    --tm-secondary-text: #383d41;
+
+    /* Accent Colors */
+    --tm-accent-primary: var(--accent-primary, #3498db);
+    --tm-accent-dark: #2980b9;
+
+    /* Shadow */
+    --tm-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --tm-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+    /* Sidebar overlays */
+    --tm-sidebar-border: rgba(255, 255, 255, 0.1);
+    --tm-sidebar-hover: rgba(255, 255, 255, 0.1);
+}
+
+/* Base styles */
+:host {
+    display: block;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+}
+
+/* Layout */
+.container {
+    display: flex;
+    height: 100%;
+    background: var(--tm-bg-primary);
+}
+
+.sidebar {
+    width: 220px;
+    background: var(--tm-bg-sidebar);
+    color: var(--tm-text-white);
+    padding: 20px 0;
+    flex-shrink: 0;
+}
+
+.sidebar-title {
+    font-size: 18px;
+    font-weight: 600;
+    padding: 0 20px 15px;
+    border-bottom: 1px solid var(--tm-sidebar-border);
+    margin-bottom: 10px;
+}
+
+.menu-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.2s;
+    color: var(--tm-text-light);
+}
+
+.menu-item:hover {
+    background: var(--tm-sidebar-hover);
+    color: var(--tm-text-white);
+}
+
+.menu-item.active {
+    background: var(--tm-accent-primary);
+    color: var(--tm-text-white);
+    border-left: 4px solid var(--tm-accent-dark);
+}
+
+.menu-icon {
+    font-size: 18px;
+}
+
+/* Content area */
+.content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.header {
+    margin-bottom: 20px;
+}
+
+.title {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--tm-text-primary);
+    margin: 0 0 8px 0;
+}
+
+.subtitle {
+    color: var(--tm-text-secondary);
+    font-size: 14px;
+}
+
+/* Cards */
+.card {
+    background: var(--tm-bg-secondary);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: var(--tm-shadow-sm);
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th {
+    text-align: left;
+    padding: 12px;
+    border-bottom: 2px solid var(--tm-border-light);
+    color: var(--tm-text-secondary);
+    font-weight: 600;
+    font-size: 13px;
+}
+
+td {
+    padding: 12px;
+    border-bottom: 1px solid var(--tm-border-light);
+    font-size: 14px;
+}
+
+tr:hover {
+    background: var(--tm-bg-hover);
+}
+
+/* Badges */
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.badge-success {
+    background: var(--tm-success-bg);
+    color: var(--tm-success-text);
+}
+
+.badge-danger {
+    background: var(--tm-danger-bg);
+    color: var(--tm-danger-text);
+}
+
+.badge-warning {
+    background: var(--tm-warning-bg);
+    color: var(--tm-warning-text);
+}
+
+.badge-info {
+    background: var(--tm-info-bg);
+    color: var(--tm-info-text);
+}
+
+.badge-secondary {
+    background: var(--tm-secondary-bg);
+    color: var(--tm-secondary-text);
+}
+
+/* Buttons */
+.btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: var(--tm-accent-primary);
+    color: var(--tm-text-white);
+}
+
+.btn-primary:hover {
+    background: var(--tm-accent-dark);
+}
+
+.btn-danger {
+    background: var(--tm-danger-primary);
+    color: var(--tm-text-white);
+}
+
+.btn-danger:hover {
+    background: var(--tm-danger-hover);
+}
+
+.btn-success {
+    background: var(--tm-success-primary);
+    color: var(--tm-text-white);
+}
+
+.btn-success:hover {
+    background: var(--tm-success-hover);
+}
+
+.btn-sm {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+/* States */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--tm-text-muted);
+}
+
+.empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+.error {
+    background: var(--tm-danger-bg);
+    border: 1px solid var(--tm-danger-border);
+    color: var(--tm-danger-text);
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+/* Statistics grid */
+.stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: var(--tm-bg-secondary);
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: var(--tm-shadow-sm);
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--tm-text-primary);
+    margin-bottom: 5px;
+}
+
+.stat-label {
+    color: var(--tm-text-secondary);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Task description small text */
+.task-description {
+    color: var(--tm-text-secondary);
+}
+
+/* Schedule code block */
+.schedule-code {
+    font-size: 12px;
+}

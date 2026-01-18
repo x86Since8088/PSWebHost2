@@ -37,11 +37,11 @@ if ([string]::IsNullOrEmpty($email)) {
     $isSessionValid = Validate-UserSession -Context $Context -SessionID $sessionID -Verbose
     if ($isSessionValid -and $SessionData.UserID) {
         $jsonResponse = New-JsonResponse -status 'success' -message "You are already logged in as $($SessionData.UserID)."
-        context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -String $jsonResponse -ContentType "application/json"
     } else {
         # Return email form
         $jsonResponse = New-JsonResponse -status 'continue' -message $emailForm
-        context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -String $jsonResponse -ContentType "application/json"
     }
 } else {
     # --- Step 2: Email submitted ---
@@ -53,7 +53,7 @@ if ([string]::IsNullOrEmpty($email)) {
         $errorMessage = "<p class=""error"">$($isEmailValid.Message)</p>" + $emailForm
         $jsonResponse = New-JsonResponse -status 'fail' -message $errorMessage
         Write-Verbose "Post"
-        context_reponse -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
         return
     }
 
@@ -64,7 +64,7 @@ if ([string]::IsNullOrEmpty($email)) {
         $errorMessage = "<p class='error'>$($lockoutStatus.Message)</p>" + $emailForm
         $jsonResponse = New-JsonResponse -status 'fail' -message $errorMessage
         $Response.AddHeader("Retry-After", $retryAfter)
-        context_reponse -Response $Response -StatusCode 429 -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -StatusCode 429 -String $jsonResponse -ContentType "application/json"
         return
     }
 
@@ -80,11 +80,11 @@ if ([string]::IsNullOrEmpty($email)) {
         $buttonsHtml += "</div>"
         
         $jsonResponse = New-JsonResponse -status 'continue' -message $buttonsHtml
-        context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -String $jsonResponse -ContentType "application/json"
     } else {
         PSWebLogon -ProviderName "GetAuthToken" -Result "Fail" -Request $Request -UserID $email
         $errorMessage = '<p class="error">No user found with that email address, or no authentication methods configured.</p>' + $emailForm
         $jsonResponse = New-JsonResponse -status 'fail' -message $errorMessage
-        context_reponse -Response $Response -StatusCode 404 -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -StatusCode 404 -String $jsonResponse -ContentType "application/json"
     }
 }

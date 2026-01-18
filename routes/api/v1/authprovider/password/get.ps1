@@ -5,4 +5,4 @@ param (
 )
 
 $loginHtmlPath = Join-Path $PSScriptRoot 'login.html'
-context_reponse -Response $Response -Path $loginHtmlPath
+context_response -Response $Response -Path $loginHtmlPath

@@ -1,0 +1,69 @@
+# {{AppName}} Scheduled Tasks Configuration
+#
+# This file defines the default task configuration for {{AppName}}.
+# Tasks are evaluated by the PSWebHost task engine every minute.
+#
+# Runtime overrides can be configured in PsWebHost_Data/config/tasks.json
+# through the Task Management UI.
+
+tasks:
+  - name: {{AppName}}_ExampleTask
+    description: Example scheduled task for {{AppName}}
+    enabled: false
+    schedule:
+      cron: "*/5 * * * *"  # Every 5 minutes (minute hour day month weekday)
+    script:
+      path: apps/{{AppName}}/tasks/example-task.ps1
+      type: file
+    termination:
+      maxRuntime: 300        # Maximum 5 minutes runtime
+      maxFailures: 3         # Stop after 3 consecutive failures
+      killOnTimeout: true    # Kill if exceeds maxRuntime
+    notifications:
+      onFailure: true
+      onSuccess: false
+    environment:
+      APP_NAME: "{{AppName}}"
+      LOG_LEVEL: "INFO"
+    tags:
+      - maintenance
+      - {{AppName}}
+
+  # - name: {{AppName}}_DataCleanup
+  #   description: Clean up old data files
+  #   enabled: false
+  #   schedule:
+  #     cron: "0 2 * * *"  # Daily at 2 AM
+  #   script:
+  #     path: apps/{{AppName}}/tasks/cleanup-data.ps1
+  #     type: file
+  #   termination:
+  #     maxRuntime: 600      # Maximum 10 minutes
+  #     maxFailures: 2
+  #     killOnTimeout: true
+  #   environment:
+  #     RETENTION_DAYS: "30"
+  #   tags:
+  #     - cleanup
+  #     - maintenance
+
+# Cron Expression Format:
+# ┌───────────── minute (0 - 59)
+# │ ┌───────────── hour (0 - 23)
+# │ │ ┌───────────── day of month (1 - 31)
+# │ │ │ ┌───────────── month (1 - 12)
+# │ │ │ │ ┌───────────── day of week (0 - 6) (Sunday to Saturday)
+# │ │ │ │ │
+# * * * * *
+#
+# Special characters:
+# * : Any value
+# */N : Every N units (e.g., */5 = every 5 minutes)
+# N : Specific value (e.g., 15 = at minute 15)
+#
+# Examples:
+# "0 * * * *"     - Every hour at minute 0
+# "*/15 * * * *"  - Every 15 minutes
+# "0 0 * * *"     - Daily at midnight
+# "0 2 * * 0"     - Weekly on Sunday at 2 AM
+# "0 0 1 * *"     - Monthly on the 1st at midnight

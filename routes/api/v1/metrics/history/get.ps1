@@ -40,7 +40,7 @@ try {
                 status = 'error'
                 message = "Invalid datetime format. Use ISO 8601 format (e.g., 2026-01-06T10:00:00)"
             } | ConvertTo-Json
-            context_reponse -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
+            context_response -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
             return
         }
     }
@@ -244,7 +244,7 @@ ORDER BY Timestamp ASC;
         data = $metricsData
     } | ConvertTo-Json -Depth 10 -Compress
 
-    context_reponse -Response $Response -String $successResponse -ContentType "application/json"
+    context_response -Response $Response -String $successResponse -ContentType "application/json"
 
 } catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'Metrics' -Message "Error in metrics history API: $($_.Exception.Message)"
@@ -255,5 +255,5 @@ ORDER BY Timestamp ASC;
         timeRange = $timeRange
         starting = $starting
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
 }

@@ -48,10 +48,10 @@ $completedSession = Invoke-TestToken -SessionID $sessionID -State 'completed' -V
      if ($redirectTo) {
          [string[]]$redirectUrls = $redirectTo.Split(',') | ForEach-Object { [System.Web.HttpUtility]::UrlDecode($_) }
          $finalRedirectUrl = $redirectUrls[0]
-         context_reponse -Response $Response -StatusCode 302 -RedirectLocation $finalRedirectUrl
+         context_response -Response $Response -StatusCode 302 -RedirectLocation $finalRedirectUrl
      } else {
          # If no redirect is specified, return a success message
-         context_reponse -Response $Response -StatusCode 200 -String "Login complete. Access token granted."
+         context_response -Response $Response -StatusCode 200 -String "Login complete. Access token granted."
      }
      return
  } else {
@@ -60,6 +60,6 @@ $completedSession = Invoke-TestToken -SessionID $sessionID -State 'completed' -V
           Write-PSWebHostLog -Severity 'Warning' -Category 'Auth' -Message "Completed login flow found for SessionID '$sessionID' but no valid UserID present; cannot grant access token."
      }
      # Redirect back to the beginning of the login process.
-     context_reponse -Response $Response -StatusCode 302 -RedirectLocation "/spa?error=LoginFlowDisabled"
+     context_response -Response $Response -StatusCode 302 -RedirectLocation "/spa?error=LoginFlowDisabled"
      return
  }

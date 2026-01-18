@@ -1,1 +1,1 @@
-{"RequireAuth":true,"AllowAnonymous":false}
+{"Allowed_Roles":["authenticated"]}

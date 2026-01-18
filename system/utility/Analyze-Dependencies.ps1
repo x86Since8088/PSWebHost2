@@ -64,7 +64,7 @@ Write-Host ""
 # Define core framework components
 $CoreFunctions = @(
     # PSWebHost_Support
-    'Process-HttpRequest', 'context_reponse', 'Get-RequestBody', 'Resolve-RouteScriptPath',
+    'Process-HttpRequest', 'context_response', 'Get-RequestBody', 'Resolve-RouteScriptPath',
     'New-PSWebHostResult', 'Validate-UserSession', 'Sync-SessionStateToDatabase',
     'Get-PSWebSessions', 'ConvertTo-CompressedBase64',
 

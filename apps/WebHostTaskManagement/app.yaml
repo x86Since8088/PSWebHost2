@@ -1,0 +1,28 @@
+name: WebHost Task Management
+version: 1.0.0
+description: Centralized task scheduling and management UI with enable/disable, duplicate, copy, and delete operations
+author: PSWebHost Team
+category: system
+subcategory: administration
+enabled: true
+routePrefix: /apps/WebHostTaskManagement
+
+# Module to load on app initialization
+modules:
+  - PSWebHost_TaskManagement
+
+# Dependencies
+dependencies:
+  - PSWebHost_Support
+  - PSWebHost_Tasks
+
+# Required roles to access this app
+requiredRoles:
+  - system_admin
+
+# Configuration
+config:
+  defaultTaskTimeout: 600
+  maxConcurrentTasks: 10
+  taskHistoryRetention: 30  # days
+  enableNotifications: true

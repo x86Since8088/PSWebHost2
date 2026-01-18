@@ -1,5 +1,0 @@
-{
-  "requireAuthentication": true,
-  "allowedRoles": ["debug", "admin", "system_admin"],
-  "description": "Unit Test Runner - Restricted to debug role users"
-}

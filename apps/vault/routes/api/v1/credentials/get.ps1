@@ -104,7 +104,7 @@ try {
     }
 
     $jsonResponse = $result | ConvertTo-Json -Depth 5
-    context_reponse -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'Vault' -Message "Error listing credentials: $($_.Exception.Message)"
@@ -112,5 +112,5 @@ catch {
         success = $false
         error = $_.Exception.Message
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
 }

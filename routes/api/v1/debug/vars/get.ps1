@@ -35,7 +35,7 @@ try {
         } | Select-Object Name, Type
 
         $json = $varList | ConvertTo-Json -Depth 2 -Compress
-        context_reponse -Response $Response -String $json -ContentType "application/json"
+        context_response -Response $Response -String $json -ContentType "application/json"
         return
     }
 
@@ -92,7 +92,7 @@ try {
                     output = $result
                 } | ConvertTo-Json -Compress
 
-                context_reponse -Response $Response -String $json -ContentType "application/json"
+                context_response -Response $Response -String $json -ContentType "application/json"
             } else {
                 # Timeout - get partial results
                 $partial = Receive-Job -Job $job
@@ -105,7 +105,7 @@ try {
                     output = if ($partial) { $partial } else { 'No data received before timeout' }
                 } | ConvertTo-Json -Compress
 
-                context_reponse -Response $Response -StatusCode 200 -String $json -ContentType "application/json"
+                context_response -Response $Response -StatusCode 200 -String $json -ContentType "application/json"
             }
         } finally {
             # Ensure job is cleaned up even if client disconnects
@@ -202,7 +202,7 @@ try {
                     $json = $results | ConvertTo-Json -Depth 5 -Compress
                     if ($json -in @('null', '')) { $json = '[]' }
 
-                    context_reponse -Response $Response -String $json -ContentType "application/json"
+                    context_response -Response $Response -String $json -ContentType "application/json"
                     return
                 }
 
@@ -216,7 +216,7 @@ try {
                         message = "Job failed: $error"
                     } | ConvertTo-Json -Compress
 
-                    context_reponse -Response $Response -StatusCode 500 -String $json -ContentType "application/json"
+                    context_response -Response $Response -StatusCode 500 -String $json -ContentType "application/json"
                     return
                 }
 
@@ -242,7 +242,7 @@ try {
                 } | ConvertTo-Json -Compress
             }
 
-            context_reponse -Response $Response -StatusCode 200 -String $json -ContentType "application/json"
+            context_response -Response $Response -StatusCode 200 -String $json -ContentType "application/json"
         } finally {
             # Ensure job is cleaned up even if client disconnects
             if ($null -ne $job -and (Get-Job -Id $job.Id -ErrorAction SilentlyContinue)) {
@@ -260,7 +260,7 @@ try {
     $json = @{
         error = "Unknown format '$format'. Valid formats: list, table, detailed"
     } | ConvertTo-Json -Compress
-    context_reponse -Response $Response -StatusCode 400 -String $json -ContentType "application/json"
+    context_response -Response $Response -StatusCode 400 -String $json -ContentType "application/json"
 
 } catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'DebugVars' -Message "Error in /api/v1/debug/vars: $($_.Exception.Message)"
@@ -268,5 +268,5 @@ try {
     # Generate detailed error report based on user role
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
 
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

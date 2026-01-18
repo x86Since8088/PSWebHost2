@@ -22,4 +22,4 @@ $elementConfig = @{
 }
 
 $jsonResponse = $elementConfig | ConvertTo-Json -Depth 10
-context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
+context_response -Response $Response -String $jsonResponse -ContentType "application/json"

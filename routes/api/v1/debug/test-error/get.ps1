@@ -47,7 +47,7 @@ try {
         status = 'success'
         message = 'No error occurred'
     } | ConvertTo-Json -Compress
-    context_reponse -Response $Response -StatusCode 200 -String $successResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String $successResponse -ContentType "application/json"
 
 } catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'TestError' -Message "Test error triggered: $($_.Exception.Message)"
@@ -55,5 +55,5 @@ try {
     # Generate detailed error report based on user role
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
 
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

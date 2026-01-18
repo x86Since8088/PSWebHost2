@@ -9,7 +9,7 @@ $userData = $body | ConvertFrom-Json
 
 # Basic validation
 if (-not $userData.UserName) {
-    context_reponse -Response $Response -StatusCode 400 -String "UserName is required."
+    context_response -Response $Response -StatusCode 400 -String "UserName is required."
     return
 }
 
@@ -25,4 +25,4 @@ $newUser = @{
 New-PSWebSQLiteData -File "pswebhost.db" -Table "Users" -Data $newUser
 
 $responseString = $newUser | ConvertTo-Json -Depth 5
-context_reponse -Response $Response -String $responseString -ContentType "application/json"
+context_response -Response $Response -String $responseString -ContentType "application/json"

@@ -6,7 +6,7 @@ param (
 
 $userID = $Request.QueryString["UserID"]
 if (-not $userID) {
-    context_reponse -Response $Response -StatusCode 400 -String "UserID is required."
+    context_response -Response $Response -StatusCode 400 -String "UserID is required."
     return
 }
 
@@ -23,4 +23,4 @@ if ($userToDelete) {
 # Now delete the main user record
 Invoke-PSWebSQLiteNonQuery -File "pswebhost.db" -Verb 'DELETE' -TableName 'Users' -Where "UserID COLLATE NOCASE = '$safeUserID'"
 
-context_reponse -Response $Response -String "User deleted successfully."
+context_response -Response $Response -String "User deleted successfully."

@@ -19,7 +19,7 @@ $redirectTo = $Request.QueryString["RedirectTo"]
 if ([string]::IsNullOrEmpty($state)) {
     $state = (New-Guid).Guid
     $newUrl = "$($Request.Url.PathAndQuery)&state=$state"
-    context_reponse -Response $Response -StatusCode 302 -RedirectLocation $newUrl
+    context_response -Response $Response -StatusCode 302 -RedirectLocation $newUrl
     return
 }
 
@@ -28,7 +28,7 @@ $ValidateUserSession = Validate-UserSession -Context $Context -Verbose
 Write-Verbose "`tValidateUserSession: $($ValidateUserSession)"
 
 if ($ValidateUserSession) {
-    context_reponse -Response $Response -StatusCode 302 -RedirectLocation "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
+    context_response -Response $Response -StatusCode 302 -RedirectLocation "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
     return
 } else {
     # Initiate a record for this authentication attempt
@@ -39,10 +39,10 @@ $provider = $Request.QueryString["Provider"]
 if (-not [string]::IsNullOrEmpty($provider)) {
     # A specific provider was requested, redirect to it.
     $redirectUrl = "/api/v1/authprovider/$provider?state=$state&RedirectTo=$redirectTo"
-    context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
+    context_response -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
     return
 }
 
 # Serve the getauthtoken.html file.
 $authHtmlPath = Join-Path $PSScriptRoot 'getauthtoken.html'
-context_reponse -Response $Response -Path $authHtmlPath
+context_response -Response $Response -Path $authHtmlPath

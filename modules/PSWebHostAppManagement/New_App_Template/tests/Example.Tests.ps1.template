@@ -1,0 +1,107 @@
+#Requires -Version 7
+
+<#
+.SYNOPSIS
+    Pester tests for {{AppName}}
+
+.DESCRIPTION
+    Example unit tests using Pester framework
+#>
+
+BeforeAll {
+    # Import the module
+    $modulePath = Join-Path $PSScriptRoot "..\modules\{{ModuleName}}\{{ModuleName}}.psm1"
+    Import-Module $modulePath -Force
+
+    # Setup test state
+    $Global:PSWebServer = @{
+        DataRoot = $TestDrive
+        '{{AppName}}' = [hashtable]::Synchronized(@{
+            DataPath = Join-Path $TestDrive "apps\{{AppName}}"
+            Initialized = Get-Date
+            Stats = @{
+                OperationCount = 0
+            }
+        })
+    }
+}
+
+Describe "{{ModuleName}} Module Tests" {
+
+    Context "Module Import" {
+        It "Should export expected functions" {
+            $commands = Get-Command -Module {{ModuleName}}
+            $commands | Should -Not -BeNullOrEmpty
+            $commands.Name | Should -Contain 'Get-{{AppName}}Status'
+        }
+    }
+
+    Context "Get-{{AppName}}Status" {
+        It "Should return status object" {
+            $status = Get-{{AppName}}Status
+            $status | Should -Not -BeNullOrEmpty
+            $status.Status | Should -Be 'Operational'
+        }
+
+        It "Should include version information" {
+            $status = Get-{{AppName}}Status
+            $status.Version | Should -Be '{{AppVersion}}'
+        }
+    }
+
+    Context "Invoke-{{AppName}}Operation" {
+        It "Should execute Example operation" {
+            $result = Invoke-{{AppName}}Operation -OperationType 'Example' -Parameters @{ test = 'value' }
+            $result.Success | Should -Be $true
+        }
+
+        It "Should increment operation counter" {
+            $beforeCount = $Global:PSWebServer['{{AppName}}'].Stats.OperationCount
+            Invoke-{{AppName}}Operation -OperationType 'Test'
+            $afterCount = $Global:PSWebServer['{{AppName}}'].Stats.OperationCount
+            $afterCount | Should -BeGreaterThan $beforeCount
+        }
+
+        It "Should throw on invalid operation type" {
+            { Invoke-{{AppName}}Operation -OperationType 'InvalidOperation' } | Should -Throw
+        }
+    }
+
+    Context "Data Operations" {
+        BeforeEach {
+            # Ensure data directory exists
+            $dataPath = $Global:PSWebServer['{{AppName}}'].DataPath
+            if (-not (Test-Path $dataPath)) {
+                New-Item -Path $dataPath -ItemType Directory -Force | Out-Null
+            }
+        }
+
+        It "Should save data" {
+            $testData = @{ key = 'value'; number = 42 }
+            Set-{{AppName}}Data -DataType 'test' -Data $testData
+
+            $dataFile = Join-Path $Global:PSWebServer['{{AppName}}'].DataPath "test.json"
+            $dataFile | Should -Exist
+        }
+
+        It "Should retrieve saved data" {
+            $testData = @{ key = 'value'; number = 42 }
+            Set-{{AppName}}Data -DataType 'test2' -Data $testData
+
+            $retrieved = Get-{{AppName}}Data -DataType 'test2'
+            $retrieved | Should -Not -BeNullOrEmpty
+            $retrieved.key | Should -Be 'value'
+            $retrieved.number | Should -Be 42
+        }
+
+        It "Should return null for non-existent data" {
+            $result = Get-{{AppName}}Data -DataType 'nonexistent'
+            $result | Should -BeNullOrEmpty
+        }
+    }
+}
+
+AfterAll {
+    # Cleanup
+    Remove-Module {{ModuleName}} -Force -ErrorAction SilentlyContinue
+}

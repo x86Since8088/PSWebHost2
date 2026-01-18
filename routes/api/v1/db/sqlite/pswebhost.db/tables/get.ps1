@@ -10,4 +10,4 @@ $query = "SELECT name FROM sqlite_master WHERE type='table';"
 $tables = Get-PSWebSQLiteData -File $dbFile -Query $query
 
 $jsonData = $tables | ConvertTo-Json
-context_reponse -Response $Response -String $jsonData -ContentType "application/json"
+context_response -Response $Response -String $jsonData -ContentType "application/json"

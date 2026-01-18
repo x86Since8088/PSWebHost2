@@ -1,0 +1,26 @@
+# {{AppName}} App Menu
+# {{AppDescription}}
+
+- Name: {{AppName}}
+  parent: Apps\{{AppName}}
+  url: /apps/{{AppName}}/api/v1/ui/elements/{{AppName}}-home
+  hover_description: {{AppDescription}}
+  icon: grid
+  tags:
+  - {{AppName}}
+  - app
+
+# Additional menu items can be added here
+# Example:
+# - Name: Settings
+#   parent: Apps\{{AppName}}
+#   url: /apps/{{AppName}}/api/v1/ui/elements/settings
+#   hover_description: Configure {{AppName}} settings
+#   icon: cog
+#   tags:
+#   - settings
+
+# To place items in different menu sections, use custom parent paths:
+# parent: System Management\WebHost  (for system-level tools)
+# parent: Admin Tools                (for administrative utilities)
+# parent: Apps\{{AppName}}          (default - creates submenu under Apps)

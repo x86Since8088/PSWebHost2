@@ -78,7 +78,7 @@ try {
 
     # Return as JSON
     $jsonResponse = $responseData | ConvertTo-Json -Depth 5 -Compress
-    context_reponse -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
 
 } catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'SystemLog' -Message "Error in system-log GET: $($_.Exception.Message)"
@@ -86,5 +86,5 @@ try {
     # Generate detailed error report based on user role
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
 
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

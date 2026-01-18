@@ -15,26 +15,6 @@
     tags:
     - map
     - geo
-  - Name: Server Load
-    url: /api/v1/ui/elements/server-heatmap
-    roles:
-    - authenticated
-    tags:
-    - server
-    - monitoring
-  - url: /api/v1/ui/elements/event-stream
-    Name: Real-time Events
-    roles:
-    - authenticated
-    tags:
-    - events
-    - real-time
-  - url: /api/v1/ui/elements/file-explorer
-    Name: File Explorer
-    roles:
-    - authenticated
-    tags:
-    - files
   - url: /api/v1/ui/elements/system-log
     Name: System Log
     roles:
@@ -62,14 +42,6 @@
       tags:
       - docs
       - architecture
-- Name: Site Admin Menu
-  roles:
-  - site_admin
-  collapsed: true
-  children:
-  - Name: User Management
-    url: /api/v1/ui/elements/admin/users-management
-    hover_description: Administer site users.
 - Name: System Admin Menu
   roles:
   - system_admin
@@ -93,15 +65,6 @@
   - system_admin
   collapsed: true
   children:
-  - Name: Unit Test Runner
-    url: /api/v1/ui/elements/unit-test-runner
-    hover_description: Run in-browser unit tests for PSWebHost components and libraries.
-    roles:
-    - debug
-    tags:
-    - debug
-    - testing
-    - unit-tests
   - Name: Test Error Modals
     url: /public/error-modal-demo.html
     hover_description: Test the error modal system with different user roles.
@@ -122,13 +85,6 @@
     tags:
     - debug
     - variables
-  - Name: Job Status
-    url: /api/v1/ui/elements/job-status
-    hover_description: View background job status and details.
-    tags:
-    - debug
-    - jobs
-    - monitoring
 - Name: System Management
   hover_description: System administration and configuration tools.
   roles:
@@ -147,7 +103,7 @@
       - settings
       - configuration
     - Name: Apps
-      url: /api/v1/ui/elements/apps-manager
+      url: /apps/WebHostAppManager/api/v1/ui/elements/apps-manager
       hover_description: Manage installed PSWebHost apps.
       tags:
       - apps
@@ -158,6 +114,13 @@
       tags:
       - roles
       - permissions
+      - security
+    - Name: User Management
+      url: /api/v1/ui/elements/admin/users-management
+      hover_description: Administer site users and accounts.
+      tags:
+      - users
+      - accounts
       - security
   - Name: Nodes
     hover_description: Manage linked PSWebHost instances.

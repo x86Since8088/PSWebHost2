@@ -29,4 +29,4 @@ if ($userId) {
 }
 
 $responseJson = $responseObj | ConvertTo-Json -Depth 5
-context_reponse -Response $Response -String $responseJson -ContentType "application/json"
+context_response -Response $Response -String $responseJson -ContentType "application/json"

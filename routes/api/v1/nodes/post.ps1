@@ -77,7 +77,7 @@ try {
     Write-PSWebHostLog -Severity 'Info' -Category 'Nodes' -Message "Registered new node: $($data.guid) at $($data.url)"
 
     $jsonResponse = $result | ConvertTo-Json -Depth 3
-    context_reponse -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'Nodes' -Message "Error registering node: $($_.Exception.Message)"
@@ -85,5 +85,5 @@ catch {
         success = $false
         error = $_.Exception.Message
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
 }

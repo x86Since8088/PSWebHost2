@@ -1,0 +1,216 @@
+#Requires -Version 7
+
+<#
+.SYNOPSIS
+    {{AppName}} PowerShell Module
+
+.DESCRIPTION
+    Core functionality for the {{AppName}} PSWebHost application.
+
+.NOTES
+    Module: {{ModuleName}}
+    Author: {{AppAuthor}}
+    Version: {{AppVersion}}
+    Created: {{CurrentDate}}
+#>
+
+#region Initialization
+
+function Initialize-{{AppName}} {
+    <#
+    .SYNOPSIS
+        Initializes the {{AppName}} system
+
+    .DESCRIPTION
+        Sets up necessary state, connections, and resources for {{AppName}}
+    #>
+    [CmdletBinding()]
+    param()
+
+    $MyTag = '[{{ModuleName}}:Initialize]'
+
+    Write-Verbose "$MyTag Initializing {{AppName}}..."
+
+    # Initialize state
+    if (-not $Global:PSWebServer.ContainsKey('{{AppName}}')) {
+        $Global:PSWebServer['{{AppName}}'] = [hashtable]::Synchronized(@{
+            Initialized = Get-Date
+            Stats = @{
+                OperationCount = 0
+            }
+        })
+    }
+
+    Write-Verbose "$MyTag Initialization complete"
+}
+
+#endregion
+
+#region Core Functions
+
+function Get-{{AppName}}Status {
+    <#
+    .SYNOPSIS
+        Gets the current status of {{AppName}}
+
+    .DESCRIPTION
+        Returns status information, statistics, and health metrics
+    #>
+    [CmdletBinding()]
+    param()
+
+    $appState = $Global:PSWebServer['{{AppName}}']
+
+    return [PSCustomObject]@{
+        Status = 'Operational'
+        Initialized = $appState.Initialized
+        Version = '{{AppVersion}}'
+        OperationCount = $appState.Stats.OperationCount
+    }
+}
+
+function Invoke-{{AppName}}Operation {
+    <#
+    .SYNOPSIS
+        Performs a core operation for {{AppName}}
+
+    .DESCRIPTION
+        Example function demonstrating app-specific functionality
+
+    .PARAMETER OperationType
+        Type of operation to perform
+
+    .PARAMETER Parameters
+        Operation-specific parameters
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('Example', 'Test', 'Process')]
+        [string]$OperationType,
+
+        [hashtable]$Parameters = @{}
+    )
+
+    $MyTag = '[{{ModuleName}}:Operation]'
+
+    Write-Verbose "$MyTag Executing operation: $OperationType"
+
+    try {
+        switch ($OperationType) {
+            'Example' {
+                # Implement example operation
+                $result = @{
+                    Success = $true
+                    Message = 'Example operation completed'
+                    Data = $Parameters
+                }
+            }
+            'Test' {
+                # Implement test operation
+                $result = @{
+                    Success = $true
+                    Message = 'Test operation completed'
+                }
+            }
+            'Process' {
+                # Implement processing operation
+                $result = @{
+                    Success = $true
+                    Message = 'Processing completed'
+                }
+            }
+        }
+
+        # Update statistics
+        $Global:PSWebServer['{{AppName}}'].Stats.OperationCount++
+        $Global:PSWebServer['{{AppName}}'].Stats.LastOperation = Get-Date
+
+        return $result
+
+    } catch {
+        Write-Error "$MyTag Operation failed: $_"
+        throw
+    }
+}
+
+#endregion
+
+#region Utility Functions
+
+function Get-{{AppName}}Data {
+    <#
+    .SYNOPSIS
+        Retrieves data from {{AppName}} storage
+
+    .DESCRIPTION
+        Loads and returns data from the app's data directory
+
+    .PARAMETER DataType
+        Type of data to retrieve
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$DataType
+    )
+
+    $dataPath = $Global:PSWebServer['{{AppName}}'].DataPath
+
+    # Implement data retrieval logic here
+    $dataFile = Join-Path $dataPath "$DataType.json"
+
+    if (Test-Path $dataFile) {
+        return Get-Content -Path $dataFile -Raw | ConvertFrom-Json
+    } else {
+        Write-Warning "Data file not found: $dataFile"
+        return $null
+    }
+}
+
+function Set-{{AppName}}Data {
+    <#
+    .SYNOPSIS
+        Saves data to {{AppName}} storage
+
+    .DESCRIPTION
+        Persists data to the app's data directory
+
+    .PARAMETER DataType
+        Type of data to save
+
+    .PARAMETER Data
+        Data object to save
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$DataType,
+
+        [Parameter(Mandatory)]
+        [object]$Data
+    )
+
+    $dataPath = $Global:PSWebServer['{{AppName}}'].DataPath
+    $dataFile = Join-Path $dataPath "$DataType.json"
+
+    # Ensure directory exists
+    $dataDir = Split-Path $dataFile -Parent
+    if (-not (Test-Path $dataDir)) {
+        New-Item -Path $dataDir -ItemType Directory -Force | Out-Null
+    }
+
+    # Save data
+    $Data | ConvertTo-Json -Depth 10 | Set-Content -Path $dataFile
+}
+
+#endregion
+
+# Export module members
+Export-ModuleMember -Function @(
+    'Initialize-{{AppName}}',
+    'Get-{{AppName}}Status',
+    'Invoke-{{AppName}}Operation',
+    'Get-{{AppName}}Data',
+    'Set-{{AppName}}Data'
+)

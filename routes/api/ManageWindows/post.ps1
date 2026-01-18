@@ -50,4 +50,4 @@ if (-not $userId) {
 
 # 4. Send Centralized Response
 $responseString = $responseObject | ConvertTo-Json
-context_reponse -Response $Response -StatusCode $statusCode -String $responseString -ContentType "application/json"
+context_response -Response $Response -StatusCode $statusCode -String $responseString -ContentType "application/json"

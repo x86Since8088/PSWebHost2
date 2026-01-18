@@ -1,0 +1,7 @@
+{
+  "Allowed_Roles": [
+    "authenticated",
+    "admin",
+    "system_admin"
+  ]
+}

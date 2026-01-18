@@ -924,6 +924,113 @@ function Remove-PSWebHostRoleAssignment {
     Invoke-PSWebSQLiteNonQuery -File $dbFile -Query $query
 }
 
+function Get-PSWebHostRoleAssignment {
+    <#
+    .SYNOPSIS
+        Gets role assignments from PSWebHost database.
+
+    .DESCRIPTION
+        Retrieves role assignments with optional filtering by UserID, Email, Role, or lists all assignments.
+
+    .PARAMETER ListAll
+        Lists all role assignments in the system.
+
+    .PARAMETER UserID
+        Filter by specific UserID (supports both UserID and Email).
+
+    .PARAMETER Email
+        Filter by user email address.
+
+    .PARAMETER Role
+        Filter by specific role name.
+
+    .EXAMPLE
+        Get-PSWebHostRoleAssignment -ListAll
+        Lists all role assignments.
+
+    .EXAMPLE
+        Get-PSWebHostRoleAssignment -UserID "025b86f6-bbc4-40ba-a38a-e49c8013844e"
+        Gets all roles for a specific user by ID.
+
+    .EXAMPLE
+        Get-PSWebHostRoleAssignment -Email "test@localhost"
+        Gets all roles for a specific user by email.
+
+    .EXAMPLE
+        Get-PSWebHostRoleAssignment -Role "system_admin"
+        Gets all users with the system_admin role.
+
+    .EXAMPLE
+        Get-PSWebHostRoleAssignment -UserID "test@localhost" -Role "admin"
+        Checks if a specific user has a specific role.
+    #>
+    [cmdletbinding(DefaultParameterSetName='ListAll')]
+    param(
+        [Parameter(ParameterSetName='ListAll')]
+        [switch]$ListAll,
+
+        [Parameter(ParameterSetName='ByUser')]
+        [Parameter(ParameterSetName='ByUserAndRole')]
+        [string]$UserID,
+
+        [Parameter(ParameterSetName='ByEmail')]
+        [Parameter(ParameterSetName='ByEmailAndRole')]
+        [string]$Email,
+
+        [Parameter(ParameterSetName='ByRole')]
+        [Parameter(ParameterSetName='ByUserAndRole')]
+        [Parameter(ParameterSetName='ByEmailAndRole')]
+        [string]$Role
+    )
+
+    $MyTag = "[Get-PSWebHostRoleAssignment]"
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
+
+    # Build query based on parameters
+    $query = "SELECT r.PrincipalID, r.PrincipalType, r.RoleName, u.Email, u.ID as UserGUID FROM PSWeb_Roles r LEFT JOIN PSWeb_Users u ON r.PrincipalID = u.ID OR r.PrincipalID = u.Email"
+    $whereConditions = @()
+
+    if ($UserID) {
+        $safeUserID = Sanitize-SqlQueryString -String $UserID
+        $whereConditions += "(r.PrincipalID COLLATE NOCASE = '$safeUserID' OR u.ID COLLATE NOCASE = '$safeUserID' OR u.Email COLLATE NOCASE = '$safeUserID')"
+    }
+
+    if ($Email) {
+        $safeEmail = Sanitize-SqlQueryString -String $Email
+        $whereConditions += "(u.Email COLLATE NOCASE = '$safeEmail' OR r.PrincipalID COLLATE NOCASE = '$safeEmail')"
+    }
+
+    if ($Role) {
+        $safeRole = Sanitize-SqlQueryString -String $Role
+        $whereConditions += "r.RoleName COLLATE NOCASE = '$safeRole'"
+    }
+
+    if ($whereConditions.Count -gt 0) {
+        $query += " WHERE " + ($whereConditions -join " AND ")
+    }
+
+    $query += " ORDER BY r.PrincipalID, r.RoleName;"
+
+    Write-Verbose "$MyTag $((Get-Date -f 'yyyyMMdd HH:mm:ss')) Executing query: $query"
+
+    try {
+        $results = Invoke-PSWebSQLiteQuery -File $dbFile -Query $query
+
+        # Format output for better readability
+        $results | ForEach-Object {
+            [PSCustomObject]@{
+                PrincipalID = $_.PrincipalID
+                Email = $_.Email
+                UserGUID = $_.UserGUID
+                PrincipalType = $_.PrincipalType
+                RoleName = $_.RoleName
+            }
+        }
+    } catch {
+        Write-Error "$MyTag Error querying role assignments: $($_.Exception.Message)"
+    }
+}
+
 function Add-PSWebHostGroup {
     [cmdletbinding()]
     param(

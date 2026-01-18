@@ -1,1 +1,1 @@
-{"Allowed_Roles":["unauthenticated"]}
+{"Allowed_Roles":["unauthenticated","authenticated"]}

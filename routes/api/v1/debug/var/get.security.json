@@ -1,3 +1,1 @@
-{
-    "Allowed_Roles": ["authenticated"]
-}
+{"Allowed_Roles":["debug","system_admin"]}

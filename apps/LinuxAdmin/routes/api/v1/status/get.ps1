@@ -16,12 +16,12 @@ try {
         subCategory = 'Linux'
     }
 
-    context_reponse -Response $Response -String ($result | ConvertTo-Json) -ContentType 'application/json' -StatusCode 200
+    context_response -Response $Response -String ($result | ConvertTo-Json) -ContentType 'application/json' -StatusCode 200
 
 } catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'LinuxAdmin' -Message "Error in status endpoint: $($_.Exception.Message)"
 
-    context_reponse -Response $Response -StatusCode 500 -String (@{
+    context_response -Response $Response -StatusCode 500 -String (@{
         error = $_.Exception.Message
     } | ConvertTo-Json) -ContentType 'application/json'
 }

@@ -1,0 +1,181 @@
+Component Registration Audit Report
+Generated: 2026-01-17 11:15:56
+
+Total components: 41
+Compliant: 0
+Issues found: 41
+
+========================================
+Components with Issues
+========================================
+
+
+apps\DockerManager\public\elements\docker-manager\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+apps\DockerManager\public\elements\dockermanager-home\component.js:
+  ❌ Missing safety check: if (!customElements.get('dockermanager-home'))
+  ❌ Missing window.cardComponents registration
+
+apps\KubernetesManager\public\elements\kubernetesmanager-home\component.js:
+  ❌ Missing safety check: if (!customElements.get('kubernetesmanager-home'))
+  ❌ Missing window.cardComponents registration
+
+apps\LinuxAdmin\public\elements\linuxadmin-home\component.js:
+  ❌ Missing safety check: if (!customElements.get('linuxadmin-home'))
+  ❌ Missing window.cardComponents registration
+
+apps\SQLiteManager\public\elements\sqlite-query-editor\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+apps\UI_Uplot\public\elements\area-chart\component.js:
+  ❌ Missing safety check: if (!customElements.get('area-chart'))
+  ⚠️  window.cardComponents registration is not a function
+
+apps\UI_Uplot\public\elements\bar-chart\component.js:
+  ❌ Missing safety check: if (!customElements.get('bar-chart'))
+  ⚠️  window.cardComponents registration is not a function
+
+apps\UI_Uplot\public\elements\heatmap\component.js:
+  ❌ Missing safety check: if (!customElements.get('heat-map'))
+  ⚠️  window.cardComponents registration is not a function
+
+apps\UI_Uplot\public\elements\multi-axis\component.js:
+  ❌ Missing safety check: if (!customElements.get('multi-axis'))
+  ⚠️  window.cardComponents registration is not a function
+
+apps\UI_Uplot\public\elements\scatter-plot\component.js:
+  ❌ Missing safety check: if (!customElements.get('scatter-plot'))
+  ⚠️  window.cardComponents registration is not a function
+
+apps\UI_Uplot\public\elements\time-series\component.js:
+  ❌ Missing safety check: if (!customElements.get('time-series-chart'))
+  ⚠️  window.cardComponents registration is not a function
+
+apps\UI_Uplot\public\elements\uplot-home\component.js:
+  ❌ Missing safety check: if (!customElements.get('uplot-home-component'))
+  ⚠️  window.cardComponents registration is not a function
+
+apps\UnitTests\public\elements\unit-test-runner\component.js:
+  ❌ Missing safety check: if (!customElements.get('unit-test-runner'))
+  ❌ Missing window.cardComponents registration
+
+apps\vault\public\elements\vault-manager\component.js:
+  ❌ Missing safety check: if (!customElements.get('vault-manager'))
+  ❌ Missing window.cardComponents registration
+
+apps\WebHostMetrics\public\elements\server-heatmap\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+apps\WebhostRealtimeEvents\public\elements\realtime-events\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+apps\WebHostTaskManagement\public\elements\task-manager\component.js:
+  ⚠️  window.cardComponents registration is not a function
+
+apps\WindowsAdmin\public\elements\service-control\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+apps\WindowsAdmin\public\elements\task-scheduler\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+apps\WindowsAdmin\public\elements\windowsadmin-home\component.js:
+  ❌ Missing safety check: if (!customElements.get('windowsadmin-home'))
+  ❌ Missing window.cardComponents registration
+
+apps\WSLManager\public\elements\wslmanager-home\component.js:
+  ❌ Missing safety check: if (!customElements.get('wslmanager-home'))
+  ❌ Missing window.cardComponents registration
+
+public\elements\admin\role-management\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\admin\users-management\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\chartjs\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\database-status\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\event-stream\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\file-explorer\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\footer-info\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\help-viewer\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\main-menu\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\markdown-viewer\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\memory-histogram\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\profile\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\realtime-events\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\server-heatmap\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\site-settings\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\system-log\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\system-status\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\unit-test-runner\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\uplot\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+public\elements\world-map\component.js:
+  ⚠️  No customElements.define() found
+  ⚠️  window.cardComponents registration is not a function
+
+
+========================================
+Compliant Components
+========================================
+
+

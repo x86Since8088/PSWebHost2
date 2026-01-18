@@ -59,7 +59,7 @@ try {
     if ($Fail.count -ne 0) {
         write-pswebhostlog -Severity 'Warning' -Category 'Auth' -Message "$MyTag Validation failed for Windows auth POST from $ipAddress. Errors: $($Fail -join '; ')" -Data @{ IPAddress = $ipAddress; Body = $bodyContent } -WriteHost
         $jsonResponse = New-JsonResponse -status 'fail' -message ($Fail -join '<br>')
-        context_reponse -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
         return
     }
     $credential = [System.Management.Automation.PSCredential]::new($username, (ConvertTo-SecureString $password -AsPlainText -Force))
@@ -77,7 +77,7 @@ try {
         $retryAfter = $lockoutStatus.LockedUntil.ToString("o")
         $jsonResponse = New-JsonResponse -status 'fail' -message "<p class='error'>$($lockoutStatus.Message)</p>"
         $Response.AddHeader("Retry-After", $retryAfter)
-        context_reponse -Response $Response -StatusCode 429 -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -StatusCode 429 -String $jsonResponse -ContentType "application/json"
         return
     }
 
@@ -104,7 +104,7 @@ try {
         if (-not $user) {
             Write-Error "$($MyTag) User not found in database for Email: $($UserPrincipalName). User must be registered before Windows authentication."
             $jsonResponse = New-JsonResponse -status 'fail' -message '<p class="error">User not found. Please contact administrator to register your Windows account.</p>'
-            context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
+            context_response -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
             return
         }
         $actualUserID = $user.UserID
@@ -130,7 +130,7 @@ try {
         }
 
         $redirectUrl = "/api/v1/auth/getaccesstoken?state=$state&RedirectTo=$redirectTo"
-        context_reponse -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
+        context_response -Response $Response -StatusCode 302 -RedirectLocation $redirectUrl
     } else {
         # --- On Failure ---
         Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: PSWebLogon -ProviderName ""Windows"" -Result ""Fail"" -Request `$Request -UserID $($username)"
@@ -138,7 +138,7 @@ try {
         Write-Verbose "$($MyTag) $((Get-Date -f 'yyyMMdd HH:mm:ss')) Completed: PSWebLogon"
         
         $jsonResponse = New-JsonResponse -status 'fail' -message '<p class="error">Authentication failed. Please check your credentials.</p>'
-        context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
+        context_response -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
     }
 } catch {
     write-pswebhostlog -Severity 'Error' -Category 'Auth' -Message "$($MyTag) Exception during Windows authentication POST: $($_.Exception.Message)" -Data @{ IPAddress = $ipAddress; Body = $bodyContent } -WriteHost
@@ -147,5 +147,5 @@ try {
     # Generate detailed error report based on user role
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
 
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

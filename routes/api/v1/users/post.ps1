@@ -6,7 +6,7 @@ param (
 
 $userID = $Request.QueryString["UserID"]
 if (-not $userID) {
-    context_reponse -Response $Response -StatusCode 400 -String "UserID is required."
+    context_response -Response $Response -StatusCode 400 -String "UserID is required."
     return
 }
 
@@ -41,4 +41,4 @@ if ($files.profileImage) {
 $safeUserID = Sanitize-SqlQueryString -String $userID
 $user = Get-PSWebSQLiteData -File "pswebhost.db" -Query "SELECT * FROM Users WHERE UserID COLLATE NOCASE = '$safeUserID';"
 $responseString = $user | ConvertTo-Json -Depth 5
-context_reponse -Response $Response -String $responseString -ContentType "application/json"
+context_response -Response $Response -String $responseString -ContentType "application/json"

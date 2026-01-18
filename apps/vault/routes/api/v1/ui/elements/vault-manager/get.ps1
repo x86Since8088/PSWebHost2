@@ -58,10 +58,10 @@ $componentJs
 </html>
 "@
 
-    context_reponse -Response $Response -StatusCode 200 -String $html -ContentType "text/html"
+    context_response -Response $Response -StatusCode 200 -String $html -ContentType "text/html"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'Vault' -Message "Error loading vault manager: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -SessionData $SessionData
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

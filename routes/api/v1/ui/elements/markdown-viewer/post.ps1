@@ -15,7 +15,7 @@ if ([string]::IsNullOrEmpty($filePath)) {
         status = 'error'
         message = 'No file specified. Use ?file=path/to/file.md'
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
     return
 }
 
@@ -36,7 +36,7 @@ if (-not $canEdit) {
         status = 'error'
         message = 'Unauthorized: You do not have permission to edit this file'
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 403 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 403 -String $errorResponse -ContentType "application/json"
     return
 }
 
@@ -59,7 +59,7 @@ if (-not $isAllowed) {
         status = 'error'
         message = "Cannot save to this location. Allowed paths: $($allowedPrefixes -join ', ')"
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 403 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 403 -String $errorResponse -ContentType "application/json"
     return
 }
 
@@ -75,7 +75,7 @@ try {
         status = 'error'
         message = 'Invalid JSON in request body'
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
     return
 }
 
@@ -84,7 +84,7 @@ if (-not $data.content) {
         status = 'error'
         message = 'No content provided'
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 400 -String $errorResponse -ContentType "application/json"
     return
 }
 
@@ -117,11 +117,11 @@ try {
         path = $fullPath
     } | ConvertTo-Json
 
-    context_reponse -Response $Response -String $successResponse -ContentType "application/json"
+    context_response -Response $Response -String $successResponse -ContentType "application/json"
 } catch {
     $errorResponse = @{
         status = 'error'
         message = "Error saving file: $($_.Exception.Message)"
     } | ConvertTo-Json
-    context_reponse -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
 }

@@ -8,6 +8,6 @@ param (
 $projectRoot = $Global:PSWebServer.Project_Root.Path
 $layoutPath = Join-Path $projectRoot "public/layout.json"
 
-# context_reponse will handle the file check, 404 status, and content type automatically.
-context_reponse -Response $Response -Path $layoutPath
+# context_response will handle the file check, 404 status, and content type automatically.
+context_response -Response $Response -Path $layoutPath
 

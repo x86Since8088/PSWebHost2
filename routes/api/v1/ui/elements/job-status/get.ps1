@@ -13,7 +13,7 @@ function New-JsonResponse($status, $message) {
 # Check authentication
 if (-not $sessiondata -or -not $sessiondata.UserID) {
     $jsonResponse = New-JsonResponse -status 'fail' -message 'User not authenticated'
-    context_reponse -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
+    context_response -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
     return
 }
 
@@ -62,7 +62,7 @@ try {
         }
     }
 
-    context_reponse -Response $Response -StatusCode 200 -String $jsonData -ContentType "application/json"
+    context_response -Response $Response -StatusCode 200 -String $jsonData -ContentType "application/json"
 }
 catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'JobStatus' -Message "Error retrieving job status: $($_.Exception.Message)"
@@ -70,5 +70,5 @@ catch {
     # Generate detailed error report based on user role
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
 
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

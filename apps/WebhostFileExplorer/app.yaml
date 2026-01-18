@@ -1,0 +1,37 @@
+name: WebHost File Explorer
+version: 1.0.0
+description: User file management and exploration interface for PSWebHost
+author: PSWebHost Team
+category: utilities
+subcategory: files
+enabled: true
+routePrefix: /apps/WebhostFileExplorer
+
+# No additional modules required
+modules: []
+
+# Dependencies
+dependencies:
+  - PSWebHost_Support
+
+# Required roles to access this app
+requiredRoles:
+  - authenticated
+
+# Features provided by this app
+features:
+  - User-scoped file storage and organization
+  - Hierarchical folder structure browsing
+  - File upload and download
+  - Folder creation and management
+  - File and folder renaming
+  - File and folder deletion
+  - Recursive directory tree view
+  - File metadata (size, modified date)
+
+# Configuration
+config:
+  # File explorer settings
+  maxFileSize: 10485760  # 10MB max file size
+  allowedExtensions: []  # Empty = all allowed
+  maxDepth: 10  # Maximum directory depth

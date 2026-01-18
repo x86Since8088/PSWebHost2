@@ -158,7 +158,7 @@ foreach ($moduleSpec in $modulesToValidate) {
 
     # Tertiary: Fallback to system-wide modules
     if (!$installedModule) {
-        $installedModule = Get-Module -Name $moduleName -ListAvailable
+        $installedModule = Get-Module -Name $moduleName -ListAvailable -All
     }
     $needsDownload = $false
     if (-not $installedModule) {
@@ -167,7 +167,10 @@ foreach ($moduleSpec in $modulesToValidate) {
     } else {
         # If multiple versions are somehow present, take the highest one
         $installedVersion = FixVersionLength -version ($installedModule | Sort-Object -Property Version -Descending | Select-Object -First 1).Version
-
+        $installedVersions = ($installedModule | Sort-Object -Property Version -Descending).Version | ForEach-Object{FixVersionLength -version $_}
+        $InstalledVersionsInRange = $installedVersions | Where-Object{$_.Version -le $VersionMAX -and ($_.Version -ge $VersionMIN)}
+        $InstalledVersionsOutOfRange = $installedVersions | Where-Object{$_.Version -gt $VersionMAX -or ($_.Version -lt $VersionMIN)}
+        
         if (Test-VersionInSpec -Version $installedVersion -RequiredVersion $requiredVersion -VersionMIN $VersionMIN -VersionMAX $VersionMAX) {
             Write-Verbose "	Module '$moduleName' is allowed to use version $installedVersion in versions RequiredVersion '$($requiredVersion -join ', ')' VersionMin '$VersionMIN' VersionMax '$VersionMAX'."
         }

@@ -26,4 +26,4 @@ if ($SessionData -and $SessionData.UserID -and -not $SessionData.Email) {
 }
 
 $jsonResponse = $SessionData | convertto-json -Depth 10
-context_reponse -Response $Response -String $jsonResponse -ContentType "application/json" -StatusCode 200 
+context_response -Response $Response -String $jsonResponse -ContentType "application/json" -StatusCode 200 

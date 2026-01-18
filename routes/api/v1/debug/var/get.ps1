@@ -10,7 +10,7 @@ try {
     $name = $Request.QueryString['name']
     if (-not $name) {
         $json = @{ error = "Missing 'name' parameter" } | ConvertTo-Json -Compress
-        context_reponse -Response $Response -StatusCode 400 -String $json -ContentType "application/json"
+        context_response -Response $Response -StatusCode 400 -String $json -ContentType "application/json"
         return
     }
 
@@ -27,7 +27,7 @@ try {
         $json = @{
             error = "Variable '$name' not found in global scope"
         } | ConvertTo-Json -Compress
-        context_reponse -Response $Response -StatusCode 404 -String $json -ContentType "application/json"
+        context_response -Response $Response -StatusCode 404 -String $json -ContentType "application/json"
         return
     }
 
@@ -43,7 +43,7 @@ try {
         }
 
         $json = $result | ConvertTo-Json -Compress
-        context_reponse -Response $Response -String $json -ContentType "application/json"
+        context_response -Response $Response -String $json -ContentType "application/json"
         return
     }
 
@@ -83,7 +83,7 @@ try {
                     output = $result
                 } | ConvertTo-Json -Compress
 
-                context_reponse -Response $Response -String $json -ContentType "application/json"
+                context_response -Response $Response -String $json -ContentType "application/json"
             } else {
                 Remove-Job -Job $job -Force
                 $job = $null
@@ -94,7 +94,7 @@ try {
                     message = "Operation timed out after $($timeout/1000) seconds"
                 } | ConvertTo-Json -Compress
 
-                context_reponse -Response $Response -StatusCode 200 -String $json -ContentType "application/json"
+                context_response -Response $Response -StatusCode 200 -String $json -ContentType "application/json"
             }
         } finally {
             # Ensure job is cleaned up even if client disconnects
@@ -191,7 +191,7 @@ try {
                     $job = $null
 
                     $json = $result | ConvertTo-Json -Depth 10 -Compress
-                    context_reponse -Response $Response -String $json -ContentType "application/json"
+                    context_response -Response $Response -String $json -ContentType "application/json"
                     return
                 }
 
@@ -205,7 +205,7 @@ try {
                         message = "Job failed: $error"
                     } | ConvertTo-Json -Compress
 
-                    context_reponse -Response $Response -StatusCode 500 -String $json -ContentType "application/json"
+                    context_response -Response $Response -StatusCode 500 -String $json -ContentType "application/json"
                     return
                 }
 
@@ -222,7 +222,7 @@ try {
                 name = $name
             } | ConvertTo-Json -Compress
 
-            context_reponse -Response $Response -StatusCode 200 -String $json -ContentType "application/json"
+            context_response -Response $Response -StatusCode 200 -String $json -ContentType "application/json"
         } finally {
             # Ensure job is cleaned up even if client disconnects
             if ($null -ne $job -and (Get-Job -Id $job.Id -ErrorAction SilentlyContinue)) {
@@ -240,7 +240,7 @@ try {
     $json = @{
         error = "Unknown format '$format'. Valid formats: simple, string, detailed"
     } | ConvertTo-Json -Compress
-    context_reponse -Response $Response -StatusCode 400 -String $json -ContentType "application/json"
+    context_response -Response $Response -StatusCode 400 -String $json -ContentType "application/json"
 
 } catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'DebugVar' -Message "Error in /api/v1/debug/var GET: $($_.Exception.Message)"
@@ -248,5 +248,5 @@ try {
     # Generate detailed error report based on user role
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
 
-    context_reponse -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

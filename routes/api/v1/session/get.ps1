@@ -20,4 +20,4 @@ if ($isSessionValid -and $SessionData.UserID) {
 }
 
 $jsonResponse = $responseObject | ConvertTo-Json
-context_reponse -Response $Response -String $jsonResponse -ContentType "application/json"
+context_response -Response $Response -String $jsonResponse -ContentType "application/json"
