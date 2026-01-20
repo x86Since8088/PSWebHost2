@@ -71,6 +71,24 @@ const RealtimeEventsCard = ({ onError }) => {
         setLogs([]);
         setSelectedLogs(new Set());
         setLastUpdate(new Date());
+
+        // Set time filter to next 24 hours
+        const now = new Date();
+        const futureTime = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
+
+        // Format for datetime-local input: YYYY-MM-DDThh:mm
+        const formatDateTime = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
+        };
+
+        setCustomTimeRange(true);
+        setStartTime(formatDateTime(now));
+        setEndTime(formatDateTime(futureTime));
     };
 
     const handleSelectAll = (checked) => {
@@ -189,8 +207,13 @@ const RealtimeEventsCard = ({ onError }) => {
 
             // Time range
             if (customTimeRange && startTime && endTime) {
-                params.append('earliest', new Date(startTime).toISOString());
-                params.append('latest', new Date(endTime).toISOString());
+                // Send as local datetime string (server will interpret as its local time)
+                // Format: YYYY-MM-DDThh:mm:ss
+                const formatForServer = (dateTimeLocal) => {
+                    return dateTimeLocal + ':00'; // Add seconds if not present
+                };
+                params.append('earliest', formatForServer(startTime));
+                params.append('latest', formatForServer(endTime));
             } else {
                 params.append('timeRange', timeRange);
             }

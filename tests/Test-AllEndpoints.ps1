@@ -483,7 +483,7 @@ try {
         @{Name="Main menu"; Path="/api/v1/ui/elements/main-menu"},
         @{Name="File explorer"; Path="/api/v1/ui/elements/file-explorer"},
         @{Name="System status"; Path="/api/v1/ui/elements/system-status"},
-        @{Name="World map"; Path="/api/v1/ui/elements/world-map"},
+        @{Name="World map"; Path="/apps/Maps/api/v1/ui/elements/world-map"},
         @{Name="Server heatmap"; Path="/api/v1/ui/elements/server-heatmap"},
         @{Name="Event stream"; Path="/api/v1/ui/elements/event-stream"},
         @{Name="Users management"; Path="/api/v1/ui/elements/admin/users-management"}

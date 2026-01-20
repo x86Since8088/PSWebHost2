@@ -17,10 +17,12 @@ const UPlotComponent = ({ element, onError }) => {
     const incrementalFetchCountRef = React.useRef(0);  // Track incremental fetch count for debug logging
     const metricsDbRef = React.useRef(null);  // sql.js MetricsDatabase instance
     const lastHistoryFetchRef = React.useRef(null);  // Track last history fetch time
+    const isMountedRef = React.useRef(true);  // Track if component is mounted
 
     // Parse configuration from element.url
     React.useEffect(() => {
         if (!element || !element.url) {
+            if (!isMountedRef.current) return; // Component unmounted
             setError('No configuration URL provided');
             setLoading(false);
             return;
@@ -51,6 +53,7 @@ const UPlotComponent = ({ element, onError }) => {
         }
 
         if (!configRef.current.source) {
+            if (!isMountedRef.current) return; // Component unmounted
             setError('No data source specified. Use ?source=/api/...');
             setLoading(false);
             return;
@@ -66,6 +69,7 @@ const UPlotComponent = ({ element, onError }) => {
             // Check if uPlot is already loaded
             if (typeof uPlot !== 'undefined' && window.UPlotDataAdapter) {
                 console.log('uPlot libraries already loaded');
+                if (!isMountedRef.current) return; // Component unmounted
                 setLibrariesLoaded(true);
                 return;
             }
@@ -107,9 +111,11 @@ const UPlotComponent = ({ element, onError }) => {
                     });
                 }
 
+                if (!isMountedRef.current) return; // Component unmounted
                 setLibrariesLoaded(true);
             } catch (err) {
                 console.error('Script loading error:', err);
+                if (!isMountedRef.current) return; // Component unmounted
                 setError(err.message);
                 setLoading(false);
             }
@@ -151,6 +157,7 @@ const UPlotComponent = ({ element, onError }) => {
 
             } catch (err) {
                 console.error('[uPlot] Database initialization error:', err);
+                if (!isMountedRef.current) return; // Component unmounted
                 setError(err.message);
                 setLoading(false);
             }
@@ -173,7 +180,9 @@ const UPlotComponent = ({ element, onError }) => {
 
     // Cleanup on unmount only
     React.useEffect(() => {
+        isMountedRef.current = true;
         return () => {
+            isMountedRef.current = false;
             if (uplotInstanceRef.current) {
                 console.log('[uPlot DEBUG] ❌ Chart DESTROYED on component unmount');
                 uplotInstanceRef.current.destroy();
@@ -222,10 +231,12 @@ const UPlotComponent = ({ element, onError }) => {
             // Update chart from sql.js
             await updateChartFromSqlJs();
 
+            if (!isMountedRef.current) return; // Component unmounted
             setError(null);
             setLoading(false);
         } catch (err) {
             console.error('[uPlot] History fetch error:', err);
+            if (!isMountedRef.current) return; // Component unmounted
             setError(err.message);
             setLoading(false);
         }
@@ -510,6 +521,7 @@ const UPlotComponent = ({ element, onError }) => {
 
             const newChart = new uPlot(opts, transformedData.data, containerRef.current);
             uplotInstanceRef.current = newChart;  // Set ref immediately for synchronous access
+            if (!isMountedRef.current) return; // Component unmounted
             setUplotInstance(newChart);
 
             // Create adapter for incremental updates

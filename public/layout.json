@@ -18,7 +18,7 @@
         "world-map": {
             "Type": "Map",
             "Title": "World Map",
-            "componentPath": "/public/elements/world-map/component.js"
+            "componentPath": "/apps/Maps/public/elements/world-map/component.js"
         },
         "server-heatmap": {
             "Type": "Heatmap",

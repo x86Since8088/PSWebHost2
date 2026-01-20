@@ -111,12 +111,96 @@ window.viewCacheStats = () => {
     return { totalItems: keys.length };
 };
 
-// --- Global Helper for Fetching with Cache Support ---
+// --- Request Throttle Manager ---
+// Prevents repeated requests to endpoints that recently returned 4xx/5xx errors
+const RequestThrottleManager = {
+    throttledRequests: new Map(), // URL -> { timestamp, status, retryAfter }
+    throttleDuration: 60000, // 60 seconds
+
+    /**
+     * Check if a URL is currently throttled
+     * @param {string} url - The request URL
+     * @returns {boolean|object} - false if not throttled, or throttle info if throttled
+     */
+    isThrottled(url) {
+        const throttle = this.throttledRequests.get(url);
+        if (!throttle) return false;
+
+        const now = Date.now();
+        const timeSinceError = now - throttle.timestamp;
+
+        if (timeSinceError < this.throttleDuration) {
+            const remainingSeconds = Math.ceil((this.throttleDuration - timeSinceError) / 1000);
+            return {
+                blocked: true,
+                status: throttle.status,
+                remainingSeconds,
+                message: `Request throttled due to previous ${throttle.status} error. Retry in ${remainingSeconds}s.`
+            };
+        }
+
+        // Throttle expired, remove it
+        this.throttledRequests.delete(url);
+        return false;
+    },
+
+    /**
+     * Record a failed request for throttling
+     * @param {string} url - The request URL
+     * @param {number} status - HTTP status code
+     */
+    recordFailure(url, status) {
+        this.throttledRequests.set(url, {
+            timestamp: Date.now(),
+            status
+        });
+        console.warn(`[RequestThrottle] Throttling ${url} for ${this.throttleDuration/1000}s due to ${status} error`);
+    },
+
+    /**
+     * Clear throttle for a URL (called on successful requests)
+     * @param {string} url - The request URL
+     */
+    clearThrottle(url) {
+        if (this.throttledRequests.has(url)) {
+            console.log(`[RequestThrottle] Clearing throttle for ${url}`);
+            this.throttledRequests.delete(url);
+        }
+    }
+};
+
+// Make throttle manager globally available for debugging
+window.RequestThrottleManager = RequestThrottleManager;
+
+// --- Global Helper for Fetching with Cache Support and Throttling ---
 window.psweb_fetchWithAuthHandling = async function(url, options) {
+    // Check if request is throttled
+    const throttleInfo = RequestThrottleManager.isThrottled(url);
+    if (throttleInfo) {
+        console.warn(`[RequestThrottle] ${throttleInfo.message}`);
+        // Return a fake response object that looks like a 429 Too Many Requests
+        return new Response(JSON.stringify({
+            status: 'fail',
+            message: throttleInfo.message,
+            throttled: true,
+            retryAfter: throttleInfo.remainingSeconds
+        }), {
+            status: 429,
+            statusText: 'Too Many Requests',
+            headers: {
+                'Content-Type': 'application/json',
+                'Retry-After': throttleInfo.remainingSeconds.toString()
+            }
+        });
+    }
+
     const response = await fetch(url, options);
 
     // Check for error responses that should show a modal
     if (!response.ok && response.status >= 400) {
+        // Record 4xx and 5xx errors for throttling
+        RequestThrottleManager.recordFailure(url, response.status);
+
         try {
             const contentType = response.headers.get('content-type');
             if (contentType && contentType.includes('application/json')) {
@@ -131,6 +215,9 @@ window.psweb_fetchWithAuthHandling = async function(url, options) {
             // If we can't parse the error response, that's okay - continue with normal error handling
             console.warn('Could not parse error response for modal:', parseError);
         }
+    } else if (response.ok) {
+        // Clear throttle on successful request
+        RequestThrottleManager.clearThrottle(url);
     }
 
     if (response.status === 401) {
@@ -195,7 +282,7 @@ window.addEventListener('unhandledrejection', (event) => {
     console.warn = function(...args) {
         originalWarn.apply(console, args);
         try {
-            window.logToServer('Warn', 'ConsoleWarn', args.join(' '), { args: args });
+            window.logToServer('Warning', 'ConsoleWarn', args.join(' '), { args: args });
         } catch (e) {
             // Silently fail to avoid infinite loops
         }

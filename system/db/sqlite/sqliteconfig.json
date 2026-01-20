@@ -199,6 +199,62 @@
           "on_delete": "CASCADE"
         }
       ]
+    },
+    {
+      "name": "Shared_Buckets",
+      "columns": [
+        { "name": "BucketID", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "Name", "type": "TEXT", "constraint": "UNIQUE NOT NULL" },
+        { "name": "Description", "type": "TEXT", "constraint": "" },
+        { "name": "OwnerUserID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "OwnerGroupID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "ReadGroupID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "WriteGroupID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Created", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Updated", "type": "TEXT", "constraint": "NOT NULL" }
+      ],
+      "foreign_keys": [
+        {
+          "column": "OwnerUserID",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        },
+        {
+          "column": "OwnerGroupID",
+          "references": "User_Groups(GroupID)",
+          "on_delete": "RESTRICT"
+        },
+        {
+          "column": "ReadGroupID",
+          "references": "User_Groups(GroupID)",
+          "on_delete": "RESTRICT"
+        },
+        {
+          "column": "WriteGroupID",
+          "references": "User_Groups(GroupID)",
+          "on_delete": "RESTRICT"
+        }
+      ]
+    },
+    {
+      "name": "Bucket_Access_Log",
+      "columns": [
+        { "name": "LogID", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "BucketID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "UserID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Action", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Path", "type": "TEXT", "constraint": "" },
+        { "name": "Timestamp", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Success", "type": "INTEGER", "constraint": "DEFAULT 1" },
+        { "name": "ErrorMessage", "type": "TEXT", "constraint": "" }
+      ],
+      "foreign_keys": [
+        {
+          "column": "BucketID",
+          "references": "Shared_Buckets(BucketID)",
+          "on_delete": "CASCADE"
+        }
+      ]
     }
   ]
 }

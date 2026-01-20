@@ -5,111 +5,68 @@ param (
     $sessiondata
 )
 
-# Helper function to create a JSON response
-function New-JsonResponse($status, $message) {
-    return @{ status = $status; message = $message } | ConvertTo-Json
-}
+# Dot-source File Explorer helper functions
+try {
+    $helperPath = Join-Path $PSScriptRoot "..\..\..\..\..\modules\FileExplorerHelper.ps1"
 
-# Get user ID from session
-if (-not $sessiondata -or -not $sessiondata.UserID) {
-    $jsonResponse = New-JsonResponse -status 'fail' -message 'User not authenticated'
-    context_response -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
+    if (-not (Test-Path $helperPath)) {
+        throw "Helper file not found: $helperPath"
+    }
+
+    # Always dot-source (each script scope needs its own copy)
+    . $helperPath
+}
+catch {
+    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Failed to load FileExplorerHelper.ps1: $($_.Exception.Message)"
+    $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
+    context_response -Response $Response -StatusCode 500 -String $Report.body -ContentType $Report.contentType
     return
 }
 
-$userID = $sessiondata.UserID
+# Validate session
+$userID = Test-WebHostFileExplorerSession -SessionData $sessiondata -Response $Response
+if (-not $userID) { return }
 
 # Get query parameters
-$queryParams = @{}
-if ($Request.Url.Query) {
-    $Request.Url.Query.TrimStart('?').Split('&') | ForEach-Object {
-        $parts = $_.Split('=')
-        if ($parts.Length -eq 2) {
-            $queryParams[[System.Web.HttpUtility]::UrlDecode($parts[0])] = [System.Web.HttpUtility]::UrlDecode($parts[1])
-        }
-    }
-}
+$queryParams = Get-WebHostFileExplorerQueryParams -Request $Request
+$logicalPath = $queryParams['path']
 
-$filePath = $queryParams['path']
-
-if (-not $filePath) {
-    $jsonResponse = New-JsonResponse -status 'fail' -message 'Missing path parameter'
-    context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
-    return
-}
-
-# Get user's file-explorer folder
-$getUserDataScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\utility\UserData_Folder_Get.ps1"
-if (-not (Test-Path $getUserDataScript)) {
-    $jsonResponse = New-JsonResponse -status 'fail' -message 'UserData_Folder_Get.ps1 not found'
-    context_response -Response $Response -StatusCode 500 -String $jsonResponse -ContentType "application/json"
+if (-not $logicalPath) {
+    $json = New-WebHostFileExplorerResponse -Status 'fail' -Message 'Missing path parameter'
+    Send-WebHostFileExplorerResponse -Response $Response -StatusCode 400 -JsonContent $json
     return
 }
 
 try {
-    # Get user folder
-    $userFolder = & $getUserDataScript -UserID $userID -Application "file-explorer"
+    # Resolve logical path to physical path with authorization
+    $pathResult = Resolve-WebHostFileExplorerPath -LogicalPath $logicalPath -UserID $userID -Roles $sessiondata.Roles -Response $Response -RequiredPermission 'read'
+    if (-not $pathResult) { return }
 
-    if (-not $userFolder) {
-        $jsonResponse = New-JsonResponse -status 'fail' -message 'Failed to get user data folder'
-        context_response -Response $Response -StatusCode 500 -String $jsonResponse -ContentType "application/json"
-        return
-    }
-
-    # Build full file path and validate
-    $fullPath = Join-Path $userFolder $filePath
-    $fullPath = [System.IO.Path]::GetFullPath($fullPath)
-
-    # Security: Ensure path is within user folder
-    if (-not $fullPath.StartsWith($userFolder.FullName)) {
-        $jsonResponse = New-JsonResponse -status 'fail' -message 'Invalid path - access denied'
-        context_response -Response $Response -StatusCode 403 -String $jsonResponse -ContentType "application/json"
-        return
-    }
+    $fullPath = $pathResult.PhysicalPath
 
     if (-not (Test-Path $fullPath)) {
-        $jsonResponse = New-JsonResponse -status 'fail' -message 'File not found'
-        context_response -Response $Response -StatusCode 404 -String $jsonResponse -ContentType "application/json"
+        $json = New-WebHostFileExplorerResponse -Status 'fail' -Message 'File not found'
+        Send-WebHostFileExplorerResponse -Response $Response -StatusCode 404 -JsonContent $json
         return
     }
 
     $fileInfo = Get-Item $fullPath
 
     if ($fileInfo -is [System.IO.DirectoryInfo]) {
-        $jsonResponse = New-JsonResponse -status 'fail' -message 'Cannot download a folder (use batch download)'
-        context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
+        $json = New-WebHostFileExplorerResponse -Status 'fail' -Message 'Cannot download a folder (use batch download)'
+        Send-WebHostFileExplorerResponse -Response $Response -StatusCode 400 -JsonContent $json
         return
     }
 
-    # Get file size
+    # Get file size and MIME type
     $fileSize = $fileInfo.Length
-
-    # Detect MIME type
-    $extension = $fileInfo.Extension.ToLower()
-    $mimeType = switch ($extension) {
-        '.txt'  { 'text/plain' }
-        '.html' { 'text/html' }
-        '.css'  { 'text/css' }
-        '.js'   { 'application/javascript' }
-        '.json' { 'application/json' }
-        '.xml'  { 'application/xml' }
-        '.pdf'  { 'application/pdf' }
-        '.zip'  { 'application/zip' }
-        '.jpg'  { 'image/jpeg' }
-        '.jpeg' { 'image/jpeg' }
-        '.png'  { 'image/png' }
-        '.gif'  { 'image/gif' }
-        '.svg'  { 'image/svg+xml' }
-        '.mp3'  { 'audio/mpeg' }
-        '.mp4'  { 'video/mp4' }
-        default { 'application/octet-stream' }
-    }
+    $mimeType = Get-WebHostFileExplorerMimeType -Extension $fileInfo.Extension
 
     # Parse Range header
     $rangeHeader = $Request.Headers["Range"]
 
     if ($rangeHeader) {
-        Write-PSWebHostLog -Severity 'Debug' -Category 'FileExplorer' -Message "Range request: $rangeHeader" -Data @{ UserID = $userID; Path = $filePath }
+        Write-PSWebHostLog -Severity 'Debug' -Category 'FileExplorer' -Message "Range request: $rangeHeader" -Data @{ UserID = $userID; Path = $logicalPath }
 
         if ($rangeHeader -match 'bytes=(\d+)-(\d*)') {
             $start = [int64]$matches[1]
@@ -203,12 +160,11 @@ try {
     }
 }
 catch {
-    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Error in download GET: $($_.Exception.Message)" -Data @{ UserID = $userID; Path = $filePath }
-
-    $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
+    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Error in download GET: $($_.Exception.Message)" -Data @{ UserID = $userID; Path = $logicalPath }
 
     # Response might already be closed
     try {
+        $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
         context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
     }
     catch {

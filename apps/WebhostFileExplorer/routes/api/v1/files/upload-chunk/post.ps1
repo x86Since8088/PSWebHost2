@@ -5,23 +5,25 @@ param (
     $sessiondata
 )
 
-# Helper function to create a JSON response
-function New-JsonResponse($status, $message, $data = @{}) {
-    $result = @{ status = $status; message = $message }
-    if ($data.Count -gt 0) {
-        $result.data = $data
-    }
-    return $result | ConvertTo-Json -Depth 5
+# Dot-source File Explorer helper functions with hot-reloading support
+$helperPath = Join-Path $PSScriptRoot "..\..\..\..\..\modules\FileExplorerHelper.ps1"
+$helperInfo = Get-Item $helperPath -ErrorAction Stop
+$cacheKey = 'FileExplorerHelper_LastWrite'
+
+# Always dot-source on first run, or if file has been updated
+$cachedTime = $Global:PSWebServer[$cacheKey]
+$needsLoad = (-not $cachedTime) -or ($cachedTime -lt $helperInfo.LastWriteTime)
+
+if ($needsLoad) {
+    # Dot-source the file to load functions into current scope
+    . $helperPath
+    $Global:PSWebServer[$cacheKey] = $helperInfo.LastWriteTime
+    Write-PSWebHostLog -Severity 'Debug' -Category 'FileExplorer' -Message "Loaded FileExplorerHelper.ps1 (LastWrite: $($helperInfo.LastWriteTime))"
 }
 
-# Get user ID from session
-if (-not $sessiondata -or -not $sessiondata.UserID) {
-    $jsonResponse = New-JsonResponse -status 'fail' -message 'User not authenticated'
-    context_response -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
-    return
-}
-
-$userID = $sessiondata.UserID
+# Validate session
+$userID = Test-WebHostFileExplorerSession -SessionData $sessiondata -Response $Response
+if (-not $userID) { return }
 
 # Read request body
 $reader = New-Object System.IO.StreamReader($Request.InputStream)
@@ -32,38 +34,25 @@ try {
     $data = $body | ConvertFrom-Json
 }
 catch {
-    $jsonResponse = New-JsonResponse -status 'fail' -message 'Invalid JSON in request body'
-    context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
+    $json = New-WebHostFileExplorerResponse -Status 'fail' -Message 'Invalid JSON in request body'
+    Send-WebHostFileExplorerResponse -Response $Response -StatusCode 400 -JsonContent $json
     return
 }
 
 # Validate required parameters
 if (-not $data.uploadId -or -not $data.fileName -or $null -eq $data.chunkIndex -or $null -eq $data.totalChunks -or -not $data.chunkData) {
-    $jsonResponse = New-JsonResponse -status 'fail' -message 'Missing required parameters: uploadId, fileName, chunkIndex, totalChunks, chunkData'
-    context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
-    return
-}
-
-# Get user's file-explorer folder
-$getUserDataScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\utility\UserData_Folder_Get.ps1"
-if (-not (Test-Path $getUserDataScript)) {
-    $jsonResponse = New-JsonResponse -status 'fail' -message 'UserData_Folder_Get.ps1 not found'
-    context_response -Response $Response -StatusCode 500 -String $jsonResponse -ContentType "application/json"
+    $json = New-WebHostFileExplorerResponse -Status 'fail' -Message 'Missing required parameters: uploadId, fileName, chunkIndex, totalChunks, chunkData'
+    Send-WebHostFileExplorerResponse -Response $Response -StatusCode 400 -JsonContent $json
     return
 }
 
 try {
-    # Get user folder
-    $userFolder = & $getUserDataScript -UserID $userID -Application "file-explorer"
+    # Get user's personal storage for temp chunks (always use personal storage for temp files)
+    $tempStorageResult = Resolve-WebHostFileExplorerPath -LogicalPath "User:me" -UserID $userID -Roles $sessiondata.Roles -Response $Response -RequiredPermission 'write'
+    if (-not $tempStorageResult) { return }
 
-    if (-not $userFolder) {
-        $jsonResponse = New-JsonResponse -status 'fail' -message 'Failed to get user data folder'
-        context_response -Response $Response -StatusCode 500 -String $jsonResponse -ContentType "application/json"
-        return
-    }
-
-    # Create temp directory for chunks
-    $tempRoot = Join-Path $userFolder ".temp"
+    # Create temp directory for chunks in personal storage
+    $tempRoot = Join-Path $tempStorageResult.PhysicalPath ".temp"
     if (-not (Test-Path $tempRoot)) {
         New-Item -Path $tempRoot -ItemType Directory -Force | Out-Null
     }
@@ -78,8 +67,8 @@ try {
         $chunkBytes = [System.Convert]::FromBase64String($data.chunkData)
     }
     catch {
-        $jsonResponse = New-JsonResponse -status 'fail' -message 'Invalid base64 chunk data'
-        context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
+        $json = New-WebHostFileExplorerResponse -Status 'fail' -Message 'Invalid base64 chunk data'
+        Send-WebHostFileExplorerResponse -Response $Response -StatusCode 400 -JsonContent $json
         return
     }
 
@@ -105,12 +94,18 @@ try {
             TotalChunks = $data.totalChunks
         }
 
-        # Assemble file from chunks
-        $targetPath = $data.path -replace '^/', ''
-        $targetFolder = if ($targetPath) {
-            & $getUserDataScript -UserID $userID -Application "file-explorer" -SubFolder $targetPath -CreateIfMissing
-        } else {
-            $userFolder
+        # Assemble file from chunks - resolve target logical path
+        $targetLogicalPath = if ($data.path) { $data.path } else { "User:me" }
+
+        # Resolve target path with write permission
+        $targetResult = Resolve-WebHostFileExplorerPath -LogicalPath $targetLogicalPath -UserID $userID -Roles $sessiondata.Roles -Response $Response -RequiredPermission 'write'
+        if (-not $targetResult) { return }
+
+        $targetFolder = $targetResult.PhysicalPath
+
+        # Create target folder if it doesn't exist
+        if (-not (Test-Path $targetFolder)) {
+            New-Item -Path $targetFolder -ItemType Directory -Force | Out-Null
         }
 
         $finalFilePath = Join-Path $targetFolder $data.fileName
@@ -145,43 +140,36 @@ try {
             Chunks = $data.totalChunks
         }
 
-        $responseData = @{
-            status = 'success'
-            message = 'Upload completed successfully'
+        $json = New-WebHostFileExplorerResponse -Status 'success' -Message 'Upload completed successfully' -Data @{
             fileName = $data.fileName
             size = $finalFileInfo.Length
             complete = $true
         }
-        $jsonResponse = $responseData | ConvertTo-Json -Compress
-        context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+        Send-WebHostFileExplorerResponse -Response $Response -StatusCode 200 -JsonContent $json
     }
     else {
         # More chunks needed
-        $responseData = @{
-            status = 'success'
-            message = 'Chunk received'
+        $json = New-WebHostFileExplorerResponse -Status 'success' -Message 'Chunk received' -Data @{
             chunkIndex = $data.chunkIndex
             received = $receivedChunks.Count
             total = $data.totalChunks
             complete = $false
         }
-        $jsonResponse = $responseData | ConvertTo-Json -Compress
-        context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+        Send-WebHostFileExplorerResponse -Response $Response -StatusCode 200 -JsonContent $json
     }
 }
 catch {
-    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Error in chunked upload: $($_.Exception.Message)" -Data @{
+    # Cleanup on error
+    if ($tempRoot) {
+        $uploadTempDir = Join-Path $tempRoot $data.uploadId
+        if (Test-Path $uploadTempDir) {
+            Remove-Item -Path $uploadTempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    Send-WebHostFileExplorerError -ErrorRecord $_ -Context $Context -Request $Request -Response $Response -SessionData $sessiondata -LogData @{
         UserID = $userID
         UploadId = $data.uploadId
         ChunkIndex = $data.chunkIndex
     }
-
-    # Cleanup on error
-    $uploadTempDir = Join-Path (Join-Path $userFolder ".temp") $data.uploadId
-    if (Test-Path $uploadTempDir) {
-        Remove-Item -Path $uploadTempDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-
-    $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
-    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

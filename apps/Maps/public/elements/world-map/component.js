@@ -10,7 +10,7 @@ const WorldMapCard = ({ onError }) => {
     useEffect(() => {
         let isMounted = true;
 
-        fetch('/public/elements/world-map/map-definition.json')
+        fetch('/apps/Maps/public/elements/world-map/map-definition.json')
             .then(res => {
                 if (!res.ok) {
                     throw new Error(`Failed to load map definition: ${res.status}`);
@@ -39,7 +39,7 @@ const WorldMapCard = ({ onError }) => {
         let isMounted = true;
 
         const fetchData = () => {
-            window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/world-map')
+            window.psweb_fetchWithAuthHandling('/apps/Maps/api/v1/ui/elements/world-map')
                 .then(res => {
                     if (!res.ok) {
                         if (isMounted) {
@@ -50,9 +50,10 @@ const WorldMapCard = ({ onError }) => {
                     return res.text();
                 })
                 .then(text => {
-                    const data = text ? JSON.parse(text) : [];
+                    const data = text ? JSON.parse(text) : {};
                     if (isMounted) {
-                        setPins(data);
+                        // Extract mapPins from cardInfo response
+                        setPins(data.mapPins || []);
                     }
                 })
                 .catch(err => {
@@ -165,14 +166,14 @@ const WorldMapCard = ({ onError }) => {
                 preserveAspectRatio="xMidYMid meet"
             >
                 <image
-                    href={`/public/elements/world-map/${mapDef.imageFile}`}
+                    href={`/apps/Maps/public/elements/world-map/${mapDef.imageFile}`}
                     width={mapDef.imageWidth}
                     height={mapDef.imageHeight}
                     onLoad={() => setImageLoaded(true)}
                     onError={(e) => {
                         console.error("Failed to load map image");
                         onError({
-                            message: "Map image could not be loaded. Please ensure world-map.png exists in /public/elements/world-map/",
+                            message: "Map image could not be loaded. Please ensure world-map.png exists in /apps/Maps/public/elements/world-map/",
                             status: "Image Error",
                             statusText: "File not found"
                         });

@@ -47,7 +47,7 @@ Describe "GET /spa/card_settings" {
 
     Context "Query parameters" {
         It "Should accept 'id' parameter as endpoint_guid" {
-            # Test with ?id=/api/v1/ui/elements/world-map
+            # Test with ?id=/apps/Maps/api/v1/ui/elements/world-map
             $true | Should -Be $true
         }
 

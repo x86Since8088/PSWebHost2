@@ -9,7 +9,7 @@
     roles:
     - unauthenticated
   - Name: World Map
-    url: /api/v1/ui/elements/world-map
+    url: /apps/Maps/api/v1/ui/elements/world-map
     roles:
     - authenticated
     tags:

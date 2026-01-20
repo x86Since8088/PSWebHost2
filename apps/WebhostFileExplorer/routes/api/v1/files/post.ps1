@@ -5,19 +5,27 @@ param (
     $sessiondata
 )
 
-# Helper function to create a JSON response
-function New-JsonResponse($status, $message) {
-    return @{ status = $status; Message = $message } | ConvertTo-Json
-}
+# Dot-source File Explorer helper functions
+try {
+    $helperPath = Join-Path $PSScriptRoot "..\..\..\..\modules\FileExplorerHelper.ps1"
 
-# Get user ID from session
-if (-not $sessiondata -or -not $sessiondata.UserID) {
-    $jsonResponse = New-JsonResponse -status 'fail' -message 'User not authenticated'
-    context_response -Response $Response -StatusCode 401 -String $jsonResponse -ContentType "application/json"
+    if (-not (Test-Path $helperPath)) {
+        throw "Helper file not found: $helperPath"
+    }
+
+    # Always dot-source (each script scope needs its own copy)
+    . $helperPath
+}
+catch {
+    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Failed to load FileExplorerHelper.ps1: $($_.Exception.Message)"
+    $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
+    context_response -Response $Response -StatusCode 500 -String $Report.body -ContentType $Report.contentType
     return
 }
 
-$userID = $sessiondata.UserID
+# Validate session
+$userID = Test-WebHostFileExplorerSession -SessionData $sessiondata -Response $Response
+if (-not $userID) { return }
 
 # Read request body
 $reader = New-Object System.IO.StreamReader($Request.InputStream)
@@ -28,15 +36,15 @@ try {
     $data = $body | ConvertFrom-Json
 }
 catch {
-    $jsonResponse = New-JsonResponse -status 'fail' -message 'Invalid JSON in request body'
-    context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
+    $json = New-WebHostFileExplorerResponse -Status 'fail' -Message 'Invalid JSON in request body'
+    Send-WebHostFileExplorerResponse -Response $Response -StatusCode 400 -JsonContent $json
     return
 }
 
 # Validate action
 if (-not $data.action) {
-    $jsonResponse = New-JsonResponse -status 'fail' -message 'Missing required parameter: action'
-    context_response -Response $Response -StatusCode 400 -String $jsonResponse -ContentType "application/json"
+    $json = New-WebHostFileExplorerResponse -Status 'fail' -Message 'Missing required parameter: action'
+    Send-WebHostFileExplorerResponse -Response $Response -StatusCode 400 -JsonContent $json
     return
 }
 
@@ -54,19 +62,21 @@ try {
                 throw "Missing required parameter: name"
             }
 
-            $getScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\utility\UserData_Folder_Get.ps1"
-            $folderPath = $data.path -replace '^/', ''
-            $newFolderPath = if ($folderPath) { "$folderPath\$($data.name)" } else { $data.name }
+            # Get logical path (default to User:me if not specified)
+            $logicalPath = if ($data.path) { $data.path } else { "User:me" }
 
-            $result = & $getScript -UserID $userID -Application "file-explorer" -SubFolder $newFolderPath -CreateIfMissing
+            # Resolve path with write permission
+            $pathResult = Resolve-WebHostFileExplorerPath -LogicalPath $logicalPath -UserID $userID -Roles $sessiondata.Roles -Response $Response -RequiredPermission 'write'
+            if (-not $pathResult) { return }
 
-            $responseData = @{
-                status = 'success'
-                message = 'Folder created successfully'
-                path = $newFolderPath
+            # Create folder at physical path
+            $targetPath = Join-Path $pathResult.PhysicalPath $data.name
+            New-Item -Path $targetPath -ItemType Directory -Force | Out-Null
+
+            $json = New-WebHostFileExplorerResponse -Status 'success' -Message 'Folder created successfully' -Data @{
+                path = "$logicalPath/$($data.name)"
             }
-            $jsonResponse = $responseData | ConvertTo-Json -Compress
-            context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+            Send-WebHostFileExplorerResponse -Response $Response -StatusCode 200 -JsonContent $json
         }
 
         'uploadFile' {
@@ -75,25 +85,35 @@ try {
                 throw "Missing required parameters: name, content"
             }
 
-            $saveScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\utility\UserData_Folder_Save.ps1"
-            $filePath = $data.path -replace '^/', ''
+            # Get logical path (default to User:me if not specified)
+            $logicalPath = if ($data.path) { $data.path } else { "User:me" }
+
+            # Resolve path with write permission
+            $pathResult = Resolve-WebHostFileExplorerPath -LogicalPath $logicalPath -UserID $userID -Roles $sessiondata.Roles -Response $Response -RequiredPermission 'write'
+            if (-not $pathResult) { return }
+
+            # Create target folder if it doesn't exist
+            if (-not (Test-Path $pathResult.PhysicalPath)) {
+                New-Item -Path $pathResult.PhysicalPath -ItemType Directory -Force | Out-Null
+            }
+
+            $targetPath = Join-Path $pathResult.PhysicalPath $data.name
 
             # Decode base64 content if present
             if ($data.encoding -eq 'base64') {
                 $bytes = [System.Convert]::FromBase64String($data.content)
-                $result = & $saveScript -UserID $userID -Application "file-explorer" -SubFolder $filePath -Name $data.name -Bytes $bytes -Force
+                [System.IO.File]::WriteAllBytes($targetPath, $bytes)
             }
             else {
-                $result = & $saveScript -UserID $userID -Application "file-explorer" -SubFolder $filePath -Name $data.name -Content $data.content -Force
+                Set-Content -Path $targetPath -Value $data.content -Force
             }
 
-            $responseData = @{
-                status = 'success'
-                message = 'File uploaded successfully'
+            $result = Get-Item $targetPath
+
+            $json = New-WebHostFileExplorerResponse -Status 'success' -Message 'File uploaded successfully' -Data @{
                 file = $result.Name
             }
-            $jsonResponse = $responseData | ConvertTo-Json -Compress
-            context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+            Send-WebHostFileExplorerResponse -Response $Response -StatusCode 200 -JsonContent $json
         }
 
         'rename' {
@@ -102,27 +122,25 @@ try {
                 throw "Missing required parameters: oldName, newName"
             }
 
-            $renameScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\utility\UserData_Folder_Rename.ps1"
-            $folderPath = $data.path -replace '^/', ''
+            # Get logical path (default to User:me if not specified)
+            $logicalPath = if ($data.path) { $data.path } else { "User:me" }
 
-            $params = @{
-                UserID = $userID
-                Application = "file-explorer"
-                OldName = $data.oldName
-                NewName = $data.newName
-            }
-            if ($folderPath) { $params.SubFolder = $folderPath }
-            if ($data.isFolder) { $params.IsFolder = $true }
+            # Resolve path with write permission
+            $pathResult = Resolve-WebHostFileExplorerPath -LogicalPath $logicalPath -UserID $userID -Roles $sessiondata.Roles -Response $Response -RequiredPermission 'write'
+            if (-not $pathResult) { return }
 
-            $result = & $renameScript @params -Force
+            # Build old and new paths
+            $oldPath = Join-Path $pathResult.PhysicalPath $data.oldName
+            $newPath = Join-Path $pathResult.PhysicalPath $data.newName
 
-            $responseData = @{
-                status = 'success'
-                message = 'Item renamed successfully'
+            # Rename the item
+            Rename-Item -Path $oldPath -NewName $data.newName -Force
+            $result = Get-Item $newPath
+
+            $json = New-WebHostFileExplorerResponse -Status 'success' -Message 'Item renamed successfully' -Data @{
                 newName = $result.Name
             }
-            $jsonResponse = $responseData | ConvertTo-Json -Compress
-            context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+            Send-WebHostFileExplorerResponse -Response $Response -StatusCode 200 -JsonContent $json
         }
 
         'delete' {
@@ -131,27 +149,27 @@ try {
                 throw "Missing required parameter: name"
             }
 
-            $removeScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\utility\UserData_Folder_Remove.ps1"
-            $folderPath = $data.path -replace '^/', ''
+            # Get logical path (default to User:me if not specified)
+            $logicalPath = if ($data.path) { $data.path } else { "User:me" }
 
-            $params = @{
-                UserID = $userID
-                Application = "file-explorer"
-                Name = $data.name
-                Force = $true
+            # Resolve path with write permission (delete requires write)
+            $pathResult = Resolve-WebHostFileExplorerPath -LogicalPath $logicalPath -UserID $userID -Roles $sessiondata.Roles -Response $Response -RequiredPermission 'write'
+            if (-not $pathResult) { return }
+
+            # Build target path
+            $targetPath = Join-Path $pathResult.PhysicalPath $data.name
+
+            # Delete the item
+            if ($data.isFolder) {
+                Remove-Item -Path $targetPath -Recurse -Force
+            } else {
+                Remove-Item -Path $targetPath -Force
             }
-            if ($folderPath) { $params.SubFolder = $folderPath }
-            if ($data.isFolder) { $params.RemoveFolder = $true }
 
-            $result = & $removeScript @params
-
-            $responseData = @{
-                status = 'success'
-                message = 'Item deleted successfully'
-                removed = $result
+            $json = New-WebHostFileExplorerResponse -Status 'success' -Message 'Item deleted successfully' -Data @{
+                removed = $true
             }
-            $jsonResponse = $responseData | ConvertTo-Json -Compress
-            context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+            Send-WebHostFileExplorerResponse -Response $Response -StatusCode 200 -JsonContent $json
         }
 
         default {
@@ -160,10 +178,5 @@ try {
     }
 }
 catch {
-    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Error in file-explorer POST: $($_.Exception.Message)" -Data @{ UserID = $userID; Action = $data.action }
-
-    # Generate detailed error report based on user role
-    $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
-
-    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
+    Send-WebHostFileExplorerError -ErrorRecord $_ -Context $Context -Request $Request -Response $Response -SessionData $sessiondata -LogData @{ UserID = $userID; Action = $data.action }
 }

@@ -1,0 +1,35 @@
+name: Maps
+version: 1.0.0
+description: Interactive world map with location markers and geographic data visualization
+author: PSWebHost Team
+category: visualization
+subcategory: maps
+enabled: true
+routePrefix: /apps/Maps
+
+# No additional modules required
+modules: []
+
+# Dependencies
+dependencies:
+  - PSWebHost_Support
+
+# Required roles to access this app
+requiredRoles:
+  - authenticated
+
+# Features provided by this app
+features:
+  - Interactive world map with equirectangular projection
+  - Location markers with status indicators
+  - Geographic data visualization
+  - Pan and zoom capabilities
+  - Customizable map pins and overlays
+
+# Configuration
+config:
+  # Map settings
+  defaultProjection: equirectangular
+  imageWidth: 2048
+  imageHeight: 1024
+  maxMarkers: 100

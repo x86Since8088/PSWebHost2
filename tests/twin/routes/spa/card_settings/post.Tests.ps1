@@ -18,7 +18,7 @@ Describe "POST /spa/card_settings" {
         }
 
         It "Should accept JSON body with id and layout" {
-            # Body: {id: "/api/v1/ui/elements/world-map", layout: {w: 12, h: 14, x: 0, y: 0}}
+            # Body: {id: "/apps/Maps/api/v1/ui/elements/world-map", layout: {w: 12, h: 14, x: 0, y: 0}}
             $true | Should -Be $true
         }
 
