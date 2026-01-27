@@ -1,0 +1,8 @@
+{
+  "Allowed_Roles": [
+    "debug",
+    "task_manager",
+    "system_admin",
+    "site_admin"
+  ]
+}

@@ -1,0 +1,4 @@
+{
+  "allowed_roles": ["authenticated", "task_manager", "debug", "system_admin", "site_admin"],
+  "allow_bearer_token": true
+}

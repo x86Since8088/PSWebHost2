@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\SC\\PsWebHost\\system\\utility\\MemoryAnalyzer\\MemoryAnalyzer.csproj": {}
+  },
+  "projects": {
+    "C:\\SC\\PsWebHost\\system\\utility\\MemoryAnalyzer\\MemoryAnalyzer.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\SC\\PsWebHost\\system\\utility\\MemoryAnalyzer\\MemoryAnalyzer.csproj",
+        "projectName": "MemoryAnalyzer",
+        "projectPath": "C:\\SC\\PsWebHost\\system\\utility\\MemoryAnalyzer\\MemoryAnalyzer.csproj",
+        "packagesPath": "C:\\Users\\test\\.nuget\\packages\\",
+        "outputPath": "C:\\SC\\PsWebHost\\system\\utility\\MemoryAnalyzer\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\test\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.Diagnostics.Runtime": {
+              "target": "Package",
+              "version": "[3.1.*, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.417/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

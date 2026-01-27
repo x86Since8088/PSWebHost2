@@ -1,0 +1,20 @@
+{
+  "Name": "System Metrics Collection",
+  "Description": "Collects CPU, memory, and disk metrics at {{Interval}} second intervals",
+  "default_schedule": "*/5 * * * *",
+  "ScriptRelativePath": "CollectMetrics.ps1",
+  "argumentlist": [],
+  "roles_start": [
+    "admin",
+    "metrics_viewer"
+  ],
+  "roles_stop": [
+    "admin"
+  ],
+  "roles_restart": [
+    "admin"
+  ],
+  "template_variables": {
+    "Interval": "Interval in seconds between metric collections"
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "Allowed_Roles": ["debug"],
+  "Description": "Remote PowerShell execution endpoint - requires debug role for security"
+}

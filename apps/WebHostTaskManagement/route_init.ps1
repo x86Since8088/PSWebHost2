@@ -1,0 +1,1 @@
+apps\WebHostTaskManagement\app_init.ps1

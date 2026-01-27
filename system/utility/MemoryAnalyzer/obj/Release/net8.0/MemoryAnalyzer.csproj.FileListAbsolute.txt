@@ -1,0 +1,6 @@
+C:\SC\PsWebHost\system\utility\MemoryAnalyzer\obj\Release\net8.0\MemoryAnalyzer.csproj.AssemblyReference.cache
+C:\SC\PsWebHost\system\utility\MemoryAnalyzer\obj\Release\net8.0\MemoryAnalyzer.GeneratedMSBuildEditorConfig.editorconfig
+C:\SC\PsWebHost\system\utility\MemoryAnalyzer\obj\Release\net8.0\MemoryAnalyzer.AssemblyInfoInputs.cache
+C:\SC\PsWebHost\system\utility\MemoryAnalyzer\obj\Release\net8.0\MemoryAnalyzer.AssemblyInfo.cs
+C:\SC\PsWebHost\system\utility\MemoryAnalyzer\obj\Release\net8.0\MemoryAnalyzer.csproj.CoreCompileInputs.cache
+C:\SC\PsWebHost\system\utility\MemoryAnalyzer\obj\Release\net8.0\MemoryAnalyzer.sourcelink.json

@@ -1,0 +1,4 @@
+{
+    "RequireAuth": true,
+    "AllowedRoles": ["authenticated"]
+}
