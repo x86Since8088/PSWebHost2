@@ -1,0 +1,7 @@
+{
+  "requireAuth": true,
+  "requireSession": true,
+  "allowedRoles": [],
+  "rateLimitPerMinute": 60,
+  "description": "Check for existing incomplete uploads before starting new upload"
+}

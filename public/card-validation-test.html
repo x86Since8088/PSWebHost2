@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Card Validation Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0e27;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #00d4ff;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            background: #1a1f3a;
+        }
+
+        .status.testing {
+            border-left: 4px solid #ffaa00;
+        }
+
+        .status.complete {
+            border-left: 4px solid #00ff88;
+        }
+
+        .progress {
+            width: 100%;
+            height: 30px;
+            background: #1a1f3a;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .results {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .card-result {
+            background: #1a1f3a;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #666;
+        }
+
+        .card-result.pass {
+            border-left-color: #00ff88;
+        }
+
+        .card-result.warn {
+            border-left-color: #ffaa00;
+        }
+
+        .card-result.fail {
+            border-left-color: #ff4444;
+        }
+
+        .card-result .card-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #00d4ff;
+        }
+
+        .card-result .card-url {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .card-result .card-status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .card-result .card-status.pass {
+            background: #00ff88;
+            color: #000;
+        }
+
+        .card-result .card-status.warn {
+            background: #ffaa00;
+            color: #000;
+        }
+
+        .card-result .card-status.fail {
+            background: #ff4444;
+            color: #fff;
+        }
+
+        .card-result .card-details {
+            font-size: 13px;
+            color: #aaa;
+        }
+
+        .summary {
+            background: #1a1f3a;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .summary h2 {
+            color: #00d4ff;
+            margin-bottom: 15px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .summary-item {
+            text-align: center;
+            padding: 15px;
+            background: #0a0e27;
+            border-radius: 4px;
+        }
+
+        .summary-item .number {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .summary-item .label {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+        }
+
+        .summary-item.total .number {
+            color: #00d4ff;
+        }
+
+        .summary-item.pass .number {
+            color: #00ff88;
+        }
+
+        .summary-item.warn .number {
+            color: #ffaa00;
+        }
+
+        .summary-item.fail .number {
+            color: #ff4444;
+        }
+
+        button {
+            background: #00d4ff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background: #00b8e6;
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .error {
+            background: #ff4444;
+            color: #fff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Card Validation Test</h1>
+        <p style="margin-bottom: 20px; color: #888;">Automated testing of all UI cards and elements</p>
+
+        <div id="status" class="status testing">
+            <div id="statusText">Ready to start validation...</div>
+        </div>
+
+        <div class="progress">
+            <div id="progressBar" class="progress-bar" style="width: 0%">0%</div>
+        </div>
+
+        <div>
+            <button id="startBtn" onclick="startValidation()">Start Validation</button>
+            <button id="exportBtn" onclick="exportResults()" disabled>Export Results</button>
+        </div>
+
+        <div id="summary"></div>
+        <div id="results" class="results"></div>
+    </div>
+
+    <script>
+        let allResults = [];
+        let totalCards = 0;
+        let testedCards = 0;
+
+        // Auto-start validation when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('[CardValidation] Auto-starting validation...');
+            setTimeout(() => startValidation(), 1000); // Small delay to ensure page is ready
+        });
+
+        // Log to server function (compatible with window.logToServer API)
+        async function logToServer(message, category = 'CardValidation', level = 'Info', data = null) {
+            const logEntry = {
+                timestamp: new Date().toISOString(),
+                message: typeof message === 'string' ? message : JSON.stringify(message),
+                level: level,
+                category: category,
+                caller: 'card-validation-test.html',
+                data: data
+            };
+
+            try {
+                await fetch('/api/v1/debug/client-log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        batch: true,
+                        count: 1,
+                        logs: [logEntry]
+                    })
+                });
+            } catch (e) {
+                console.error('[CardValidation] Failed to log to server:', e);
+            }
+        }
+
+        async function startValidation() {
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('exportBtn').disabled = true;
+            document.getElementById('statusText').textContent = 'Fetching main menu...';
+            allResults = [];
+            testedCards = 0;
+
+            try {
+                // Fetch main menu
+                const menuResponse = await fetch('/api/v1/ui/elements/main-menu');
+                if (!menuResponse.ok) {
+                    throw new Error(`Failed to fetch menu: ${menuResponse.status}`);
+                }
+
+                const menuData = await menuResponse.json();
+                const cards = extractCardUrls(menuData);
+                totalCards = cards.length;
+
+                document.getElementById('statusText').textContent = `Found ${totalCards} cards. Testing...`;
+
+                // Test each card
+                for (const card of cards) {
+                    await testCard(card);
+                }
+
+                // Show summary
+                showSummary();
+                document.getElementById('statusText').textContent = 'Validation complete! Submitting results...';
+                document.getElementById('status').classList.remove('testing');
+                document.getElementById('status').classList.add('complete');
+                document.getElementById('exportBtn').disabled = false;
+
+                // Submit results to server log
+                await submitResultsToServer();
+
+                document.getElementById('statusText').textContent = 'Validation complete! Results submitted to server log.';
+
+            } catch (error) {
+                document.getElementById('statusText').innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                await logToServer(`Validation failed: ${error.message}`, 'CardValidation', 'Error', { error: error.stack });
+            }
+        }
+
+        async function submitResultsToServer() {
+            const passed = allResults.filter(r => r.status === 'PASS').length;
+            const warned = allResults.filter(r => r.status === 'WARN' || r.status === 'LEGACY').length;
+            const failed = allResults.filter(r => r.status === 'FAIL').length;
+
+            const summary = {
+                timestamp: new Date().toISOString(),
+                totalCards: totalCards,
+                passed: passed,
+                warned: warned,
+                failed: failed,
+                passRate: totalCards > 0 ? Math.round((passed / totalCards) * 100) : 0
+            };
+
+            // Log summary
+            await logToServer(
+                `Card validation complete: ${passed}/${totalCards} passed (${summary.passRate}%)`,
+                'CardValidation',
+                'Info',
+                summary
+            );
+
+            // Log failed cards
+            const failedCards = allResults.filter(r => r.status === 'FAIL');
+            if (failedCards.length > 0) {
+                await logToServer(
+                    `Failed cards: ${failedCards.map(c => c.card).join(', ')}`,
+                    'CardValidation',
+                    'Warning',
+                    { failedCards }
+                );
+            }
+
+            // Log warned cards
+            const warnedCards = allResults.filter(r => r.status === 'WARN' || r.status === 'LEGACY');
+            if (warnedCards.length > 0) {
+                await logToServer(
+                    `Cards with warnings: ${warnedCards.map(c => c.card).join(', ')}`,
+                    'CardValidation',
+                    'Warning',
+                    { warnedCards }
+                );
+            }
+
+            // Log full results
+            await logToServer(
+                'Complete validation results',
+                'CardValidation',
+                'Info',
+                { results: allResults }
+            );
+
+            console.log('[CardValidation] Results submitted to server log');
+        }
+
+        function extractCardUrls(items, category = '') {
+            let urls = [];
+
+            for (const item of items) {
+                const currentCat = category ? `${category} > ${item.label}` : item.label;
+
+                if (item.url && item.url.includes('/ui/elements/')) {
+                    urls.push({
+                        name: item.label,
+                        url: item.url,
+                        category: category,
+                        fullPath: currentCat
+                    });
+                }
+
+                if (item.children) {
+                    urls = urls.concat(extractCardUrls(item.children, currentCat));
+                }
+            }
+
+            return urls;
+        }
+
+        async function testCard(card) {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'card-result';
+            resultDiv.innerHTML = `
+                <div class="card-name">${card.name}</div>
+                <div class="card-url">${card.url}</div>
+                <div class="card-details">Testing...</div>
+            `;
+            document.getElementById('results').appendChild(resultDiv);
+
+            const result = {
+                card: card.name,
+                url: card.url,
+                category: card.category,
+                status: 'UNKNOWN',
+                details: {}
+            };
+
+            try {
+                const response = await fetch(card.url);
+
+                if (!response.ok) {
+                    result.status = 'FAIL';
+                    result.issue = `HTTP ${response.status}`;
+                    resultDiv.classList.add('fail');
+                    resultDiv.innerHTML = `
+                        <div class="card-name">${card.name}</div>
+                        <div class="card-url">${card.url}</div>
+                        <span class="card-status fail">FAIL</span>
+                        <div class="card-details">HTTP ${response.status}</div>
+                    `;
+                } else {
+                    // Try to parse as JSON
+                    const text = await response.text();
+                    try {
+                        const metadata = JSON.parse(text);
+
+                        const hasComponent = metadata.component && metadata.component.length > 0;
+                        const hasScriptPath = metadata.scriptPath && metadata.scriptPath.length > 0;
+                        const hasTitle = metadata.title && metadata.title.length > 0;
+
+                        if (hasComponent && hasScriptPath) {
+                            result.status = 'PASS';
+                            result.format = 'JSON';
+                            result.details = {
+                                component: metadata.component,
+                                scriptPath: metadata.scriptPath,
+                                title: metadata.title,
+                                width: metadata.width,
+                                height: metadata.height
+                            };
+                            resultDiv.classList.add('pass');
+                            resultDiv.innerHTML = `
+                                <div class="card-name">${card.name}</div>
+                                <div class="card-url">${card.url}</div>
+                                <span class="card-status pass">PASS</span>
+                                <div class="card-details">
+                                    Component: ${metadata.component}<br>
+                                    Script: ${metadata.scriptPath}
+                                    ${hasTitle ? `<br>Title: ${metadata.title}` : ''}
+                                </div>
+                            `;
+                        } else {
+                            result.status = 'WARN';
+                            result.issue = 'Missing required fields';
+                            result.details = { hasComponent, hasScriptPath };
+                            resultDiv.classList.add('warn');
+                            resultDiv.innerHTML = `
+                                <div class="card-name">${card.name}</div>
+                                <div class="card-url">${card.url}</div>
+                                <span class="card-status warn">WARN</span>
+                                <div class="card-details">Missing required fields (component: ${hasComponent}, scriptPath: ${hasScriptPath})</div>
+                            `;
+                        }
+                    } catch (e) {
+                        // Not JSON
+                        const isHTML = text.includes('<html') || text.includes('<!DOCTYPE');
+                        if (isHTML) {
+                            result.status = 'LEGACY';
+                            result.format = 'HTML';
+                            result.issue = 'Returns HTML instead of JSON';
+                            resultDiv.classList.add('warn');
+                            resultDiv.innerHTML = `
+                                <div class="card-name">${card.name}</div>
+                                <div class="card-url">${card.url}</div>
+                                <span class="card-status warn">LEGACY</span>
+                                <div class="card-details">Returns HTML - needs migration to JSON</div>
+                            `;
+                        } else {
+                            result.status = 'WARN';
+                            result.issue = 'Unknown format';
+                            resultDiv.classList.add('warn');
+                            resultDiv.innerHTML = `
+                                <div class="card-name">${card.name}</div>
+                                <div class="card-url">${card.url}</div>
+                                <span class="card-status warn">WARN</span>
+                                <div class="card-details">Unknown format</div>
+                            `;
+                        }
+                    }
+                }
+            } catch (error) {
+                result.status = 'FAIL';
+                result.issue = error.message;
+                resultDiv.classList.add('fail');
+                resultDiv.innerHTML = `
+                    <div class="card-name">${card.name}</div>
+                    <div class="card-url">${card.url}</div>
+                    <span class="card-status fail">FAIL</span>
+                    <div class="card-details">${error.message}</div>
+                `;
+            }
+
+            allResults.push(result);
+            testedCards++;
+
+            // Update progress
+            const progress = Math.round((testedCards / totalCards) * 100);
+            document.getElementById('progressBar').style.width = `${progress}%`;
+            document.getElementById('progressBar').textContent = `${progress}%`;
+        }
+
+        function showSummary() {
+            const passed = allResults.filter(r => r.status === 'PASS').length;
+            const warned = allResults.filter(r => r.status === 'WARN' || r.status === 'LEGACY').length;
+            const failed = allResults.filter(r => r.status === 'FAIL').length;
+            const total = allResults.length;
+
+            const summaryHTML = `
+                <div class="summary">
+                    <h2>Validation Results</h2>
+                    <div class="summary-grid">
+                        <div class="summary-item total">
+                            <div class="number">${total}</div>
+                            <div class="label">Total Cards</div>
+                        </div>
+                        <div class="summary-item pass">
+                            <div class="number">${passed}</div>
+                            <div class="label">Passed</div>
+                        </div>
+                        <div class="summary-item warn">
+                            <div class="number">${warned}</div>
+                            <div class="label">Warnings</div>
+                        </div>
+                        <div class="summary-item fail">
+                            <div class="number">${failed}</div>
+                            <div class="label">Failed</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('summary').innerHTML = summaryHTML;
+        }
+
+        function exportResults() {
+            const report = {
+                timestamp: new Date().toISOString(),
+                totalCards: totalCards,
+                results: {
+                    passed: allResults.filter(r => r.status === 'PASS').length,
+                    warned: allResults.filter(r => r.status === 'WARN' || r.status === 'LEGACY').length,
+                    failed: allResults.filter(r => r.status === 'FAIL').length
+                },
+                cards: allResults
+            };
+
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `card-validation-${new Date().toISOString().replace(/:/g, '-')}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

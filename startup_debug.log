@@ -1,0 +1,231 @@
+[33;1mVERBOSE: Added 'C:\SC\PsWebHost\modules' to PSModulePath.[0m
+[33;1mVERBOSE: [Import-TrackedModule] Tracked module Sanitization from C:\SC\PsWebHost\modules\Sanitization[0m
+[33;1mVERBOSE: [Import-TrackedModule] Tracked module PSWebHost_Support from C:\SC\PsWebHost\modules\PSWebHost_Support[0m
+[33;1mVERBOSE: [Import-TrackedModule] Tracked module PSWebHost_Database from C:\SC\PsWebHost\modules\PSWebHost_Database[0m
+[33;1mVERBOSE: [Import-TrackedModule] Tracked module PSWebHost_Authentication from C:\SC\PsWebHost\modules\PSWebHost_Authentication[0m
+[33;1mVERBOSE: [Import-TrackedModule] Tracked module smtp from C:\SC\PsWebHost\modules\smtp[0m
+[33;1mVERBOSE: [Import-TrackedModule] Tracked module PSDockerManager from C:\SC\PsWebHost\apps\DockerManager\modules\PSDockerManager[0m
+[33;1mVERBOSE: [Import-TrackedModule] Tracked module FileExplorerConfig from C:\SC\PsWebHost\apps\WebhostFileExplorer\modules\FileExplorerConfig[0m
+[33;1mVERBOSE: [Import-TrackedModule] Tracked module FileExplorerHelper from C:\SC\PsWebHost\apps\WebhostFileExplorer\modules\FileExplorerHelper[0m
+[33;1mVERBOSE: [Import-TrackedModule] Tracked module PSWebHost_Metrics from C:\SC\PsWebHost\apps\WebHostMetrics\modules\PSWebHost_Metrics[0m
+[33;1mVERBOSE: [Import-TrackedModule] Tracked module PSWebHost_TaskManagement from C:\SC\PsWebHost\apps\WebHostTaskManagement\modules\PSWebHost_TaskManagement[0m
+[33;1mVERBOSE: Initializing variables.[0m
+[33;1mVERBOSE: Detected OS: Windows=True, Linux=False, macOS=False[0m
+[33;1mVERBOSE: Added 'C:\SC\PsWebHost\modules' to PSModulePath.[0m
+[33;1mVERBOSE: Validating third-party modules...[0m
+[33;1mVERBOSE: Validating third-party modules - complete.[0m
+[33;1mVERBOSE: Validating SQLite installation.[0m
+[33;1mVERBOSE: SQLite found at: C:\Users\test\AppData\Local\Microsoft\WinGet\Links\sqlite3.exe[0m
+[33;1mVERBOSE: Validating SQLite installation - complete.[0m
+[33;1mVERBOSE: Validating table: Users[0m
+[33;1mVERBOSE: Table 'Users' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: User_Data[0m
+[33;1mVERBOSE: Table 'User_Data' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: LoginSessions[0m
+[33;1mVERBOSE: Table 'LoginSessions' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: User_Groups[0m
+[33;1mVERBOSE: Table 'User_Groups' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: User_Groups_Map[0m
+[33;1mVERBOSE: Table 'User_Groups_Map' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: PSWeb_Roles[0m
+[33;1mVERBOSE: Table 'PSWeb_Roles' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: AuthenticationMethods[0m
+[33;1mVERBOSE: Table 'AuthenticationMethods' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: CardSessions[0m
+[33;1mVERBOSE: Table 'CardSessions' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: auth_user_provider[0m
+[33;1mVERBOSE: Table 'auth_user_provider' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: LastLoginAttempt[0m
+[33;1mVERBOSE: Table 'LastLoginAttempt' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: account_email_confirmation[0m
+[33;1mVERBOSE: Table 'account_email_confirmation' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: card_settings[0m
+[33;1mVERBOSE: Table 'card_settings' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: API_Keys[0m
+[33;1mVERBOSE: Table 'API_Keys' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Shared_Buckets[0m
+[33;1mVERBOSE: Table 'Shared_Buckets' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Bucket_Access_Log[0m
+[33;1mVERBOSE: Table 'Bucket_Access_Log' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Upload_Sessions[0m
+[33;1mVERBOSE: Table 'Upload_Sessions' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: File_Shares[0m
+[33;1mVERBOSE: Table 'File_Shares' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: File_Share_Roles[0m
+[33;1mVERBOSE: Table 'File_Share_Roles' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Storage_Paths[0m
+[33;1mVERBOSE: Table 'Storage_Paths' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Storage_Path_Permissions[0m
+[33;1mVERBOSE: Table 'Storage_Path_Permissions' exists. Verifying schema.[0m
+[33;1mVERBOSE: Database schema validation complete.[0m
+[33;1mVERBOSE: Validating table: WebRequestPerformance[0m
+[33;1mVERBOSE: Table 'WebRequestPerformance' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: SystemPerformance[0m
+[33;1mVERBOSE: Table 'SystemPerformance' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Perf_MemoryUsage[0m
+[33;1mVERBOSE: Table 'Perf_MemoryUsage' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Perf_DiskIO[0m
+[33;1mVERBOSE: Table 'Perf_DiskIO' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Perf_CPUCore[0m
+[33;1mVERBOSE: Table 'Perf_CPUCore' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Network[0m
+[33;1mVERBOSE: Table 'Network' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating view: vw_RequestPerformanceSummary[0m
+[33;1mVERBOSE: View 'vw_RequestPerformanceSummary' exists. Recreating to ensure current definition.[0m
+[33;1mVERBOSE: Validating view: vw_UserPerformance[0m
+[33;1mVERBOSE: View 'vw_UserPerformance' exists. Recreating to ensure current definition.[0m
+[33;1mVERBOSE: Validating view: vw_SlowRequests[0m
+[33;1mVERBOSE: View 'vw_SlowRequests' exists. Recreating to ensure current definition.[0m
+[33;1mVERBOSE: Database schema validation complete.[0m
+[33;1mVERBOSE: Node GUID: 02a87580-b3c4-488c-bb6a-bf30a81553dc[0m
+[33;1mVERBOSE: Loaded 2 API keys from config[0m
+[33;1mVERBOSE: Started background logging job.[0m
+[33;1mVERBOSE: Started log history collection job.[0m
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'DockerManager': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: DockerManager (v1.0.0)
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'KubernetesManager': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: KubernetesManager (v1.0.0)
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'LinuxAdmin': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: LinuxAdmin (v1.0.0)
+[Init] Loaded app: Maps (v1.0.0)
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'MySQLManager': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: MySQLManager (v1.0.0)
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'RedisManager': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: RedisManager (v1.0.0)
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'SQLiteManager': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: SQLiteManager (v1.0.0)
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'SQLServerManager': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: SQLServerManager (v1.0.0)
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'UI_Uplot': Cannot bind argument to parameter 'Path' because it is null.[0m
+[33;1mVERBOSE:   Registered app 'UI_Uplot' also as 'uplot' (from routePrefix)[0m
+[Init] Loaded app: UI_Uplot (v1.0.0)
+[33;1mVERBOSE: [UnitTests:Init] Initializing UnitTests app...[0m
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'UnitTests': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: UnitTests (v1.0.0)
+[33;1mVERBOSE: [Vault:Init] Loaded PSWebVault module[0m
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'vault': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: vault (v1.0.0)
+[WebHostAppManager:Init] Initializing WebHost App Manager...
+[WebHostAppManager:Init] WebHost App Manager initialized successfully
+[33;1mVERBOSE: [WebHostAppManager:Init] App root: C:\SC\PsWebHost\apps\WebHostAppManager[0m
+[33;1mVERBOSE: Executed app init script for: WebHostAppManager[0m
+[Init] Loaded app: WebHostAppManager (v1.0.0)
+[WebHostDebugExtensions:Init] Initializing debug extensions system...
+[WebHostDebugExtensions:Init] Debug command queue initialized
+[WebHostDebugExtensions:Init]   Max Queue Size: 100
+[WebHostDebugExtensions:Init]   Max History Size: 500
+[WebHostDebugExtensions:Init] Utility scripts available in system/utility/ (call externally)
+[WebHostDebugExtensions:Init] Helper functions registered:
+[WebHostDebugExtensions:Init]   - Get-DebugCommandHistory
+[WebHostDebugExtensions:Init]   - Get-DebugCommandQueue
+[WebHostDebugExtensions:Init]   - Get-DebugCommandResult
+[WebHostDebugExtensions:Init]   - Get-AllDebugCommandResults
+[WebHostDebugExtensions:Init] Initialization complete
+[33;1mVERBOSE: Executed app init script for: WebHostDebugExtensions[0m
+[Init] Loaded app: WebHostDebugExtensions (v1.0.0)
+[WebHostDebugVariables:Init] Initializing Debug Variables browser...
+[WebHostDebugVariables:Init] Debug Variables browser initialized successfully
+[33;1mVERBOSE: Executed app init script for: WebHostDebugVariables[0m
+[Init] Loaded app: WebHostDebugVariables (v1.0.0)
+[WebhostFileExplorer:Init] Initializing WebHost File Explorer...
+[WebhostFileExplorer:Init] Loaded FileExplorerConfig module with hot reload
+[WebhostFileExplorer:Init] WebHost File Explorer initialized successfully
+[WebhostFileExplorer:Init]   Max File Size: 10 MB
+[WebhostFileExplorer:Init]   Max Depth: 10
+[33;1mVERBOSE: Executed app init script for: WebhostFileExplorer[0m
+[Init] Loaded app: WebhostFileExplorer (v1.0.0)
+[WebHostHelpViewer:Init] Initializing Help Viewer app...
+[WebHostHelpViewer:Init] Help Viewer initialized successfully
+[33;1mVERBOSE: Executed app init script for: WebHostHelpViewer[0m
+[Init] Loaded app: WebHostHelpViewer (v1.0.0)
+[WebHostMetrics:Init] Initializing metrics system...
+[Initialize-PSWebMetrics] Metrics system initialized
+True
+[WebHostMetrics:Init] Metrics collection started (5s intervals, job ID: 1)
+[33;1mVERBOSE: Executed app init script for: WebHostMetrics[0m
+[Init] Loaded app: WebHostMetrics (v1.0.0)
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'WebhostRealtimeEvents': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: WebhostRealtimeEvents (v1.0.0)
+[33;1mVERBOSE: No app.yaml found in 'WebHostSMBClient', skipping.[0m
+[33;1mVERBOSE: No app.yaml found in 'WebHostSSHFileAccess', skipping.[0m
+[33;1mVERBOSE: Executed app init script for: WebHostTaskManagement[0m
+[Init] Loaded app: WebHostTaskManagement (v1.0.0)
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'WindowsAdmin': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: WindowsAdmin (v1.0.0)
+[33;1mWARNING: Failed to execute app_init.ps1 for app 'WSLManager': Cannot bind argument to parameter 'Path' because it is null.[0m
+[Init] Loaded app: WSLManager (v1.0.0)
+[33;1mVERBOSE: Apps framework initialized. Loaded 22 app(s).[0m
+[33;1mVERBOSE: [Init] Created category: Databases (id: databases)[0m
+[33;1mVERBOSE: [Init]   Added subcategory: SQL Server (order: 4)[0m
+[33;1mVERBOSE: [Init]   Added app 'SQLServerManager' to category 'Databases' > 'SQL Server'[0m
+[33;1mVERBOSE: [Init] Created category: Data Visualization (id: visualization)[0m
+[33;1mVERBOSE: [Init]   Added subcategory: Charts (order: 1)[0m
+[33;1mVERBOSE: [Init]   Added app 'UI_Uplot' to category 'Data Visualization' > 'Charts'[0m
+[33;1mVERBOSE: [Init] Created category: Security (id: security)[0m
+[33;1mVERBOSE: [Init]   Added subcategory: Credentials (order: 1)[0m
+[33;1mVERBOSE: [Init]   Added app 'vault' to category 'Security' > 'Credentials'[0m
+[33;1mVERBOSE: [Init]   Added app 'uplot' to category 'Data Visualization' > 'Charts'[0m
+[33;1mVERBOSE: [Init]   Added subcategory: MySQL (order: 1)[0m
+[33;1mVERBOSE: [Init]   Added app 'MySQLManager' to category 'Databases' > 'MySQL'[0m
+[33;1mVERBOSE: [Init] Created category: Containers (id: containers)[0m
+[33;1mVERBOSE: [Init]   Added subcategory: WSL (order: 1)[0m
+[33;1mVERBOSE: [Init]   Added app 'WSLManager' to category 'Containers' > 'WSL'[0m
+[33;1mVERBOSE: [Init] Created category: Operating Systems (id: operating-systems)[0m
+[33;1mVERBOSE: [Init]   Added subcategory: Linux (order: 2)[0m
+[33;1mVERBOSE: [Init]   Added app 'LinuxAdmin' to category 'Operating Systems' > 'Linux'[0m
+[33;1mVERBOSE: [Init]   Added subcategory: Windows (order: 1)[0m
+[33;1mVERBOSE: [Init]   Added app 'WindowsAdmin' to category 'Operating Systems' > 'Windows'[0m
+[33;1mVERBOSE: [Init]   Added subcategory: Redis (order: 2)[0m
+[33;1mVERBOSE: [Init]   Added app 'RedisManager' to category 'Databases' > 'Redis'[0m
+[33;1mVERBOSE: [Init]   Added subcategory: SQLite (order: 3)[0m
+[33;1mVERBOSE: [Init]   Added app 'SQLiteManager' to category 'Databases' > 'SQLite'[0m
+[33;1mVERBOSE: [Init]   Added subcategory: Docker (order: 2)[0m
+[33;1mVERBOSE: [Init]   Added app 'DockerManager' to category 'Containers' > 'Docker'[0m
+[33;1mVERBOSE: [Init]   Added subcategory: Kubernetes (order: 3)[0m
+[33;1mVERBOSE: [Init]   Added app 'KubernetesManager' to category 'Containers' > 'Kubernetes'[0m
+[33;1mVERBOSE: [Init] Created category: Monitoring (id: monitoring)[0m
+[33;1mVERBOSE: [Init]   Added subcategory: Logs (order: 1)[0m
+[33;1mVERBOSE: [Init]   Added app 'WebhostRealtimeEvents' to category 'Monitoring' > 'Logs'[0m
+[Init] Built category structure: 6 parent categories
+[33;1mVERBOSE: [Init]   - Containers: 3 subcategories, 3 apps[0m
+[33;1mVERBOSE: [Init]   - Databases: 4 subcategories, 4 apps[0m
+[33;1mVERBOSE: [Init]   - Monitoring: 1 subcategories, 1 apps[0m
+[33;1mVERBOSE: [Init]   - Operating Systems: 2 subcategories, 2 apps[0m
+[33;1mVERBOSE: [Init]   - Security: 1 subcategories, 1 apps[0m
+[33;1mVERBOSE: [Init]   - Data Visualization: 1 subcategories, 2 apps[0m
+Init.ps1 completed after 3782.996 milliseconds
+û PSWebHost_Jobs module imported
+û Job system initialized
+PSWebHost_Jobs module loaded (discovered 1 jobs)
+Starting performance monitoring job...
+[33;1mVERBOSE: Validating table: WebRequestPerformance[0m
+[33;1mVERBOSE: Table 'WebRequestPerformance' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: SystemPerformance[0m
+[33;1mVERBOSE: Table 'SystemPerformance' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Perf_MemoryUsage[0m
+[33;1mVERBOSE: Table 'Perf_MemoryUsage' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Perf_DiskIO[0m
+[33;1mVERBOSE: Table 'Perf_DiskIO' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Perf_CPUCore[0m
+[33;1mVERBOSE: Table 'Perf_CPUCore' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating table: Network[0m
+[33;1mVERBOSE: Table 'Network' exists. Verifying schema.[0m
+[33;1mVERBOSE: Validating view: vw_RequestPerformanceSummary[0m
+[33;1mVERBOSE: View 'vw_RequestPerformanceSummary' exists. Recreating to ensure current definition.[0m
+[33;1mVERBOSE: Validating view: vw_UserPerformance[0m
+[33;1mVERBOSE: View 'vw_UserPerformance' exists. Recreating to ensure current definition.[0m
+[33;1mVERBOSE: Validating view: vw_SlowRequests[0m
+[33;1mVERBOSE: View 'vw_SlowRequests' exists. Recreating to ensure current definition.[0m
+[33;1mVERBOSE: Database schema validation complete.[0m
+Performance monitoring job started (Job ID: 3)
+
+[32;1mId    [0m[32;1m Name           [0m[32;1m PSJobTypeName  [0m[32;1m State        [0m[32;1m HasMoreData    [0m[32;1m Location            [0m[32;1m Command[0m
+[32;1m--    [0m [32;1m----           [0m [32;1m-------------  [0m [32;1m-----        [0m [32;1m-----------    [0m [32;1m--------            [0m [32;1m-------[0m
+3      Job3            BackgroundJob   Running       True            localhost            .
+Performance monitoring job started.
+Starting log tail job for event stream...
+Selected log file: log_2026-02-08T185546_4095177-0600.tsv
+Log tail job started: Log_Tail:C:\SC\PsWebHost\PsWebHost_Data\Logs\log_2026-02-08T185546_4095177-0600.tsv (Job ID: 5)
+Adding missing fields row to log. 'utcTime','localTime','Severity','Category','escapedMessage','Source','ActivityName','percentString','UserID','SessionID','RunspaceID','dataString'
+	Logging: 2026-02-09T00:55:47.9395360Z	2026-02-08T18:55:47.9395360-06:00	Info	MetricsData	Track_HashTables	WebHost.ps1	ProcessLogQueue		Webhost	MainLoop	1	H4sIAAAAAAAACpWUzW7CMBCE38VnqOwN/ssVDq0EFVIoPS/UUKSQoNiphBDvXkHBsdtUJMeMo2/Ws7s+kRm69aexJD2RV9wbknplQMZlXTiSsgGZonWZMQVJCVAQQwpDqhZMpZynI/mkgUsANqQipZScB2SevZtVZqovU83KjzqPDFoOGy/62CzhGqRqzPZY7DbGusDCS73AwLlkugFPy+3zzrqyOgboQPTwTmyQNCjaHu2bNVUAviuemnSIQlEmRg11jc5s43q95LnyMZdp4EK09rO9kUHV0KWDUgj6B2/trixaJuWm94k7EUzowOGAlSncGMMhaTRP5h0aqUBwHjSyXsXYm+CZXfKQTEAwePNsaarLpRe4yk0USHTgPXSXzIEJ2Xjg4fBSbMoAflc8VXUYFKEUJBF1gg5j6lXpRR1RQYM8fiL9Pdmh2mtpJE9UUPM6at/lq9eqKA06WJU1OszLbUy8Kn0eVKZZkkQP6sRssM7dHCvcG2eqJeb1r2f1n1967Q0bMfDTff4G4pJNEyAGAAA=
+	Logging: 2026-02-09T00:55:47.9631006Z	2026-02-08T18:55:47.9631006-06:00	Info	MetricsData	Track_HashTables	WebHost.ps1	ProcessLogQueue		Webhost	MainLoop	1	{"dbRoles":{"Name":"dbRoles","Count":15,"LastSeen":"2026-02-08T18:55:47.9602123-06:00"},"prefixesToTry":{"Name":"prefixesToTry","Count":2,"LastSeen":"2026-02-08T18:55:47.9612917-06:00"},"args":{"Name":"args","Count":0,"LastSeen":"2026-02-08T18:55:47.9586299-06:00"},"systemUsers":{"Name":"systemUsers","Count":2,"LastSeen":"2026-02-08T18:55:47.9624192-06:00"},"configRoles":{"Name":"configRoles","Count":6,"LastSeen":"2026-02-08T18:55:47.9599736-06:00"},"ModulePathEnv":{"Name":"ModulePathEnv","Count":19,"LastSeen":"2026-02-08T18:55:47.9609370-06:00"}}

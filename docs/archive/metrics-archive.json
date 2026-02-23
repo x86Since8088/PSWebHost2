@@ -1,0 +1,32 @@
+{
+  "Sources": {
+    "CsvMetrics": {
+      "Enabled": true,
+      "Path": "C:\\SC\\PsWebHost\\PsWebHost_Data\\metrics",
+      "Description": "Per-metric CSV files (Perf_CPUCore_*.csv, Network_*.csv, etc.)"
+    },
+    "DailyMetrics": {
+      "Enabled": true,
+      "Path": "C:\\SC\\PsWebHost\\PsWebHost_Data\\metrics",
+      "Pattern": "metrics_*.csv",
+      "Description": "Daily aggregated metrics files"
+    },
+    "PerfDatabase": {
+      "Enabled": true,
+      "Path": "C:\\SC\\PsWebHost\\PsWebHost_Data\\pswebhost_perf.db",
+      "Description": "SQLite performance database"
+    }
+  },
+  "ParquetPath": "C:\\SC\\PsWebHost\\data\\metrics\\parquet",
+  "IntervalMinutes": 15,
+  "RetentionDays": 30,
+  "MetricTypes": [
+    "CPUCore",
+    "MemoryUsage",
+    "DiskIO",
+    "Network",
+    "DailyMetrics"
+  ],
+  "CompressionCodec": "snappy",
+  "Enabled": true
+}

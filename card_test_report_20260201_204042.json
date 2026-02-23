@@ -1,0 +1,928 @@
+{
+  "TotalTests": 73,
+  "IssuesFixed": 4,
+  "TotalCards": 50,
+  "Timestamp": "2026-02-01 20:40:42",
+  "CardResults": [
+    {
+      "CardName": "database-status",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/database-status",
+      "Tests": [
+        {
+          "Details": "200 OK",
+          "Status": "Pass",
+          "Test": "EndpointResponse"
+        },
+        {
+          "Test": "ComponentRegistration",
+          "Status": "Pass"
+        },
+        {
+          "Test": "ComponentDefinition",
+          "Status": "Pass"
+        },
+        {
+          "Details": "Timeout waiting for command execution",
+          "Status": "Fail",
+          "Test": "DOMRendering"
+        }
+      ],
+      "OverallStatus": "Fail",
+      "IssuesFound": [
+        "Contains TODO comments",
+        "DOM test execution failed: Timeout waiting for command execution"
+      ],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:37:25"
+    },
+    {
+      "CardName": "event-stream",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/event-stream",
+      "Tests": [
+        {
+          "Details": "200 OK",
+          "Status": "Pass",
+          "Test": "EndpointResponse"
+        },
+        {
+          "Details": "Pattern not found",
+          "Status": "Warning",
+          "Test": "ComponentRegistration"
+        },
+        {
+          "Test": "ComponentDefinition",
+          "Status": "Fail"
+        },
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Fail",
+          "Test": "DOMRendering"
+        }
+      ],
+      "OverallStatus": "Fail",
+      "IssuesFound": [
+        "Missing window.cardComponents registration",
+        "No component class or function definition",
+        "DOM test execution failed: The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing."
+      ],
+      "IssuesFixed": [
+        "Component registration (simulation)"
+      ],
+      "Timestamp": "2026-02-01 20:37:44"
+    },
+    {
+      "CardName": "help-viewer",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/help-viewer",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:38:00"
+    },
+    {
+      "CardName": "job-status",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/job-status",
+      "Tests": [
+        {
+          "Details": "200 OK",
+          "Status": "Pass",
+          "Test": "EndpointResponse"
+        },
+        {
+          "Details": "Pattern not found",
+          "Status": "Warning",
+          "Test": "ComponentRegistration"
+        },
+        {
+          "Test": "ComponentDefinition",
+          "Status": "Fail"
+        },
+        {
+          "Details": "Timeout waiting for command execution",
+          "Status": "Fail",
+          "Test": "DOMRendering"
+        }
+      ],
+      "OverallStatus": "Fail",
+      "IssuesFound": [
+        "Missing window.cardComponents registration",
+        "No component class or function definition",
+        "DOM test execution failed: Timeout waiting for command execution"
+      ],
+      "IssuesFixed": [
+        "Component registration (simulation)"
+      ],
+      "Timestamp": "2026-02-01 20:38:05"
+    },
+    {
+      "CardName": "main-menu",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/main-menu",
+      "Tests": [
+        {
+          "Details": "200 OK",
+          "Status": "Pass",
+          "Test": "EndpointResponse"
+        },
+        {
+          "Details": "Pattern not found",
+          "Status": "Warning",
+          "Test": "ComponentRegistration"
+        },
+        {
+          "Test": "ComponentDefinition",
+          "Status": "Fail"
+        },
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Fail",
+          "Test": "DOMRendering"
+        }
+      ],
+      "OverallStatus": "Fail",
+      "IssuesFound": [
+        "Missing window.cardComponents registration",
+        "No component class or function definition",
+        "DOM test execution failed: The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing."
+      ],
+      "IssuesFixed": [
+        "Component registration (simulation)"
+      ],
+      "Timestamp": "2026-02-01 20:38:23"
+    },
+    {
+      "CardName": "markdown-viewer",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/markdown-viewer",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 400 (Bad Request).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:38:46"
+    },
+    {
+      "CardName": "memory-explorer",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/memory-explorer",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 401 (Unauthorized).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:38:48"
+    },
+    {
+      "CardName": "nodes-manager",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/nodes-manager",
+      "Tests": [
+        {
+          "Details": "200 OK",
+          "Status": "Pass",
+          "Test": "EndpointResponse"
+        },
+        {
+          "Details": "Pattern not found",
+          "Status": "Warning",
+          "Test": "ComponentRegistration"
+        },
+        {
+          "Test": "ComponentDefinition",
+          "Status": "Pass"
+        },
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Fail",
+          "Test": "DOMRendering"
+        }
+      ],
+      "OverallStatus": "Fail",
+      "IssuesFound": [
+        "Missing window.cardComponents registration",
+        "Contains console.error calls",
+        "Contains explicit error throws",
+        "Contains TODO comments",
+        "DOM test execution failed: The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing."
+      ],
+      "IssuesFixed": [
+        "Component registration (simulation)"
+      ],
+      "Timestamp": "2026-02-01 20:38:49"
+    },
+    {
+      "CardName": "site-settings",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/site-settings",
+      "Tests": [
+        {
+          "Details": "200 OK",
+          "Status": "Pass",
+          "Test": "EndpointResponse"
+        },
+        {
+          "Test": "ComponentRegistration",
+          "Status": "Pass"
+        },
+        {
+          "Test": "ComponentDefinition",
+          "Status": "Pass"
+        },
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Fail",
+          "Test": "DOMRendering"
+        }
+      ],
+      "OverallStatus": "Fail",
+      "IssuesFound": [
+        "Contains TODO comments",
+        "DOM test execution failed: The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing."
+      ],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:01"
+    },
+    {
+      "CardName": "system-log",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/system-log",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:11"
+    },
+    {
+      "CardName": "system-status",
+      "App": "Core",
+      "Endpoint": "/api/v1/ui/elements/system-status",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:16"
+    },
+    {
+      "CardName": "docker-manager",
+      "App": "DockerManager",
+      "Endpoint": "/api/v1/ui/elements/docker-manager",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:22"
+    },
+    {
+      "CardName": "dockermanager-home",
+      "App": "DockerManager",
+      "Endpoint": "/api/v1/ui/elements/dockermanager-home",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:22"
+    },
+    {
+      "CardName": "kubernetes-status",
+      "App": "KubernetesManager",
+      "Endpoint": "/api/v1/ui/elements/kubernetes-status",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:23"
+    },
+    {
+      "CardName": "kubernetesmanager-home",
+      "App": "KubernetesManager",
+      "Endpoint": "/api/v1/ui/elements/kubernetesmanager-home",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:24"
+    },
+    {
+      "CardName": "linux-cron",
+      "App": "LinuxAdmin",
+      "Endpoint": "/api/v1/ui/elements/linux-cron",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:29"
+    },
+    {
+      "CardName": "linux-services",
+      "App": "LinuxAdmin",
+      "Endpoint": "/api/v1/ui/elements/linux-services",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:35"
+    },
+    {
+      "CardName": "linuxadmin-home",
+      "App": "LinuxAdmin",
+      "Endpoint": "/api/v1/ui/elements/linuxadmin-home",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:40"
+    },
+    {
+      "CardName": "world-map",
+      "App": "Maps",
+      "Endpoint": "/api/v1/ui/elements/world-map",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:46"
+    },
+    {
+      "CardName": "mysql-manager",
+      "App": "MySQLManager",
+      "Endpoint": "/api/v1/ui/elements/mysql-manager",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:51"
+    },
+    {
+      "CardName": "redis-manager",
+      "App": "RedisManager",
+      "Endpoint": "/api/v1/ui/elements/redis-manager",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:55"
+    },
+    {
+      "CardName": "sqlite-manager",
+      "App": "SQLiteManager",
+      "Endpoint": "/api/v1/ui/elements/sqlite-manager",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:56"
+    },
+    {
+      "CardName": "sqlite-query-editor",
+      "App": "SQLiteManager",
+      "Endpoint": "/api/v1/ui/elements/sqlite-query-editor",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:57"
+    },
+    {
+      "CardName": "sqlserver-manager",
+      "App": "SQLServerManager",
+      "Endpoint": "/api/v1/ui/elements/sqlserver-manager",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:57"
+    },
+    {
+      "CardName": "area-chart",
+      "App": "UI_Uplot",
+      "Endpoint": "/api/v1/ui/elements/area-chart",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:58"
+    },
+    {
+      "CardName": "bar-chart",
+      "App": "UI_Uplot",
+      "Endpoint": "/api/v1/ui/elements/bar-chart",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:58"
+    },
+    {
+      "CardName": "heatmap",
+      "App": "UI_Uplot",
+      "Endpoint": "/api/v1/ui/elements/heatmap",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:39:59"
+    },
+    {
+      "CardName": "multi-axis",
+      "App": "UI_Uplot",
+      "Endpoint": "/api/v1/ui/elements/multi-axis",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:01"
+    },
+    {
+      "CardName": "scatter-plot",
+      "App": "UI_Uplot",
+      "Endpoint": "/api/v1/ui/elements/scatter-plot",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:01"
+    },
+    {
+      "CardName": "time-series",
+      "App": "UI_Uplot",
+      "Endpoint": "/api/v1/ui/elements/time-series",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:02"
+    },
+    {
+      "CardName": "uplot-home",
+      "App": "UI_Uplot",
+      "Endpoint": "/api/v1/ui/elements/uplot-home",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:05"
+    },
+    {
+      "CardName": "unit-test-runner",
+      "App": "UnitTests",
+      "Endpoint": "/api/v1/ui/elements/unit-test-runner",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:07"
+    },
+    {
+      "CardName": "vault-manager",
+      "App": "vault",
+      "Endpoint": "/api/v1/ui/elements/vault-manager",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:08"
+    },
+    {
+      "CardName": "apps-manager",
+      "App": "WebHostAppManager",
+      "Endpoint": "/api/v1/ui/elements/apps-manager",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:08"
+    },
+    {
+      "CardName": "debug-console",
+      "App": "WebHostDebugExtensions",
+      "Endpoint": "/api/v1/ui/elements/debug-console",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:09"
+    },
+    {
+      "CardName": "debug-variables",
+      "App": "WebHostDebugVariables",
+      "Endpoint": "/api/v1/ui/elements/debug-variables",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:10"
+    },
+    {
+      "CardName": "file-explorer",
+      "App": "WebhostFileExplorer",
+      "Endpoint": "/api/v1/ui/elements/file-explorer",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:11"
+    },
+    {
+      "CardName": "file-sharing-modal",
+      "App": "WebhostFileExplorer",
+      "Endpoint": "/api/v1/ui/elements/file-sharing-modal",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:12"
+    },
+    {
+      "CardName": "hex-editor",
+      "App": "WebhostFileExplorer",
+      "Endpoint": "/api/v1/ui/elements/hex-editor",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:12"
+    },
+    {
+      "CardName": "text-editor",
+      "App": "WebhostFileExplorer",
+      "Endpoint": "/api/v1/ui/elements/text-editor",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:13"
+    },
+    {
+      "CardName": "help-viewer",
+      "App": "WebHostHelpViewer",
+      "Endpoint": "/api/v1/ui/elements/help-viewer",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:19"
+    },
+    {
+      "CardName": "memory-histogram",
+      "App": "WebHostMetrics",
+      "Endpoint": "/api/v1/ui/elements/memory-histogram",
+      "Tests": [
+        {
+          "Details": "The request was canceled due to the configured HttpClient.Timeout of 5 seconds elapsing.",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:24"
+    },
+    {
+      "CardName": "server-heatmap",
+      "App": "WebHostMetrics",
+      "Endpoint": "/api/v1/ui/elements/server-heatmap",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:30"
+    },
+    {
+      "CardName": "realtime-events",
+      "App": "WebhostRealtimeEvents",
+      "Endpoint": "/api/v1/ui/elements/realtime-events",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:32"
+    },
+    {
+      "CardName": "task-manager",
+      "App": "WebHostTaskManagement",
+      "Endpoint": "/api/v1/ui/elements/task-manager",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:33"
+    },
+    {
+      "CardName": "service-control",
+      "App": "WindowsAdmin",
+      "Endpoint": "/api/v1/ui/elements/service-control",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:34"
+    },
+    {
+      "CardName": "task-scheduler",
+      "App": "WindowsAdmin",
+      "Endpoint": "/api/v1/ui/elements/task-scheduler",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:36"
+    },
+    {
+      "CardName": "windowsadmin-home",
+      "App": "WindowsAdmin",
+      "Endpoint": "/api/v1/ui/elements/windowsadmin-home",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:37"
+    },
+    {
+      "CardName": "wsl-manager",
+      "App": "WSLManager",
+      "Endpoint": "/api/v1/ui/elements/wsl-manager",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:37"
+    },
+    {
+      "CardName": "wslmanager-home",
+      "App": "WSLManager",
+      "Endpoint": "/api/v1/ui/elements/wslmanager-home",
+      "Tests": [
+        {
+          "Details": "Response status code does not indicate success: 404 (Not Found).",
+          "Status": "Error",
+          "Test": "Overall"
+        }
+      ],
+      "OverallStatus": "Error",
+      "IssuesFound": [],
+      "IssuesFixed": [],
+      "Timestamp": "2026-02-01 20:40:38"
+    }
+  ],
+  "WarningCards": 0,
+  "TestsFailed": 53,
+  "FailedCards": 6,
+  "TestsPassed": 11,
+  "PassedCards": 0,
+  "TestsWarning": 9
+}

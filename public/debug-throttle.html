@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Request Throttle Debug</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+        h1 { color: #333; }
+        .info { background: #e3f2fd; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
+        .controls { margin: 1rem 0; display: flex; gap: 1rem; flex-wrap: wrap; }
+        button {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background: #f5f5f5; }
+        button.danger { background: #ffebee; border-color: #f44336; color: #d32f2f; }
+        button.success { background: #e8f5e9; border-color: #4caf50; color: #388e3c; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #666;
+        }
+        .empty {
+            padding: 2rem;
+            text-align: center;
+            color: #999;
+            font-style: italic;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-400 { background: #fff3e0; color: #f57c00; }
+        .status-500 { background: #ffebee; color: #d32f2f; }
+        .expires-soon { color: #f57c00; font-weight: 500; }
+        .url-cell {
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        code {
+            background: #f5f5f5;
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Request Throttle Manager - Debug Tool</h1>
+
+    <div class="info">
+        <strong>About Request Throttling:</strong>
+        <p>When a request returns a 4xx or 5xx error, the client automatically throttles that URL for <strong>60 seconds</strong> to prevent hammering broken endpoints. During this time, requests return a fake <code>429 Too Many Requests</code> response without contacting the server.</p>
+    </div>
+
+    <div class="controls">
+        <button onclick="refreshTable()" class="success">🔄 Refresh Table</button>
+        <button onclick="clearAllThrottles()" class="danger">🗑️ Clear All Throttles</button>
+        <button onclick="exportThrottles()">📥 Export JSON</button>
+        <button onclick="showDuration()">⏱️ Show Throttle Duration</button>
+        <button onclick="setDuration()">⚙️ Set Throttle Duration</button>
+    </div>
+
+    <h2>Currently Throttled URLs (<span id="count">0</span>)</h2>
+    <div id="table-container">
+        <div class="empty">No throttled requests</div>
+    </div>
+
+    <script>
+        // Auto-refresh every 2 seconds
+        let autoRefreshInterval = setInterval(refreshTable, 2000);
+
+        function refreshTable() {
+            const container = document.getElementById('table-container');
+            const countSpan = document.getElementById('count');
+
+            if (!window.RequestThrottleManager) {
+                container.innerHTML = '<div class="empty">⚠️ RequestThrottleManager not found. Please load psweb_spa.js first.</div>';
+                countSpan.textContent = '0';
+                return;
+            }
+
+            const throttles = Array.from(RequestThrottleManager.throttledRequests.entries());
+            countSpan.textContent = throttles.length;
+
+            if (throttles.length === 0) {
+                container.innerHTML = '<div class="empty">✅ No throttled requests</div>';
+                return;
+            }
+
+            const now = Date.now();
+            const duration = RequestThrottleManager.throttleDuration;
+
+            let html = '<table><thead><tr>';
+            html += '<th>URL</th>';
+            html += '<th>Status</th>';
+            html += '<th>Age</th>';
+            html += '<th>Expires In</th>';
+            html += '<th>Action</th>';
+            html += '</tr></thead><tbody>';
+
+            throttles.forEach(([url, info]) => {
+                const age = Math.floor((now - info.timestamp) / 1000);
+                const remaining = Math.ceil((duration - (now - info.timestamp)) / 1000);
+                const statusClass = info.status >= 500 ? 'status-500' : 'status-400';
+                const expiresClass = remaining <= 10 ? 'expires-soon' : '';
+
+                html += '<tr>';
+                html += `<td class="url-cell" title="${url}">${url}</td>`;
+                html += `<td><span class="status-badge ${statusClass}">${info.status}</span></td>`;
+                html += `<td>${age}s ago</td>`;
+                html += `<td class="${expiresClass}">${remaining}s</td>`;
+                html += `<td><button onclick="clearSingleThrottle('${url.replace(/'/g, "\\'")}')">Clear</button></td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function clearAllThrottles() {
+            if (!window.RequestThrottleManager) {
+                alert('RequestThrottleManager not available');
+                return;
+            }
+
+            const count = RequestThrottleManager.throttledRequests.size;
+            RequestThrottleManager.throttledRequests.clear();
+            console.log(`[Throttle Debug] Cleared ${count} throttled requests`);
+            alert(`Cleared ${count} throttled URLs`);
+            refreshTable();
+        }
+
+        function clearSingleThrottle(url) {
+            if (!window.RequestThrottleManager) return;
+
+            RequestThrottleManager.clearThrottle(url);
+            console.log(`[Throttle Debug] Cleared throttle for: ${url}`);
+            refreshTable();
+        }
+
+        function exportThrottles() {
+            if (!window.RequestThrottleManager) return;
+
+            const data = {};
+            for (let [url, info] of RequestThrottleManager.throttledRequests) {
+                const age = Math.floor((Date.now() - info.timestamp) / 1000);
+                const remaining = Math.ceil((RequestThrottleManager.throttleDuration - (Date.now() - info.timestamp)) / 1000);
+                data[url] = {
+                    status: info.status,
+                    timestamp: new Date(info.timestamp).toISOString(),
+                    ageSeconds: age,
+                    expiresInSeconds: remaining
+                };
+            }
+
+            console.log('Throttled URLs:', data);
+
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `throttled-urls-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function showDuration() {
+            if (!window.RequestThrottleManager) return;
+
+            const seconds = RequestThrottleManager.throttleDuration / 1000;
+            alert(`Current throttle duration: ${seconds} seconds`);
+        }
+
+        function setDuration() {
+            if (!window.RequestThrottleManager) return;
+
+            const currentSeconds = RequestThrottleManager.throttleDuration / 1000;
+            const newSeconds = prompt(`Enter new throttle duration in seconds (current: ${currentSeconds}s):`, currentSeconds);
+
+            if (newSeconds !== null && !isNaN(newSeconds) && newSeconds > 0) {
+                RequestThrottleManager.throttleDuration = parseInt(newSeconds) * 1000;
+                console.log(`[Throttle Debug] Set throttle duration to ${newSeconds}s`);
+                alert(`Throttle duration set to ${newSeconds} seconds`);
+            }
+        }
+
+        // Initial load
+        refreshTable();
+    </script>
+</body>
+</html>

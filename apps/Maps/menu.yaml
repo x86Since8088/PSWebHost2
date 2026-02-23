@@ -1,0 +1,7 @@
+- Name: World Map
+  parent: Main Menu
+  url: /apps/Maps/cards/world-map
+  hover_description: Interactive world map with location markers
+  icon: globe
+  roles:
+    - authenticated

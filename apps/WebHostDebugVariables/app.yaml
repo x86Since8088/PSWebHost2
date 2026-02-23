@@ -1,0 +1,31 @@
+name: WebHost Debug Variables
+version: 1.0.0
+description: Interactive variable browser with tree view for debugging and development
+author: PSWebHost Team
+category: development
+subcategory: debugging
+enabled: true
+routePrefix: /apps/WebHostDebugVariables
+
+modules: []
+
+dependencies:
+  - PSWebHost_Support
+
+requiredRoles:
+  - debug
+  - system_admin
+
+features:
+  - Interactive variable browsing with card UI
+  - Tree view for hierarchical data structures
+  - Real-time variable inspection
+  - Expandable/collapsible nodes
+  - Support for arrays, hashtables, and objects
+  - Search and filter capabilities
+  - Type information and value display
+
+config:
+  maxDepth: 10
+  maxArrayItems: 1000
+  truncateStringLength: 200

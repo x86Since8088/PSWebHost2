@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear All Throttle Data</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #f5f5f5; }
+        .box { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h1>🧹 Clear All Throttle Data & Logs</h1>
+        <p>This will clear all accumulated data and force reload with fresh JavaScript.</p>
+    </div>
+
+    <div class="box">
+        <h2>Step 1: Clear Everything</h2>
+        <button onclick="clearEverything()" style="background: #f44336; color: white; border: none;">
+            🗑️ Clear All Data
+        </button>
+        <div id="clear-status"></div>
+    </div>
+
+    <div class="box">
+        <h2>Step 2: Force Reload</h2>
+        <button onclick="hardReload()" style="background: #4caf50; color: white; border: none;">
+            🔄 Hard Reload (Ctrl+Shift+R)
+        </button>
+        <p><small>This forces the browser to download fresh JavaScript files</small></p>
+    </div>
+
+    <div class="box">
+        <h2>Manual Steps (if needed)</h2>
+        <ol>
+            <li>Open DevTools (F12)</li>
+            <li>Go to <strong>Network</strong> tab</li>
+            <li>Check "<strong>Disable cache</strong>"</li>
+            <li>Reload the page</li>
+        </ol>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const div = document.getElementById('clear-status');
+            const p = document.createElement('p');
+            p.className = type;
+            p.textContent = message;
+            div.appendChild(p);
+        }
+
+        function clearEverything() {
+            const status = document.getElementById('clear-status');
+            status.innerHTML = '';
+
+            try {
+                // 1. Clear log queue
+                if (window._logQueue) {
+                    const queueSize = window._logQueue.length;
+                    window._logQueue = [];
+                    log(`✓ Cleared ${queueSize} queued log entries`, 'success');
+                } else {
+                    window._logQueue = [];
+                    log('✓ Initialized empty log queue', 'success');
+                }
+
+                // 2. Cancel flush timer
+                if (window._logQueueTimer) {
+                    clearTimeout(window._logQueueTimer);
+                    window._logQueueTimer = null;
+                    log('✓ Cancelled log flush timer', 'success');
+                }
+
+                // 3. Clear throttles
+                if (window.RequestThrottleManager) {
+                    const throttleCount = window.RequestThrottleManager.throttledRequests.size;
+                    window.RequestThrottleManager.throttledRequests.clear();
+                    log(`✓ Cleared ${throttleCount} throttled URLs`, 'success');
+                } else {
+                    log('⚠ RequestThrottleManager not loaded yet', 'error');
+                }
+
+                // 4. Clear session storage
+                sessionStorage.clear();
+                log('✓ Cleared session storage', 'success');
+
+                // 5. Clear local storage (optional - might clear user preferences)
+                // localStorage.clear();
+                // log('✓ Cleared local storage', 'success');
+
+                log('', 'info');
+                log('✅ All data cleared! Now click "Hard Reload" button.', 'success');
+
+            } catch (e) {
+                log(`❌ Error: ${e.message}`, 'error');
+            }
+        }
+
+        function hardReload() {
+            // Force hard reload with cache bypass
+            location.reload(true);
+        }
+
+        // Auto-run on page load
+        window.addEventListener('load', () => {
+            console.log('=== Throttle Data Clear Page ===');
+            console.log('window._logQueue size:', window._logQueue ? window._logQueue.length : 'undefined');
+            console.log('Throttled URLs:', window.RequestThrottleManager ? window.RequestThrottleManager.throttledRequests.size : 'undefined');
+        });
+    </script>
+</body>
+</html>

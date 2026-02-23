@@ -1,0 +1,77 @@
+name: WebHost SSH File Access
+version: 1.0.0
+description: Provides SSH/SFTP file access for PSWebHost applications with credential and key management
+author: PSWebHost Team
+category: storage
+subcategory: remote-access
+enabled: false
+routePrefix: /apps/WebHostSSHFileAccess
+
+# Status
+status: placeholder
+placeholderDate: 2026-01-22
+implementationRequired: true
+
+# No modules loaded yet (placeholder)
+modules: []
+
+# Dependencies
+dependencies:
+  - PSWebHost_Support
+
+# Required roles to access this app
+requiredRoles:
+  - admin
+  - filemanager
+
+# Features (planned)
+features:
+  - SSH/SFTP connection management
+  - SSH key storage and encryption
+  - Remote file operations via SFTP
+  - Remote trash bin access on SSH servers
+  - Integration with FileExplorer logical paths
+  - Host key verification and security
+  - Connection pooling and session management
+
+# Configuration (planned)
+config:
+  # Connection settings
+  defaultPort: 22
+  connectionTimeout: 30
+  sessionTimeout: 300
+
+  # Security settings
+  hostKeyVerification: true
+  keyEncryptionAlgorithm: "AES-256-GCM"
+
+  # Storage paths
+  connectionsFile: "data/connections.json"
+  keysFile: "data/keys.json"
+
+  # Features
+  enableSCP: false
+  enableSFTP: true
+  enableKeyGeneration: true
+
+# Integration points
+integrations:
+  - name: FileExplorer
+    purpose: Resolve ssh| logical paths
+    status: planned
+  - name: Vault
+    purpose: Optional credential storage
+    status: optional
+
+# Implementation notes
+notes: |
+  This is a PLACEHOLDER app for future SSH/SFTP functionality.
+  Required for FileExplorer to access remote servers via SSH protocol.
+  Must implement before remote trash bin functionality is complete.
+
+  Key requirements:
+  - Integrate SSH.NET library or PowerShell OpenSSH module
+  - Implement secure key storage with encryption
+  - Create SFTP wrapper for file operations
+  - Support logical path format: ssh|hostname|/path/to/file
+  - Remote trash: ssh|hostname|/.pswebhost/trash_bin/

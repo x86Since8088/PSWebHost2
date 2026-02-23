@@ -1,0 +1,270 @@
+.debug-console {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1rem;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #1e1e1e;
+    color: #ddd;
+}
+
+.debug-console-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #00ff00;
+}
+
+.debug-console-header h3 {
+    margin: 0;
+    color: #00ff00;
+    font-size: 1.25rem;
+}
+
+.debug-console-status {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: bold;
+}
+
+.status-badge.executing {
+    background-color: #ff9800;
+    color: white;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.queue-status {
+    color: #888;
+    font-size: 0.875rem;
+}
+
+.debug-console-input {
+    background-color: #2d2d2d;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    border: 1px solid #444;
+}
+
+.command-type-selector {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.command-type-selector label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #ddd;
+    cursor: pointer;
+}
+
+.command-input, .params-input {
+    width: 100%;
+    padding: 0.75rem;
+    background-color: #1a1a1a;
+    color: #00ff00;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9rem;
+    resize: vertical;
+}
+
+.command-input:focus, .params-input:focus {
+    outline: none;
+    border-color: #00ff00;
+}
+
+.predefined-command-input {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.command-select {
+    padding: 0.75rem;
+    background-color: #1a1a1a;
+    color: #ddd;
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.command-controls {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.command-controls label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #ddd;
+    cursor: pointer;
+}
+
+.btn-execute {
+    margin-left: auto;
+    padding: 0.75rem 1.5rem;
+    background-color: #00ff00;
+    color: #000;
+    border: none;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-execute:hover:not(:disabled) {
+    background-color: #00cc00;
+}
+
+.btn-execute:disabled {
+    background-color: #555;
+    color: #888;
+    cursor: not-allowed;
+}
+
+.debug-console-history {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: #2d2d2d;
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid #444;
+}
+
+.history-header {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background-color: #1a1a1a;
+    border-bottom: 1px solid #444;
+}
+
+.history-header h4 {
+    margin: 0;
+    flex: 1;
+    color: #00ff00;
+}
+
+.btn-refresh, .btn-clear {
+    padding: 0.5rem 1rem;
+    background-color: #444;
+    color: #ddd;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background-color 0.2s;
+}
+
+.btn-refresh:hover, .btn-clear:hover {
+    background-color: #555;
+}
+
+.history-header label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #ddd;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.history-items {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.history-item {
+    background-color: #1a1a1a;
+    border-left: 4px solid #00ff00;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    border-radius: 4px;
+}
+
+.history-item.error {
+    border-left-color: #ff0000;
+}
+
+.history-item-header {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.command-type-badge {
+    padding: 0.25rem 0.5rem;
+    background-color: #444;
+    color: #00ff00;
+    border-radius: 3px;
+    font-family: monospace;
+    font-size: 0.75rem;
+}
+
+.timestamp {
+    color: #888;
+}
+
+.execution-time {
+    margin-left: auto;
+    color: #888;
+    font-family: monospace;
+}
+
+.command-text {
+    background-color: #000;
+    padding: 0.5rem;
+    border-radius: 3px;
+    color: #00ff00;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+    overflow-x: auto;
+}
+
+.result-text {
+    background-color: #000;
+    padding: 0.5rem;
+    border-radius: 3px;
+    color: #ddd;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.875rem;
+    margin: 0;
+    overflow-x: auto;
+    white-space: pre-wrap;
+}
+
+.error-text {
+    background-color: #3a1a1a;
+    padding: 0.5rem;
+    border-radius: 3px;
+    color: #ff6666;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.875rem;
+}

@@ -1,0 +1,27 @@
+{
+  "name": "pswebhost",
+  "version": "1.0.0",
+  "description": "PowerShell Web Host with DuckDB-WASM metrics",
+  "private": true,
+  "scripts": {
+    "install-duckdb": "npm install @duckdb/duckdb-wasm@1.28.0 apache-arrow@14.0.2",
+    "copy-libs": "node scripts/copy-dependencies.js",
+    "postinstall": "npm run copy-libs"
+  },
+  "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.28.0",
+    "apache-arrow": "^14.0.2"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "keywords": [
+    "duckdb",
+    "metrics",
+    "powershell"
+  ],
+  "author": "",
+  "license": "MIT"
+}

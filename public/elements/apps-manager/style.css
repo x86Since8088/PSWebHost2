@@ -1,0 +1,225 @@
+.apps-manager {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    padding: 20px;
+}
+
+.apps-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.apps-header h2 {
+    margin: 0;
+    color: #1f2937;
+}
+
+.apps-count {
+    background: #3b82f6;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 14px;
+}
+
+.apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+}
+
+.app-card {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+    transition: box-shadow 0.2s;
+}
+
+.app-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.app-card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e7eb;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.app-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.app-version {
+    font-size: 12px;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 2px 8px;
+    border-radius: 8px;
+    margin-left: 8px;
+}
+
+.app-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 12px;
+}
+
+.app-status.enabled {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.app-status.disabled {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.app-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.app-status.enabled .app-status-dot {
+    background: #22c55e;
+}
+
+.app-status.disabled .app-status-dot {
+    background: #ef4444;
+}
+
+.app-card-body {
+    padding: 16px 20px;
+}
+
+.app-description {
+    color: #4b5563;
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.app-meta {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    font-size: 13px;
+}
+
+.app-meta-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.app-meta-label {
+    color: #9ca3af;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.app-meta-value {
+    color: #374151;
+    margin-top: 2px;
+}
+
+.app-card-footer {
+    padding: 12px 20px;
+    background: #f9fafb;
+    border-top: 1px solid #e5e7eb;
+    display: flex;
+    gap: 8px;
+}
+
+.app-btn {
+    padding: 6px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: white;
+    color: #374151;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.app-btn:hover {
+    background: #f3f4f6;
+}
+
+.app-btn.primary {
+    background: #3b82f6;
+    border-color: #3b82f6;
+    color: white;
+}
+
+.app-btn.primary:hover {
+    background: #2563eb;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #6b7280;
+}
+
+.empty-state-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.empty-state h3 {
+    color: #374151;
+    margin-bottom: 8px;
+}
+
+.node-guid {
+    background: #f3f4f6;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.node-guid-label {
+    font-weight: 500;
+    color: #374151;
+}
+
+.node-guid-value {
+    font-family: monospace;
+    color: #6b7280;
+    background: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+}
+
+.apps-manager.loading,
+.apps-manager.error {
+    padding: 40px;
+}
+
+.spinner {
+    border: 3px solid #f3f4f6;
+    border-top: 3px solid #3b82f6;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 16px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

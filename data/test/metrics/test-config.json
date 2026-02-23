@@ -1,0 +1,11 @@
+{
+  "CsvPath": "C:\\SC\\PsWebHost\\apps\\WebHostDebugExtensions\\system\\utility\\..\\..\\..\\..\\data\\test\\metrics",
+  "IntervalMinutes": 15,
+  "ParquetPath": "C:\\SC\\PsWebHost\\apps\\WebHostDebugExtensions\\system\\utility\\..\\..\\..\\..\\data\\test\\metrics\\parquet",
+  "MetricTypes": [
+    "CPUCore"
+  ],
+  "RetentionDays": 7,
+  "Enabled": true,
+  "CompressionCodec": "zstd"
+}

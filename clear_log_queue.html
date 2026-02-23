@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Log Queue</title>
+    <script>
+        // Clear the log queue immediately
+        window._logQueue = [];
+
+        // Clear throttles
+        if (window.RequestThrottleManager) {
+            window.RequestThrottleManager.throttledRequests.clear();
+        }
+
+        // Cancel pending flush timer
+        if (window._logQueueTimer) {
+            clearTimeout(window._logQueueTimer);
+            window._logQueueTimer = null;
+        }
+
+        console.log('✓ Log queue cleared');
+        console.log('✓ Throttles cleared');
+        console.log('✓ Flush timer cancelled');
+
+        alert('Log queue and throttles cleared!\n\nNow reloading with cache-busted JS...');
+
+        // Force reload with cache bust
+        const timestamp = Date.now();
+        window.location.href = `/?cb=${timestamp}`;
+    </script>
+</head>
+<body>
+    <h1>Clearing log queue and reloading...</h1>
+</body>
+</html>

@@ -1,0 +1,12 @@
+- Name: Debug Console
+  url: /apps/WebHostDebugExtensions/cards/debug-console
+  hover_description: Browser-side debugging and remote command execution
+  roles:
+    - debug
+  tags:
+    - debug
+    - diagnostics
+    - development
+    - javascript
+    - browser
+  parent: Main Menu

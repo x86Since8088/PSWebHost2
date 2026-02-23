@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Throttle Logging Fix Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        button { padding: 10px; margin: 5px; }
+        #log { background: #f5f5f5; padding: 10px; margin-top: 10px; max-height: 400px; overflow-y: auto; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
+</head>
+<body>
+    <h1>Throttle Logging Fix Test</h1>
+    <p>This tests that throttled requests only log ONCE to the server.</p>
+
+    <button onclick="testThrottle()">1. Test Throttle Logging</button>
+    <button onclick="checkThrottles()">2. Check Throttled URLs</button>
+    <button onclick="clearThrottles()">3. Clear All Throttles</button>
+    <button onclick="clearLog()">Clear Log</button>
+
+    <div id="log"></div>
+
+    <script>
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = type;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        async function testThrottle() {
+            log('Starting throttle test...', 'info');
+
+            // Make request to an endpoint that will fail (404 or 500)
+            const testUrl = '/cards/nonexistent-card-test-' + Date.now();
+
+            log(`Attempting fetch to: ${testUrl}`, 'info');
+
+            try {
+                const response = await fetch(testUrl);
+                log(`Response status: ${response.status}`, response.ok ? 'success' : 'error');
+
+                if (!response.ok) {
+                    log('❌ Request failed - throttle should be applied', 'error');
+                    log('⏳ Waiting 2 seconds...', 'info');
+
+                    // Wait 2 seconds then try again (should be throttled)
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+
+                    log('Attempting second fetch (should be throttled)...', 'info');
+                    const response2 = await fetch(testUrl);
+                    log(`Second response status: ${response2.status}`, response2.status === 429 ? 'success' : 'error');
+
+                    if (response2.status === 429) {
+                        const data = await response2.json();
+                        log(`✓ Throttled correctly! Retry in ${data.retryAfter}s`, 'success');
+                        log('Check server logs - should only see ONE log entry for this URL', 'info');
+                    }
+
+                    // Try multiple more times
+                    log('Making 5 more attempts (should all be throttled)...', 'info');
+                    for (let i = 1; i <= 5; i++) {
+                        const resp = await fetch(testUrl);
+                        log(`  Attempt ${i}: status ${resp.status}`, resp.status === 429 ? 'success' : 'error');
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                    }
+
+                    log('✓ Test complete. Check server logs - should only see ONE RequestThrottle log entry', 'success');
+                }
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        function checkThrottles() {
+            if (!window.RequestThrottleManager) {
+                log('RequestThrottleManager not loaded yet', 'error');
+                return;
+            }
+
+            const throttles = Array.from(window.RequestThrottleManager.throttledRequests.entries());
+
+            if (throttles.length === 0) {
+                log('No throttled URLs', 'info');
+                return;
+            }
+
+            log(`Found ${throttles.length} throttled URL(s):`, 'info');
+
+            throttles.forEach(([url, info]) => {
+                const age = Math.floor((Date.now() - info.timestamp) / 1000);
+                const remaining = Math.ceil((60000 - (Date.now() - info.timestamp)) / 1000);
+                const expiryTime = new Date(info.timestamp + 60000).toLocaleTimeString();
+
+                log(`  URL: ${url}`, 'info');
+                log(`    Status: ${info.status}`, 'info');
+                log(`    Age: ${age}s`, 'info');
+                log(`    Expires: ${expiryTime} (in ${remaining}s)`, 'info');
+                log(`    Logged: ${info.logged}`, info.logged ? 'success' : 'error');
+            });
+        }
+
+        function clearThrottles() {
+            if (!window.RequestThrottleManager) {
+                log('RequestThrottleManager not loaded yet', 'error');
+                return;
+            }
+
+            const count = window.RequestThrottleManager.throttledRequests.size;
+            window.RequestThrottleManager.throttledRequests.clear();
+            log(`✓ Cleared ${count} throttled URL(s)`, 'success');
+        }
+
+        log('Test page loaded. Click button 1 to start test.', 'info');
+    </script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+{
+  "RequireAuthentication": true,
+  "AllowAnonymous": false,
+  "RequiredRoles": ["user", "admin", "debug", "system_admin"]
+}

@@ -1,0 +1,34 @@
+name: WebHost Help Viewer
+version: 1.0.0
+description: System-wide help file viewer with markdown rendering
+author: PSWebHost Team
+enabled: false
+deprecated: true
+deprecatedDate: 2026-02-23
+replacedBy: /cards/help-viewer
+migrationNotes: Use core help-viewer or markdown-viewer instead. This app is 100% duplicate of core functionality.
+routePrefix: /apps/WebHostHelpViewer
+
+modules: []
+dependencies:
+  - PSWebHost_Support
+
+requiredRoles:
+  - unauthenticated
+  - authenticated
+
+features:
+  - Markdown rendering with text/MD toggle
+  - System-wide help file search
+  - Support for .md, .markdown, .txt files
+
+config:
+  supportedPaths:
+    - public/help
+    - docs
+    - apps/*/help
+    - apps/*/docs
+  supportedExtensions:
+    - .md
+    - .markdown
+    - .txt

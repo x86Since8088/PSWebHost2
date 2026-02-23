@@ -1,0 +1,31 @@
+name: WebHost Debug Extensions
+version: 1.0.0
+description: Browser-side debugging and diagnostics with remote command execution
+author: PSWebHost Team
+category: development
+subcategory: debugging
+enabled: true
+routePrefix: /apps/WebHostDebugExtensions
+
+modules: []
+
+dependencies:
+  - PSWebHost_Support
+
+requiredRoles:
+  - debug
+  - system_admin
+
+features:
+  - Remote browser JavaScript execution
+  - Predefined diagnostic command library
+  - DOM inspection and manipulation
+  - Network endpoint testing
+  - Command history and result storage
+  - Session-targeted command delivery
+
+config:
+  maxQueueSize: 100
+  maxHistorySize: 500
+  commandTimeoutSeconds: 60
+  pollIntervalSeconds: 3

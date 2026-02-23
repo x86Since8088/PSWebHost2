@@ -1,0 +1,5 @@
+# Ignore all files in data directory (contains sensitive connection info and keys)
+*
+
+# But track this .gitignore file
+!.gitignore

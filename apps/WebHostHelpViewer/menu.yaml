@@ -1,0 +1,12 @@
+- Name: Help Viewer
+  parent: Main Menu
+  url: /apps/WebHostHelpViewer/cards/help-viewer?file=help/help-viewer.md
+  hover_description: System-wide help file viewer with markdown rendering
+  icon: question-circle
+  roles:
+    - unauthenticated
+    - authenticated
+  tags:
+    - help
+    - documentation
+    - markdown

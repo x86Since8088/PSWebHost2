@@ -1,0 +1,7 @@
+{
+  "requireAuth": true,
+  "requireSession": true,
+  "allowedRoles": [],
+  "rateLimitPerMinute": 30,
+  "description": "Validate file integrity using SHA256 hash with optional range support"
+}

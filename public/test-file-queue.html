@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File-Based Queue Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .status {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        .indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .indicator.active {
+            background: #4CAF50;
+            box-shadow: 0 0 8px #4CAF50;
+        }
+        .indicator.inactive {
+            background: #ccc;
+        }
+        .log {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .log-entry {
+            margin: 4px 0;
+            padding: 2px 0;
+        }
+        .log-entry.info {
+            color: #4EC9B0;
+        }
+        .log-entry.success {
+            color: #4CAF50;
+        }
+        .log-entry.error {
+            color: #f44336;
+        }
+        .log-entry.warning {
+            color: #ff9800;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stat-card {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #2196F3;
+        }
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        .stat-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button:active {
+            background: #0D47A1;
+        }
+    </style>
+    <script src="/apps/WebHostDebugExtensions/public/elements/debug-console/commands.js"></script>
+</head>
+<body>
+    <div class="status">
+        <h2>
+            <span class="indicator" id="pollIndicator"></span>
+            File-Based Command Queue - Test Page
+        </h2>
+        <p>This page polls for commands from the file-based queue and executes them.</p>
+
+        <div style="margin: 15px 0;">
+            <button onclick="testConsoleLog()">Test Console Log</button>
+            <button onclick="testGetInfo()">Test Get Info</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <h3>Commands Received</h3>
+                <div class="stat-value" id="commandCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Commands Executed</h3>
+                <div class="stat-value" id="executedCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Errors</h3>
+                <div class="stat-value" id="errorCount">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Poll Interval</h3>
+                <div class="stat-value">3s</div>
+            </div>
+        </div>
+
+        <div class="log" id="logContainer"></div>
+    </div>
+
+    <script>
+        let commandCount = 0;
+        let executedCount = 0;
+        let errorCount = 0;
+        let polling = true;
+
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function updateStat(id, value) {
+            document.getElementById(id).textContent = value;
+        }
+
+        function setPollingIndicator(active) {
+            const indicator = document.getElementById('pollIndicator');
+            indicator.className = active ? 'indicator active' : 'indicator inactive';
+        }
+
+        async function pollForCommands() {
+            if (!polling) return;
+
+            try {
+                setPollingIndicator(true);
+
+                const response = await fetch('/apps/WebHostDebugExtensions/api/v1/debug/commands/poll', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+
+                if (response.status === 204) {
+                    // No commands
+                    setTimeout(() => setPollingIndicator(false), 100);
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`Poll failed: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.commands && data.commands.length > 0) {
+                    log(`Received ${data.commands.length} command(s)`, 'info');
+                    commandCount += data.commands.length;
+                    updateStat('commandCount', commandCount);
+
+                    for (const cmd of data.commands) {
+                        await executeCommand(cmd);
+                    }
+                }
+
+                setTimeout(() => setPollingIndicator(false), 100);
+
+            } catch (error) {
+                log(`Poll error: ${error.message}`, 'error');
+                errorCount++;
+                updateStat('errorCount', errorCount);
+                setTimeout(() => setPollingIndicator(false), 100);
+            }
+        }
+
+        async function executeCommand(cmd) {
+            const startTime = performance.now();
+            let result = null;
+            let error = null;
+
+            log(`Received command ${cmd.CommandID}`, 'info');
+
+            // Acknowledge receipt before execution
+            try {
+                await fetch('/apps/WebHostDebugExtensions/api/v1/debug/commands/result', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        CommandID: cmd.CommandID,
+                        Status: 'received',
+                        Result: null,
+                        Error: null,
+                        ExecutionTimeMs: 0
+                    })
+                });
+                log(`→ Acknowledged receipt of ${cmd.CommandID}`, 'info');
+            } catch (ackError) {
+                log(`Failed to acknowledge: ${ackError.message}`, 'warning');
+            }
+
+            log(`Executing: ${cmd.Type} - ${cmd.Command.substring(0, 50)}...`, 'info');
+
+            try {
+                switch (cmd.Type) {
+                    case 'eval':
+                        result = eval(cmd.Command);
+                        break;
+
+                    case 'predefined':
+                        if (window.DebugCommandLibrary && window.DebugCommandLibrary[cmd.Command]) {
+                            result = window.DebugCommandLibrary[cmd.Command](cmd.Params);
+                        } else {
+                            throw new Error(`Unknown predefined command: ${cmd.Command}`);
+                        }
+                        break;
+
+                    default:
+                        throw new Error(`Unknown command type: ${cmd.Type}`);
+                }
+
+                // Convert result to string if not already
+                if (typeof result === 'object') {
+                    result = JSON.stringify(result, null, 2);
+                } else if (result !== null && result !== undefined) {
+                    result = String(result);
+                }
+
+                log(`✓ Success: ${result ? result.substring(0, 100) : '(no result)'}`, 'success');
+                executedCount++;
+                updateStat('executedCount', executedCount);
+
+            } catch (e) {
+                error = e.message;
+                log(`✗ Error: ${error}`, 'error');
+                errorCount++;
+                updateStat('errorCount', errorCount);
+            }
+
+            const executionTime = performance.now() - startTime;
+
+            // Send result back to server
+            try {
+                await fetch('/apps/WebHostDebugExtensions/api/v1/debug/commands/result', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        CommandID: cmd.CommandID,
+                        Result: result,
+                        Error: error,
+                        ExecutionTimeMs: Math.round(executionTime)
+                    })
+                });
+                log(`→ Result sent for command ${cmd.CommandID}`, 'info');
+            } catch (submitError) {
+                log(`Failed to submit result: ${submitError.message}`, 'error');
+            }
+        }
+
+        function testConsoleLog() {
+            console.log('=== Manual Test: Console Log ===');
+            console.log('Timestamp:', new Date().toISOString());
+            log('Console.log test executed (check browser console)', 'info');
+        }
+
+        function testGetInfo() {
+            const info = {
+                url: window.location.href,
+                title: document.title,
+                userAgent: navigator.userAgent,
+                timestamp: new Date().toISOString()
+            };
+            console.log('Page Info:', info);
+            log(`Page Info: ${JSON.stringify(info, null, 2)}`, 'info');
+        }
+
+        function clearLog() {
+            document.getElementById('logContainer').innerHTML = '';
+        }
+
+        // Start polling every 3 seconds
+        setInterval(pollForCommands, 3000);
+        log('Polling started (3s interval)', 'success');
+        log('Waiting for commands from file-based queue...', 'info');
+
+        // Initial poll
+        pollForCommands();
+    </script>
+</body>
+</html>

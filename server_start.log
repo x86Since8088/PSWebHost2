@@ -1,0 +1,6 @@
+The script 'restart_server.ps1' cannot be run because it contained a "#requires" statement for Windows PowerShell 7.0. 
+The version of Windows PowerShell that is required by the script does not match the currently running version of 
+Windows PowerShell 5.1.26100.7462.
+    + CategoryInfo          : ResourceUnavailable: (restart_server.ps1:String) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : ScriptRequiresUnmatchedPSVersion
+ 

@@ -1,0 +1,424 @@
+/**
+ * MetricsDatabase - sql.js wrapper for storing and querying metrics in-browser
+ *
+ * Provides persistent in-browser storage using SQLite (sql.js):
+ * - Normalized schema for cpu, memory, disk, network metrics
+ * - Automatic time-window pruning and record limiting
+ * - localStorage persistence across page reloads
+ * - Full SQL query capabilities
+ *
+ * Usage:
+ *   const db = new MetricsDatabase({
+ *     dbName: 'PSWebHostMetrics',
+ *     autoSaveInterval: 30000,
+ *     retentionHours: 24,
+ *     maxRecords: 100000
+ *   });
+ *   await db.initialize();
+ *   db.insertMetrics({ timestamp, cpu: { total: 50 }, ... });
+ *   const results = db.query('SELECT * FROM cpu_metrics');
+ */
+
+class MetricsDatabase {
+    constructor(options = {}) {
+        this.dbName = options.dbName || 'PSWebHostMetrics';
+        this.autoSaveInterval = options.autoSaveInterval || 30000; // 30 seconds
+        this.retentionHours = options.retentionHours || 24;
+        this.maxRecords = options.maxRecords || 100000;
+        this.db = null;
+        this.saveTimer = null;
+        this.sqlLoaded = false;
+    }
+
+    /**
+     * Initialize database - Load sql.js and create/restore database
+     */
+    async initialize() {
+        // Load sql.js library if not already loaded
+        if (!window.SQL) {
+            await this._loadSqlJs();
+        }
+
+        // Create or load database from localStorage
+        const saved = localStorage.getItem(this.dbName);
+        if (saved) {
+            try {
+                const buffer = this._base64ToArrayBuffer(saved);
+                this.db = new window.SQL.Database(new Uint8Array(buffer));
+                console.log(`[MetricsDatabase] Loaded existing database: ${this.dbName}`);
+            } catch (err) {
+                console.warn(`[MetricsDatabase] Failed to load saved database, creating new:`, err);
+                this.db = new window.SQL.Database();
+                this._createSchema();
+            }
+        } else {
+            this.db = new window.SQL.Database();
+            this._createSchema();
+            console.log(`[MetricsDatabase] Created new database: ${this.dbName}`);
+        }
+
+        // Start auto-save timer
+        if (this.autoSaveInterval > 0) {
+            this.saveTimer = setInterval(() => this._saveToDisk(), this.autoSaveInterval);
+        }
+
+        this.sqlLoaded = true;
+    }
+
+    /**
+     * Load sql-wasm.js library
+     */
+    async _loadSqlJs() {
+        return new Promise((resolve, reject) => {
+            // Check if already loading
+            if (window._sqlJsLoading) {
+                window._sqlJsLoading.then(resolve).catch(reject);
+                return;
+            }
+
+            // Load sql-wasm.js
+            const script = document.createElement('script');
+            script.src = '/public/lib/sql-wasm.js';
+
+            window._sqlJsLoading = new Promise((res, rej) => {
+                script.onload = () => {
+                    // sql-wasm.js defines initSqlJs() globally
+                    if (typeof initSqlJs === 'function') {
+                        initSqlJs({
+                            locateFile: file => `/public/lib/${file}`
+                        }).then(SQL => {
+                            window.SQL = SQL;
+                            console.log('[MetricsDatabase] sql.js loaded successfully');
+                            res(SQL);
+                        }).catch(rej);
+                    } else {
+                        rej(new Error('initSqlJs not defined after loading sql-wasm.js'));
+                    }
+                };
+                script.onerror = () => rej(new Error('Failed to load sql-wasm.js'));
+            });
+
+            document.head.appendChild(script);
+            window._sqlJsLoading.then(resolve).catch(reject);
+        });
+    }
+
+    /**
+     * Create database schema
+     */
+    _createSchema() {
+        // Create cpu_metrics table
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS cpu_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                hostname TEXT,
+                cpu_total REAL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Create memory_metrics table
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS memory_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                hostname TEXT,
+                used_mb REAL,
+                total_mb REAL,
+                percent_used REAL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Create disk_metrics table
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS disk_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                hostname TEXT,
+                drive TEXT,
+                used_gb REAL,
+                total_gb REAL,
+                percent_used REAL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Create network_metrics table
+        this.db.run(`
+            CREATE TABLE IF NOT EXISTS network_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                hostname TEXT,
+                interface TEXT,
+                bytes_per_sec REAL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Create indexes for fast timestamp queries
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_cpu_timestamp ON cpu_metrics(timestamp)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_memory_timestamp ON memory_metrics(timestamp)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_disk_timestamp ON disk_metrics(timestamp)`);
+        this.db.run(`CREATE INDEX IF NOT EXISTS idx_network_timestamp ON network_metrics(timestamp)`);
+
+        console.log('[MetricsDatabase] Schema created');
+    }
+
+    /**
+     * Insert metrics data
+     * @param {Object} metricsData - { timestamp, hostname, cpu: {total, cores}, memory: {...}, ... }
+     */
+    insertMetrics(metricsData) {
+        if (!this.db) {
+            console.warn('[MetricsDatabase] Database not initialized');
+            return;
+        }
+
+        const timestamp = metricsData.timestamp;
+        const hostname = metricsData.hostname || 'local';
+
+        // Insert CPU metrics
+        if (metricsData.cpu && metricsData.cpu.total !== undefined) {
+            try {
+                this.db.run(
+                    `INSERT INTO cpu_metrics (timestamp, hostname, cpu_total) VALUES (?, ?, ?)`,
+                    [timestamp, hostname, metricsData.cpu.total]
+                );
+            } catch (err) {
+                // Silently ignore duplicate key errors
+                if (!err.message.includes('UNIQUE constraint')) {
+                    console.warn('[MetricsDatabase] CPU insert error:', err);
+                }
+            }
+        }
+
+        // Insert Memory metrics
+        if (metricsData.memory) {
+            try {
+                this.db.run(
+                    `INSERT INTO memory_metrics (timestamp, hostname, used_mb, total_mb, percent_used) VALUES (?, ?, ?, ?, ?)`,
+                    [
+                        timestamp,
+                        hostname,
+                        metricsData.memory.usedMB || metricsData.memory.used_mb,
+                        metricsData.memory.totalMB || metricsData.memory.total_mb,
+                        metricsData.memory.percentUsed || metricsData.memory.percent_used
+                    ]
+                );
+            } catch (err) {
+                if (!err.message.includes('UNIQUE constraint')) {
+                    console.warn('[MetricsDatabase] Memory insert error:', err);
+                }
+            }
+        }
+
+        // Insert Disk metrics (can be multiple drives)
+        if (metricsData.disk && Array.isArray(metricsData.disk)) {
+            metricsData.disk.forEach(drive => {
+                try {
+                    this.db.run(
+                        `INSERT INTO disk_metrics (timestamp, hostname, drive, used_gb, total_gb, percent_used) VALUES (?, ?, ?, ?, ?, ?)`,
+                        [
+                            timestamp,
+                            hostname,
+                            drive.name || drive.drive,
+                            drive.usedGB || drive.used_gb,
+                            drive.totalGB || drive.total_gb,
+                            drive.percentUsed || drive.percent_used
+                        ]
+                    );
+                } catch (err) {
+                    if (!err.message.includes('UNIQUE constraint')) {
+                        console.warn('[MetricsDatabase] Disk insert error:', err);
+                    }
+                }
+            });
+        }
+
+        // Insert Network metrics (can be multiple interfaces)
+        if (metricsData.network && Array.isArray(metricsData.network)) {
+            metricsData.network.forEach(iface => {
+                try {
+                    this.db.run(
+                        `INSERT INTO network_metrics (timestamp, hostname, interface, bytes_per_sec) VALUES (?, ?, ?, ?)`,
+                        [
+                            timestamp,
+                            hostname,
+                            iface.name || iface.interface,
+                            iface.bytesPerSec || iface.bytes_per_sec
+                        ]
+                    );
+                } catch (err) {
+                    if (!err.message.includes('UNIQUE constraint')) {
+                        console.warn('[MetricsDatabase] Network insert error:', err);
+                    }
+                }
+            });
+        }
+
+        // Prune old records periodically (every 100 inserts)
+        if (Math.random() < 0.01) { // 1% chance per insert
+            this._pruneOldRecords();
+        }
+    }
+
+    /**
+     * Execute SQL query
+     * @param {string} sqlQuery - SELECT query
+     * @returns {Array} Array of result objects
+     */
+    query(sqlQuery) {
+        if (!this.db) {
+            console.warn('[MetricsDatabase] Database not initialized');
+            return [];
+        }
+
+        try {
+            const stmt = this.db.prepare(sqlQuery);
+            const results = [];
+            while (stmt.step()) {
+                const row = stmt.getAsObject();
+                results.push(row);
+            }
+            stmt.free();
+            return results;
+        } catch (err) {
+            console.error('[MetricsDatabase] Query error:', err, '\nQuery:', sqlQuery);
+            return [];
+        }
+    }
+
+    /**
+     * Prune old records based on retention policy
+     */
+    _pruneOldRecords() {
+        if (!this.db) return;
+
+        // Delete records older than retentionHours
+        const cutoffTime = new Date(Date.now() - this.retentionHours * 3600000).toISOString();
+
+        const tables = ['cpu_metrics', 'memory_metrics', 'disk_metrics', 'network_metrics'];
+        tables.forEach(table => {
+            try {
+                this.db.run(`DELETE FROM ${table} WHERE timestamp < ?`, [cutoffTime]);
+
+                // If still over maxRecords, delete oldest
+                const result = this.db.exec(`SELECT COUNT(*) as count FROM ${table}`);
+                const count = result[0]?.values[0][0] || 0;
+
+                if (count > this.maxRecords) {
+                    const deleteCount = count - this.maxRecords;
+                    this.db.run(`
+                        DELETE FROM ${table} WHERE id IN (
+                            SELECT id FROM ${table} ORDER BY timestamp ASC LIMIT ?
+                        )
+                    `, [deleteCount]);
+                }
+            } catch (err) {
+                console.warn(`[MetricsDatabase] Prune error for ${table}:`, err);
+            }
+        });
+    }
+
+    /**
+     * Save database to localStorage
+     */
+    _saveToDisk() {
+        if (!this.db) return;
+
+        try {
+            const data = this.db.export();
+            const base64 = this._arrayBufferToBase64(data);
+            localStorage.setItem(this.dbName, base64);
+        } catch (err) {
+            console.error('[MetricsDatabase] Save error:', err);
+        }
+    }
+
+    /**
+     * Export all data as JSON
+     * @returns {string} JSON string
+     */
+    exportToJSON() {
+        if (!this.db) return '{}';
+
+        const tables = ['cpu_metrics', 'memory_metrics', 'disk_metrics', 'network_metrics'];
+        const exportData = {};
+
+        tables.forEach(table => {
+            try {
+                const results = this.db.exec(`SELECT * FROM ${table}`);
+                if (results.length > 0) {
+                    const columns = results[0].columns;
+                    const values = results[0].values;
+
+                    // Convert to array of objects
+                    exportData[table] = values.map(row => {
+                        const obj = {};
+                        columns.forEach((col, idx) => {
+                            obj[col] = row[idx];
+                        });
+                        return obj;
+                    });
+                } else {
+                    exportData[table] = [];
+                }
+            } catch (err) {
+                console.warn(`[MetricsDatabase] Export error for ${table}:`, err);
+                exportData[table] = [];
+            }
+        });
+
+        return JSON.stringify(exportData, null, 2);
+    }
+
+    /**
+     * Clean up resources
+     */
+    destroy() {
+        if (this.saveTimer) {
+            clearInterval(this.saveTimer);
+        }
+        this._saveToDisk();
+        if (this.db) {
+            this.db.close();
+        }
+        console.log('[MetricsDatabase] Destroyed');
+    }
+
+    /**
+     * Alias for destroy() for compatibility
+     */
+    close() {
+        return this.destroy();
+    }
+
+    /**
+     * Convert base64 to ArrayBuffer
+     */
+    _base64ToArrayBuffer(base64) {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    /**
+     * Convert ArrayBuffer to base64
+     */
+    _arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+    }
+}
+
+// Export to global scope
+window.MetricsDatabase = MetricsDatabase;

@@ -1,0 +1,13 @@
+- Name: Debug Variables
+  url: /apps/WebHostDebugVariables/cards/debug-variables
+  hover_description: Interactive variable browser with tree view (SPA version)
+  roles:
+    - debug
+    - system_admin
+  tags:
+    - debug
+    - variables
+    - development
+    - inspector
+    - tree-view
+  parent: Main Menu
