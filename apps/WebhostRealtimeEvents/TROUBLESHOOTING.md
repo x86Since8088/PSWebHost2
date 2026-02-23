@@ -1,43 +1,83 @@
 # WebHost Realtime Events - Troubleshooting
 
-## Issue: 404 Error on /api/v1/events/logs
+## Current API Endpoints
+
+The app uses the following route configuration:
+- **Route Prefix**: `/apps/WebhostRealtimeEvents` (defined in app.yaml)
+- **Logs Endpoint**: `/apps/WebhostRealtimeEvents/api/v1/logs`
+- **Status Endpoint**: `/apps/WebhostRealtimeEvents/api/v1/status`
+
+## Issue: 404 Error on API Endpoints
 
 ### Symptom
-```
-GET http://localhost:8080/api/v1/events/logs?timeRange=15
-[HTTP/1.1 404 Not Found]
-```
-
 Browser console shows:
 ```
+GET http://localhost:8080/apps/WebhostRealtimeEvents/api/v1/logs?timeRange=15
+[HTTP/1.1 404 Not Found]
 RealtimeEventsCard fetch error: Error: HTTP error! status: 404
 ```
 
-### Root Cause
-The app route structure was incorrect. The routes were at:
-```
-apps/WebhostRealtimeEvents/routes/api/v1/logs/get.ps1  ❌ WRONG
-```
+### Common Causes
 
-With `routePrefix: /api/v1/events`, this would create the URL:
-```
-/api/v1/events/api/v1/logs  ❌ WRONG (doubled path)
-```
+1. **Server Not Restarted After Changes**
+   PSWebHost must be restarted to register new apps or route changes.
 
-### Solution
-Routes must be relative to the app root, not include the full path:
+2. **Incorrect Route Structure**
+   Routes must be relative to the app root, not include the full prefix path.
+
+### Solution Steps
+
+1. **Restart PSWebHost Server**
+   The server must be restarted to pick up:
+   - New app.yaml configuration
+   - New route files
+   - Route structure changes
+
+   ```powershell
+   # Stop server (Ctrl+C)
+   # Then restart:
+   .\WebHost.ps1
+   ```
+
+2. **Verify Route Registration**
+   After restart, test the endpoints:
+   ```powershell
+   # Test status endpoint
+   Invoke-RestMethod -Uri http://localhost:8080/apps/WebhostRealtimeEvents/api/v1/status
+
+   # Test logs endpoint
+   Invoke-RestMethod -Uri "http://localhost:8080/apps/WebhostRealtimeEvents/api/v1/logs?timeRange=15"
+   ```
+
+3. **Check App Loading**
+   Look for app initialization in server logs:
+   ```
+   [INFO] Loading app: WebHost Realtime Events
+   [INFO] Registered route: /apps/WebhostRealtimeEvents/api/v1/logs
+   [INFO] Registered route: /apps/WebhostRealtimeEvents/api/v1/status
+   ```
+
+4. **Clear Browser Cache**
+   Force-reload the component:
+   ```
+   Ctrl+Shift+R (or Cmd+Shift+R on Mac)
+   ```
+
+## Route Structure Reference
 
 **Correct Structure**:
 ```
 apps/WebhostRealtimeEvents/
-├── app.yaml (routePrefix: /api/v1/events)
+├── app.yaml (routePrefix: /apps/WebhostRealtimeEvents)
 └── routes/
-    ├── logs/
-    │   ├── get.ps1  → /api/v1/events/logs ✅
-    │   └── get.security.json
-    └── status/
-        ├── get.ps1  → /api/v1/events/status ✅
-        └── get.security.json
+    └── api/
+        └── v1/
+            ├── logs/
+            │   ├── get.ps1  → /apps/WebhostRealtimeEvents/api/v1/logs
+            │   └── get.security.json
+            └── status/
+                ├── get.ps1  → /apps/WebhostRealtimeEvents/api/v1/status
+                └── get.security.json
 ```
 
 **Route Mapping Formula**:
@@ -47,41 +87,9 @@ Final URL = routePrefix + /route/file/path
 
 **Examples**:
 ```
-/api/v1/events + /logs = /api/v1/events/logs ✅
-/api/v1/events + /status = /api/v1/events/status ✅
+/apps/WebhostRealtimeEvents + /api/v1/logs = /apps/WebhostRealtimeEvents/api/v1/logs
+/apps/WebhostRealtimeEvents + /api/v1/status = /apps/WebhostRealtimeEvents/api/v1/status
 ```
-
-### How to Fix After File Changes
-
-1. **Restart PSWebHost Server**
-   The server must be restarted to pick up:
-   - New app.yaml configuration
-   - New route files
-   - Route structure changes
-
-2. **Verify Route Registration**
-   After restart, test the endpoints:
-   ```powershell
-   # Test status endpoint
-   Invoke-RestMethod -Uri http://localhost:8080/api/v1/events/status
-
-   # Test logs endpoint
-   Invoke-RestMethod -Uri "http://localhost:8080/api/v1/events/logs?timeRange=15"
-   ```
-
-3. **Check App Loading**
-   Look for app initialization in server logs:
-   ```
-   [INFO] Loading app: WebHost Realtime Events
-   [INFO] Registered route: /api/v1/events/logs
-   [INFO] Registered route: /api/v1/events/status
-   ```
-
-4. **Clear Browser Cache**
-   Force-reload the component:
-   ```
-   Ctrl+Shift+R (or Cmd+Shift+R on Mac)
-   ```
 
 ## Other Common Issues
 
@@ -131,7 +139,7 @@ cat apps/WebhostRealtimeEvents/routes/logs/get.security.json
 **Causes**:
 1. No logs in selected time range
 2. Log file doesn't exist
-3. Read-PSWebHostLog not available
+3. Filters too restrictive
 
 **Solutions**:
 ```powershell
@@ -141,16 +149,17 @@ Test-Path Logs/PSWebHost.log
 # 2. Check log file has content
 Get-Content Logs/PSWebHost.log -TotalCount 10
 
-# 3. Test Read-PSWebHostLog directly
-Read-PSWebHostLog -StartTime (Get-Date).AddHours(-1) -EndTime (Get-Date)
+# 3. Increase time range (try 24 hours)
 
-# 4. Generate test logs
+# 4. Remove all filters and try again
+
+# 5. Generate test logs
 Write-PSWebHostLog -Severity Info -Category Test -Message "Test log entry"
 ```
 
 ### Slow Performance
 
-**Symptom**: API requests take >1 second
+**Symptom**: API requests take more than 1 second
 
 **Causes**:
 1. Large log file (>100 MB)
@@ -158,40 +167,36 @@ Write-PSWebHostLog -Severity Info -Category Test -Message "Test log entry"
 3. Too many filters requiring full scan
 
 **Solutions**:
-```powershell
-# 1. Check log file size
-(Get-Item Logs/PSWebHost.log).Length / 1MB
-# If >100 MB, consider log rotation
+1. Check log file size:
+   ```powershell
+   (Get-Item Logs/PSWebHost.log).Length / 1MB
+   ```
+   If >100 MB, consider log rotation
 
-# 2. Reduce time range
-# Use shorter ranges (15 min, 30 min, 1 hour)
+2. Reduce time range to 15 min, 30 min, or 1 hour
 
-# 3. Reduce result count
-# Set maxEvents to 100-500 instead of 1000+
+3. Reduce maxEvents to 100-500 instead of 1000+
 
-# 4. Use specific filters
-# Filter by severity, category, or source to reduce results
-```
+4. Use specific filters (severity, category) to reduce results
 
 ### App Not Showing in Menu
 
 **Symptom**: Real-time Events not in menu after restart
 
-**Cause**: Menu cache or app not loaded
+**Cause**: App not loaded or menu cache issue
 
 **Solutions**:
 ```powershell
-# 1. Check app.yaml enabled
+# 1. Verify app is enabled
 cat apps/WebhostRealtimeEvents/app.yaml | Select-String "enabled"
 # Should show: enabled: true
 
-# 2. Invalidate menu cache
-# In browser console:
+# 2. Check server logs for app loading
+# Look for "Loading app: WebHost Realtime Events"
+
+# 3. Clear menu cache in browser console:
 CacheManager.invalidate('main-menu');
 location.reload();
-
-# 3. Check server logs for app loading errors
-# Look for error messages about WebhostRealtimeEvents
 ```
 
 ## Development Workflow
@@ -221,7 +226,7 @@ code apps/WebhostRealtimeEvents/routes/logs/get.ps1
 # Start server: .\WebHost.ps1
 
 # 3. Test endpoint
-Invoke-RestMethod -Uri "http://localhost:8080/api/v1/events/logs?timeRange=15"
+Invoke-RestMethod -Uri "http://localhost:8080/apps/WebhostRealtimeEvents/api/v1/logs?timeRange=15"
 ```
 
 ### Testing Changes
@@ -255,7 +260,7 @@ After restart, endpoints still return 404
    name: WebHost Realtime Events
    version: 1.0.0
    enabled: true
-   routePrefix: /api/v1/events
+   routePrefix: /apps/WebhostRealtimeEvents
    ```
    Keys must be lowercase!
 
@@ -292,8 +297,7 @@ If issues persist:
 3. **Test API Directly**:
    ```powershell
    # Bypass UI, test API
-   $session = New-PSSession # or however you authenticate
-   Invoke-RestMethod -Uri http://localhost:8080/api/v1/events/logs -Method GET
+   Invoke-RestMethod -Uri http://localhost:8080/apps/WebhostRealtimeEvents/api/v1/logs -Method GET
    ```
 
 4. **Verify Module Loaded**:

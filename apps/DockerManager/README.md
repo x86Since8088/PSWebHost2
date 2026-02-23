@@ -16,7 +16,7 @@ This app is automatically loaded by PSWebHost when placed in the \pps/\ directo
 ## File Structure
 \\\
 DockerManager/
-├── app.json                 # App manifest
+├── app.yaml                 # App manifest
 ├── app_init.ps1             # Initialization script
 ├── menu.yaml                # Menu entries
 ├── data/                    # App data storage
@@ -33,7 +33,18 @@ To add new features:
 4. Update this README
 
 ## API Endpoints
-- \GET /apps/dockermanager/api/v1/status\ - App status
+
+### Container Management
+- \GET /apps/dockermanager/api/v1/docker/containers\ - List all containers
+- \POST /apps/dockermanager/api/v1/docker/containers/{id}/start\ - Start container
+- \POST /apps/dockermanager/api/v1/docker/containers/{id}/stop\ - Stop container
+- \POST /apps/dockermanager/api/v1/docker/containers/{id}/restart\ - Restart container
+- \DELETE /apps/dockermanager/api/v1/docker/containers/{id}\ - Delete container
+- \GET /apps/dockermanager/api/v1/docker/containers/{id}/logs\ - View container logs
+
+### Docker Info
+- \GET /apps/dockermanager/api/v1/docker/info\ - Docker daemon status and statistics
+- \GET /apps/dockermanager/api/v1/status\ - App metadata
 
 
 ## Version History

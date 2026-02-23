@@ -26,7 +26,7 @@ Migrated the `server-heatmap` endpoint from core routes to the WebHostMetrics ap
 **After:**
 ```yaml
 - Name: Server Metrics
-  url: /apps/WebHostMetrics/api/v1/ui/elements/server-heatmap
+  url: /apps/WebHostMetrics/cards/server-heatmap
   parent: Main Menu
 ```
 
@@ -108,7 +108,7 @@ Migrated the `server-heatmap` endpoint from core routes to the WebHostMetrics ap
 
 | Component | Old Path | New Path |
 |-----------|----------|----------|
-| Endpoint | `/api/v1/ui/elements/server-heatmap` | `/apps/WebHostMetrics/api/v1/ui/elements/server-heatmap` |
+| Endpoint | `/api/v1/ui/elements/server-heatmap` | `/apps/WebHostMetrics/cards/server-heatmap` |
 | Route File | `routes/api/v1/ui/elements/server-heatmap/get.ps1` | `apps/WebHostMetrics/routes/api/v1/ui/elements/server-heatmap/get.ps1` |
 | Component | `public/elements/server-heatmap/component.js` | `apps/WebHostMetrics/public/elements/server-heatmap/component.js` |
 | Menu Entry | `main-menu.yaml` ("Server Load") | `apps/WebHostMetrics/menu.yaml` ("Server Metrics") |
@@ -127,7 +127,7 @@ After these changes, verify:
    - No duplicate entries
 
 2. **Endpoint works:**
-   - Access `/apps/WebHostMetrics/api/v1/ui/elements/server-heatmap`
+   - Access `/apps/WebHostMetrics/cards/server-heatmap`
    - Verify component loads
    - Check title shows "Server Metrics"
 
@@ -189,7 +189,7 @@ After these changes, verify:
 
 ```powershell
 # Test endpoint accessibility
-Invoke-WebRequest -Uri "http://localhost:8080/apps/WebHostMetrics/api/v1/ui/elements/server-heatmap"
+Invoke-WebRequest -Uri "http://localhost:8080/apps/WebHostMetrics/cards/server-heatmap"
 
 # Check menu structure
 Invoke-WebRequest -Uri "http://localhost:8080/api/v1/ui/elements/main-menu"

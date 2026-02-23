@@ -6,15 +6,15 @@ Microsoft SQL Server administration
 **Databases** > **SQL Server**
 
 ## Installation
-This app is automatically loaded by PSWebHost when placed in the \pps/\ directory.
+This app is automatically loaded by PSWebHost when placed in the `apps/` directory.
 
 ## Configuration
-- **Route Prefix:** \$RoutePrefix\
+- **Route Prefix:** `/apps/sqlservermanager`
 - **Required Roles:** admin, database_admin
 - **Author:** test
 
 ## File Structure
-\\\
+```
 SQLServerManager/
 ├── app.json                 # App manifest
 ├── app_init.ps1             # Initialization script
@@ -23,17 +23,17 @@ SQLServerManager/
 ├── modules/                 # App-specific modules
 ├── public/elements/         # UI components
 └── routes/api/v1/           # API endpoints
-\\\
+```
 
 ## Development
 To add new features:
-1. Create routes in \outes/api/v1/\
-2. Add UI elements in \public/elements/\
-3. Update \menu.yaml\ for menu integration
+1. Create routes in `routes/api/v1/`
+2. Add UI elements in `public/elements/`
+3. Update `menu.yaml` for menu integration
 4. Update this README
 
 ## API Endpoints
-- \GET /apps/sqlservermanager/api/v1/status\ - App status
+- `GET /apps/sqlservermanager/api/v1/status` - App status
 
 
 ## Version History

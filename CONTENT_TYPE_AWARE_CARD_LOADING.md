@@ -292,7 +292,7 @@ Menu items can now optionally include content-type hints:
 
 ```yaml
 - Name: Apps Manager
-  url: /apps/WebHostAppManager/api/v1/ui/elements/apps-manager
+  url: /apps/WebHostAppManager/cards/apps-manager
   roles:
     - site_admin
   tags:
@@ -343,7 +343,7 @@ All content-type observations are logged to the server automatically:
 4. **JSON Metadata:**
    ```
    Category: ContentType
-   Message: Endpoint /api/v1/ui/elements/system-log returned JSON with scriptPath
+   Message: Endpoint /cards/system-log returned JSON with scriptPath
    Data: { elementId: 'system-log', contentType: 'application/json', scriptPath: '...' }
    ```
 
@@ -534,7 +534,7 @@ Injected HTML can execute JavaScript:
 3. **Add Descriptive Hover Text:**
    ```yaml
    - Name: Apps Manager
-     url: /apps/WebHostAppManager/api/v1/ui/elements/apps-manager
+     url: /apps/WebHostAppManager/cards/apps-manager
      hover_description: Manage installed PSWebHost apps - view status, configuration, and metadata
    ```
 

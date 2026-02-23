@@ -64,3 +64,13 @@
     - visualization
     - heatmap
     - matrix
+
+- Name: Metrics Chart
+  url: /cards/metrics-chart
+  hover_description: High-performance metrics visualization with sql.js storage
+  icon: chart-line
+  tags:
+    - visualization
+    - metrics
+    - real-time
+    - performance

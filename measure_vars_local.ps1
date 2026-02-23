@@ -1,6 +1,6 @@
 # This script loads the WebHost environment and measures variable sizes
 $ProjectRoot = "C:\SC\PsWebHost"
-. (Join-Path $ProjectRoot "WebHost.ps1") -ShowVariables 3>$null 4>$null | Out-Null
+. (Join-Path $ProjectRoot "WebHost.ps1") -InitializeEnvironmentOnly 3>$null 4>$null | Out-Null
 
 Write-Host "`n=== Measuring Global Variable Sizes ===" -ForegroundColor Cyan
 

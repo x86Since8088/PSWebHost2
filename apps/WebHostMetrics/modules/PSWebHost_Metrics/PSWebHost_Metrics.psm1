@@ -69,6 +69,12 @@ function Initialize-PSWebMetrics {
                 LastCollection = $null
                 LastAggregation = $null
                 LastCsvWrite = $null
+                LastInterimCsvWrite = $null
+                LastCsvToSqliteMove = $null
+                Last60sAggregation = $null
+                LastCleanup = $null
+                LastCsvCleanup = $null
+                ExecutionStartTime = $null
                 Errors = [System.Collections.ArrayList]::Synchronized([System.Collections.ArrayList]::new())
             })
 
@@ -712,7 +718,7 @@ function Write-MetricsToCsv {
 
     $MyTag = '[Write-MetricsToCsv]'
 
-    if (-not $Global:PSWebServer.Metrics -or -not $script:MetricsConfig.MetricsDirectory) {
+    if (-not $Global:PSWebServer.Metrics -or -not $Global:PSWebServer.Metrics.Config.MetricsDirectory) {
         return
     }
 
@@ -724,7 +730,7 @@ function Write-MetricsToCsv {
         return
     }
 
-    $metricsDir = $script:MetricsConfig.MetricsDirectory
+    $metricsDir = $Global:PSWebServer.Metrics.Config.MetricsDirectory
     $dateStr = $now.ToString("yyyy-MM-dd")
     $csvPath = Join-Path $metricsDir "metrics_$dateStr.csv"
 
@@ -797,9 +803,9 @@ function Remove-OldMetricsCsvFiles {
 
     $MyTag = '[Remove-OldMetricsCsvFiles]'
 
-    if (-not $script:MetricsConfig.MetricsDirectory) { return }
+    if (-not $Global:PSWebServer.Metrics.Config.MetricsDirectory) { return }
 
-    $metricsDir = $script:MetricsConfig.MetricsDirectory
+    $metricsDir = $Global:PSWebServer.Metrics.Config.MetricsDirectory
     if (-not (Test-Path $metricsDir)) { return }
 
     $cutoffDate = (Get-Date).AddDays(-$RetentionDays)
@@ -823,9 +829,9 @@ function Get-MetricsFromCsv {
         [int]$MaxRecords = 1440
     )
 
-    if (-not $script:MetricsConfig.MetricsDirectory) { return @() }
+    if (-not $Global:PSWebServer.Metrics.Config.MetricsDirectory) { return @() }
 
-    $metricsDir = $script:MetricsConfig.MetricsDirectory
+    $metricsDir = $Global:PSWebServer.Metrics.Config.MetricsDirectory
     if (-not (Test-Path $metricsDir)) { return @() }
 
     $results = @()
@@ -870,7 +876,7 @@ function Write-MetricsToInterimCsv {
 
     $MyTag = '[Write-MetricsToInterimCsv]'
 
-    if (-not $Global:PSWebServer.Metrics -or -not $script:MetricsConfig.MetricsDirectory) {
+    if (-not $Global:PSWebServer.Metrics -or -not $Global:PSWebServer.Metrics.Config.MetricsDirectory) {
         return
     }
 
@@ -887,7 +893,7 @@ function Write-MetricsToInterimCsv {
         return
     }
 
-    $metricsDir = $script:MetricsConfig.MetricsDirectory
+    $metricsDir = $Global:PSWebServer.Metrics.Config.MetricsDirectory
     if (-not (Test-Path $metricsDir)) {
         New-Item -Path $metricsDir -ItemType Directory -Force | Out-Null
     }
@@ -1087,7 +1093,7 @@ function Move-CsvToSqlite {
 
     $MyTag = '[Move-CsvToSqlite]'
 
-    if (-not $script:MetricsConfig.MetricsDirectory) {
+    if (-not $Global:PSWebServer.Metrics.Config.MetricsDirectory) {
         return
     }
 
@@ -1106,7 +1112,7 @@ function Move-CsvToSqlite {
         }
     }
 
-    $metricsDir = $script:MetricsConfig.MetricsDirectory
+    $metricsDir = $Global:PSWebServer.Metrics.Config.MetricsDirectory
     if (-not (Test-Path $metricsDir)) {
         return
     }
@@ -1482,7 +1488,7 @@ function Invoke-MetricJobMaintenance {
             # Clean up old files once per hour
             $lastCleanup = $Global:PSWebServer.Metrics.JobState.LastCsvCleanup
             if (-not $lastCleanup -or ((Get-Date) - $lastCleanup).TotalHours -ge 1) {
-                Remove-OldMetricsCsvFiles -RetentionDays $script:MetricsConfig.CsvRetentionDays
+                Remove-OldMetricsCsvFiles -RetentionDays $Global:PSWebServer.Metrics.Config.CsvRetentionDays
                 $Global:PSWebServer.Metrics.JobState.LastCsvCleanup = Get-Date
             }
         }

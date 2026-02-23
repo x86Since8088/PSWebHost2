@@ -166,8 +166,11 @@
         </p>
     </div>
 
-    <!-- Load the error modal system from the SPA -->
-    <script src="/public/psweb_spa.js"></script>
+    <!-- Load Babel for JSX transpilation -->
+    <script src="/public/lib/babel.min.js"></script>
+
+    <!-- Load the error modal system from the SPA (requires Babel for JSX) -->
+    <script type="text/babel" src="/public/psweb_spa.js"></script>
 
     <script>
         // Demo data for Admin modal
@@ -181,8 +184,8 @@
                 roles: ["authenticated", "site_admin"],
                 request: {
                     Method: "GET",
-                    URL: "http://localhost:8080/api/v1/ui/elements/system-log?lines=100",
-                    RawUrl: "/api/v1/ui/elements/system-log?lines=100",
+                    URL: "http://localhost:8080/cards/system-log?lines=100",
+                    RawUrl: "/cards/system-log?lines=100",
                     QueryString: {
                         lines: "100"
                     },
@@ -251,7 +254,7 @@
                 },
                 request: {
                     method: "GET",
-                    url: "http://localhost:8080/api/v1/ui/elements/system-log?lines=100"
+                    url: "http://localhost:8080/cards/system-log?lines=100"
                 },
                 guidance: "You are accessing from localhost. For detailed diagnostics including call stack and variable enumeration, please use an account with Admin or Debug role."
             };

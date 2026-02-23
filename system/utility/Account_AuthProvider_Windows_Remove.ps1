@@ -18,7 +18,7 @@ end {
 
     # Load WebHost environment (initializes SQLite and required modules)
     $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\')).Path
-    . (Join-Path $ProjectRoot "WebHost.ps1") -ShowVariables 3>$null 4>$null | Out-Null
+    . (Join-Path $ProjectRoot "WebHost.ps1") -InitializeEnvironmentOnly 3>$null 4>$null | Out-Null
 
     $dbFile = Join-Path $ProjectRoot "PsWebHost_Data\pswebhost.db"
 

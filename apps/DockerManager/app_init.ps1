@@ -22,7 +22,9 @@ $PSWebServer['DockerManager'] = [hashtable]::Synchronized(@{
     AppRoot = $AppRoot
     DataPath = Join-Path $Global:PSWebServer['DataRoot'] "apps\DockerManager"
     Initialized = Get-Date
-    # Add app-specific state here
+    DockerAvailable = $false
+    DockerVersion = $null
+    DockerError = $null
 })
 
 # Ensure data directory exists
@@ -31,15 +33,34 @@ if (-not (Test-Path $dataPath)) {
     New-Item -Path $dataPath -ItemType Directory -Force | Out-Null
 }
 
-# Load any app-specific configuration
-# $configPath = Join-Path $AppRoot "config.json"
-# if (Test-Path $configPath) {
-#     $config = Get-Content $configPath | ConvertFrom-Json
-#     $PSWebServer.DockerManager.Config = $config
-# }
+# Load Docker Manager module
+$modulePath = Join-Path $AppRoot "modules\PSDockerManager\PSDockerManager.psd1"
+if (Test-Path $modulePath) {
+    try {
+        Import-Module $modulePath -Force -ErrorAction Stop
+        Write-Verbose "[DockerManager] Module loaded successfully"
+    } catch {
+        Write-Warning "[DockerManager] Failed to load module: $($_.Exception.Message)"
+    }
+} else {
+    Write-Warning "[DockerManager] Module not found at: $modulePath"
+}
 
-# Initialize any background jobs or resources here
-# Example:
-# Start-Job -ScriptBlock { ... }
+# Check Docker availability at startup
+try {
+    $dockerStatus = Test-DockerAvailability
+    $PSWebServer.DockerManager.DockerAvailable = $dockerStatus.available
+    $PSWebServer.DockerManager.DockerVersion = $dockerStatus.version
+    $PSWebServer.DockerManager.DockerError = $dockerStatus.error
 
-Write-Host "[Init] Loaded app: Docker Manager (v1.0.0)" -ForegroundColor Green
+    if ($dockerStatus.available) {
+        Write-Host "[Init] Docker Manager (v1.0.0) - Docker detected: $($dockerStatus.version)" -ForegroundColor Green
+    } else {
+        Write-Host "[Init] Docker Manager (v1.0.0) - Docker not available: $($dockerStatus.error)" -ForegroundColor Yellow
+    }
+} catch {
+    Write-Warning "[DockerManager] Failed to check Docker status: $($_.Exception.Message)"
+    $PSWebServer.DockerManager.DockerAvailable = $false
+    $PSWebServer.DockerManager.DockerError = $_.Exception.Message
+    Write-Host "[Init] Docker Manager (v1.0.0) - Docker status unknown" -ForegroundColor Yellow
+}

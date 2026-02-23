@@ -1,5 +1,5 @@
 # Test menu system
-.\WebHost.ps1 -ShowVariables *> $null
+.\WebHost.ps1 -InitializeEnvironmentOnly *> $null
 
 Write-Host "`n=== Checking Apps Loaded ===" -ForegroundColor Cyan
 $Global:PSWebServer.Apps.Keys | ForEach-Object { Write-Host "App: $_" }

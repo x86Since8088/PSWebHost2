@@ -126,23 +126,27 @@ function Invoke-ApiTest {
 function Test-CLIFunctionality {
     Write-Host "`n=== CLI Tests ===" -ForegroundColor Cyan
 
-    # Example: Test module import
-    Test-Assert -TestName "Module Import" `
-        -Condition (Get-Module -Name "PSWebKubernetesManager" -ErrorAction SilentlyContinue) `
-        -Message "Module should be loaded"
+    # NOTE: These tests are commented out because the app is a placeholder
+    # with no actual Kubernetes functionality implemented yet.
+    # Uncomment and update when kubectl integration is added.
 
-    # Example: Test function availability
-    Test-Assert -TestName "Function Exists" `
-        -Condition (Get-Command -Name "Get-KubernetesManager" -ErrorAction SilentlyContinue) `
-        -Message "Function should be available"
+    # # Example: Test module import
+    # Test-Assert -TestName "Module Import" `
+    #     -Condition (Get-Module -Name "PSWebKubernetesManager" -ErrorAction SilentlyContinue) `
+    #     -Message "Module should be loaded"
 
-    # Example: Test function output
-    $result = Get-KubernetesManager -Parameter "test"
-    Test-Assert -TestName "Function Returns Expected Output" `
-        -Condition ($result -eq "expected") `
-        -Message "Function should return expected value"
+    # # Example: Test function availability
+    # Test-Assert -TestName "Function Exists" `
+    #     -Condition (Get-Command -Name "Get-KubernetesManager" -ErrorAction SilentlyContinue) `
+    #     -Message "Function should be available"
 
-    # Add more CLI tests here...
+    # # Example: Test function output
+    # $result = Get-KubernetesManager -Parameter "test"
+    # Test-Assert -TestName "Function Returns Expected Output" `
+    #     -Condition ($result -eq "expected") `
+    #     -Message "Function should return expected value"
+
+    Write-Host "  CLI tests disabled - app has no PowerShell modules yet" -ForegroundColor Yellow
 }
 
 #endregion
@@ -175,21 +179,22 @@ function Test-IntegrationFunctionality {
 
     # Test app status endpoint
     Invoke-ApiTest -TestName "App Status Endpoint" `
-        -Endpoint "/apps/$(kubernetesmanager)/api/v1/status" `
+        -Endpoint "/apps/kubernetesmanager/api/v1/status" `
         -ExpectedStatusCode 200
 
-    # Test UI element endpoint
-    Invoke-ApiTest -TestName "Home UI Element" `
-        -Endpoint "/apps/$(kubernetesmanager)/api/v1/ui/elements/$(kubernetesmanager)-home" `
+    # Test card endpoints
+    Invoke-ApiTest -TestName "Kubernetes Status Card" `
+        -Endpoint "/apps/kubernetesmanager/cards/kubernetes-status" `
         -ExpectedStatusCode 200
 
-    # Add more integration tests here...
+    Invoke-ApiTest -TestName "KubernetesManager Home Card" `
+        -Endpoint "/apps/kubernetesmanager/cards/kubernetesmanager-home" `
+        -ExpectedStatusCode 200
 
-    # Example: Test data endpoint
-    # Invoke-ApiTest -TestName "Data Endpoint" `
-    #     -Endpoint "/apps/$(kubernetesmanager)/api/v1/data" `
-    #     -Method 'POST' `
-    #     -Body @{ query = "test" } `
+    # Note: Kubernetes API tests disabled - no kubectl integration yet
+    # Uncomment when actual K8s functionality is implemented:
+    # Invoke-ApiTest -TestName "Kubernetes Cluster Info" `
+    #     -Endpoint "/apps/kubernetesmanager/api/v1/k8s/info" `
     #     -ExpectedStatusCode 200
 }
 

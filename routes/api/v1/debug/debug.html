@@ -22,6 +22,18 @@
   .error{color:#900;font-size:0.9em;margin-top:4px}
   .row-editor textarea{height:140px}
   .actions{display:flex;gap:6px;align-items:center}
+  .tree-view{font-family:monospace;font-size:0.9em}
+  .tree-node{padding:2px 0;user-select:none}
+  .tree-node-content{display:flex;align-items:center;padding:2px 4px;cursor:pointer}
+  .tree-node-content:hover{background:#f0f0f0}
+  .tree-expand-icon{display:inline-block;width:16px;text-align:center;margin-right:4px;font-weight:bold;color:#666}
+  .tree-name{font-weight:bold;color:#1e1e1e;margin-right:8px}
+  .tree-type{color:#666;font-size:0.85em;margin-right:8px}
+  .tree-value{color:#333;font-style:italic}
+  .tree-children{margin-left:20px;border-left:1px dotted #ccc;padding-left:8px}
+  .tree-node.collapsed > .tree-children{display:none}
+  .tree-node.expanded > .tree-children{display:block}
+  .tree-loading{color:#888;font-style:italic}
   th[data-key="Name"],
   th[data-key="Type"],
   td:nth-child(1),
@@ -62,6 +74,7 @@ width: auto; /* Allow Value column to take remaining space */
         <option value="list">List (Fast)</option>
         <option value="table">Table View</option>
         <option value="detailed">Detailed (Slow)</option>
+        <option value="tree">Tree View</option>
       </select>
       <button id="refresh" class="btn small">Refresh</button>
       <button id="create" class="btn small">New Variable</button>
@@ -86,6 +99,11 @@ width: auto; /* Allow Value column to take remaining space */
     <div id="textView" style="display: none;">
       <pre id="textOutput" style="background: #f5f5f5; padding: 12px; border: 1px solid #ccc; overflow: auto; max-height: 80vh;"></pre>
     </div>
+
+    <div id="treeView" style="display: none;">
+      <div class="muted" style="margin-bottom:8px">Click to expand/collapse nodes. Click variable name to browse its contents.</div>
+      <div id="treeContainer" class="tree-view"></div>
+    </div>
   </div>
 
 <script>
@@ -101,6 +119,12 @@ width: auto; /* Allow Value column to take remaining space */
   const tableView = document.getElementById('tableView');
   const textView = document.getElementById('textView');
   const textOutput = document.getElementById('textOutput');
+  const treeView = document.getElementById('treeView');
+  const treeContainer = document.getElementById('treeContainer');
+
+  // Tree view state
+  const expandedNodes = new Set();
+  let currentTreePath = null;
 
   function typeHint(type){
     if(!type) return 'unknown';
@@ -119,6 +143,135 @@ width: auto; /* Allow Value column to take remaining space */
       if (t === 'string') return val === null || val === undefined ? '' : String(val);
       return JSON.stringify(val, null, 2);
     } catch(e) { return String(val); }
+  }
+
+  // Tree view functions
+  async function loadTreeRoot() {
+    treeContainer.innerHTML = '<div class="tree-loading">Loading variables...</div>';
+
+    try {
+      const r = await fetch(apiVars + '?format=tree');
+      if (!r.ok) throw new Error('Failed to load: ' + r.status);
+
+      const nodes = await r.json();
+      renderTreeNodes(nodes, treeContainer, null);
+    } catch (error) {
+      treeContainer.innerHTML = '<div class="error">Error loading tree: ' + escapeHtml(error.message) + '</div>';
+    }
+  }
+
+  async function loadTreeChildren(path, containerEl) {
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'tree-loading';
+    loadingDiv.textContent = 'Loading...';
+    containerEl.appendChild(loadingDiv);
+
+    try {
+      const r = await fetch(apiVars + '?format=tree&var=' + encodeURIComponent(path));
+      if (!r.ok) {
+        const err = await r.text();
+        throw new Error(err);
+      }
+
+      const children = await r.json();
+      loadingDiv.remove();
+
+      if (children.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'tree-node';
+        emptyDiv.textContent = '(empty)';
+        containerEl.appendChild(emptyDiv);
+      } else {
+        renderTreeNodes(children, containerEl, path);
+      }
+    } catch (error) {
+      loadingDiv.textContent = 'Error: ' + error.message;
+      loadingDiv.className = 'error';
+    }
+  }
+
+  function renderTreeNodes(nodes, containerEl, parentPath) {
+    nodes.forEach(node => {
+      const nodeDiv = document.createElement('div');
+      nodeDiv.className = 'tree-node';
+      if (expandedNodes.has(node.Path)) {
+        nodeDiv.classList.add('expanded');
+      } else {
+        nodeDiv.classList.add('collapsed');
+      }
+
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'tree-node-content';
+
+      // Expand/collapse icon
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'tree-expand-icon';
+      if (node.IsExpandable) {
+        iconSpan.textContent = expandedNodes.has(node.Path) ? '▼' : '▶';
+      } else {
+        iconSpan.textContent = '•';
+      }
+      contentDiv.appendChild(iconSpan);
+
+      // Name
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'tree-name';
+      nameSpan.textContent = node.Name;
+      contentDiv.appendChild(nameSpan);
+
+      // Type badge
+      const typeSpan = document.createElement('span');
+      typeSpan.className = 'tree-type';
+      typeSpan.textContent = '[' + (node.Type ? node.Type.split('.').pop() : 'unknown') + ']';
+      contentDiv.appendChild(typeSpan);
+
+      // Value (if present)
+      if (node.Value !== undefined && node.Value !== null) {
+        const valueSpan = document.createElement('span');
+        valueSpan.className = 'tree-value';
+        valueSpan.textContent = String(node.Value);
+        contentDiv.appendChild(valueSpan);
+      }
+
+      // Click handler
+      if (node.IsExpandable) {
+        contentDiv.onclick = async (e) => {
+          e.stopPropagation();
+
+          const isExpanded = expandedNodes.has(node.Path);
+
+          if (isExpanded) {
+            // Collapse
+            expandedNodes.delete(node.Path);
+            nodeDiv.classList.remove('expanded');
+            nodeDiv.classList.add('collapsed');
+            iconSpan.textContent = '▶';
+
+            // Remove children
+            const childrenContainer = nodeDiv.querySelector('.tree-children');
+            if (childrenContainer) {
+              childrenContainer.remove();
+            }
+          } else {
+            // Expand
+            expandedNodes.add(node.Path);
+            nodeDiv.classList.remove('collapsed');
+            nodeDiv.classList.add('expanded');
+            iconSpan.textContent = '▼';
+
+            // Load and render children
+            const childrenContainer = document.createElement('div');
+            childrenContainer.className = 'tree-children';
+            nodeDiv.appendChild(childrenContainer);
+
+            await loadTreeChildren(node.Path, childrenContainer);
+          }
+        };
+      }
+
+      nodeDiv.appendChild(contentDiv);
+      containerEl.appendChild(nodeDiv);
+    });
   }
 
   function renderTable() {
@@ -212,10 +365,20 @@ width: auto; /* Allow Value column to take remaining space */
   async function loadVars(){
     const mode = viewMode.value;
 
+    // --- Tree View Mode ---
+    if (mode === 'tree') {
+      tableView.style.display = 'none';
+      textView.style.display = 'none';
+      treeView.style.display = 'block';
+      await loadTreeRoot();
+      return;
+    }
+
     // --- Table View Mode ---
     if (mode === 'table') {
       tableView.style.display = 'none';
       textView.style.display = 'block';
+      treeView.style.display = 'none';
       textOutput.textContent = 'Loading table view...';
 
       const r = await fetch(apiVars + '?format=table');
@@ -237,6 +400,7 @@ width: auto; /* Allow Value column to take remaining space */
     // --- List or Detailed View Mode ---
     tableView.style.display = 'block';
     textView.style.display = 'none';
+    treeView.style.display = 'none';
 
     const format = mode === 'detailed' ? 'detailed' : 'list';
     const r = await fetch(apiVars + '?format=' + format);

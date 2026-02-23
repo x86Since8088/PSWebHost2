@@ -94,7 +94,7 @@ catch {
 ```yaml
 - Name: Real-time Events
   parent: Main Menu
-  url: /apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events
+  url: /apps/WebhostRealtimeEvents/cards/realtime-events
   hover_description: Monitor PSWebHost events and logs in real-time with advanced filtering and sorting
   icon: activity
   roles:
@@ -135,7 +135,7 @@ catch {
 
 | Component | Old Path | New Path |
 |-----------|----------|----------|
-| **Endpoint** | `/api/v1/ui/elements/realtime-events` | `/apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events` |
+| **Endpoint** | `/api/v1/ui/elements/realtime-events` | `/apps/WebhostRealtimeEvents/cards/realtime-events` |
 | **Route File** | `routes/api/v1/ui/elements/realtime-events/get.ps1` | `apps/WebhostRealtimeEvents/routes/api/v1/ui/elements/realtime-events/get.ps1` |
 | **Component** | (referenced by endpoint) | `apps/WebhostRealtimeEvents/public/elements/realtime-events/component.js` |
 | **Menu Entry** | ~~main-menu.yaml~~ (removed earlier) | `apps/WebhostRealtimeEvents/menu.yaml` |
@@ -229,7 +229,7 @@ After migration, verify:
 ### 1. Endpoint Accessibility
 ```powershell
 # Test new endpoint
-Invoke-WebRequest -Uri "http://localhost:8080/apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events"
+Invoke-WebRequest -Uri "http://localhost:8080/apps/WebhostRealtimeEvents/cards/realtime-events"
 
 # Expected: JSON response with component metadata
 # {
@@ -398,7 +398,7 @@ The WebhostRealtimeEvents app provides additional endpoints:
    - Get realtime events system status
 
 3. **UI Element** ← This migration
-   - GET `/apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events`
+   - GET `/apps/WebhostRealtimeEvents/cards/realtime-events`
    - Returns component metadata
 
 ---
@@ -433,9 +433,9 @@ rm -rf apps/WebhostRealtimeEvents/routes/api/v1/ui/elements/realtime-events
 
 | Endpoint | Old Path | New Path | App | Status |
 |----------|----------|----------|-----|--------|
-| **server-heatmap** | `/api/v1/ui/elements/server-heatmap` | `/apps/WebHostMetrics/api/v1/ui/elements/server-heatmap` | WebHostMetrics | ✅ |
-| **unit-test-runner** | `/api/v1/ui/elements/unit-test-runner` | `/apps/UnitTests/api/v1/ui/elements/unit-test-runner` | UnitTests | ✅ |
-| **realtime-events** | `/api/v1/ui/elements/realtime-events` | `/apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events` | WebhostRealtimeEvents | ✅ |
+| **server-heatmap** | `/api/v1/ui/elements/server-heatmap` | `/apps/WebHostMetrics/cards/server-heatmap` | WebHostMetrics | ✅ |
+| **unit-test-runner** | `/api/v1/ui/elements/unit-test-runner` | `/apps/UnitTests/cards/unit-test-runner` | UnitTests | ✅ |
+| **realtime-events** | `/api/v1/ui/elements/realtime-events` | `/apps/WebhostRealtimeEvents/cards/realtime-events` | WebhostRealtimeEvents | ✅ |
 
 ### Deprecated Folders (All in routes/api/v1/ui/elements/)
 

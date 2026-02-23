@@ -178,7 +178,7 @@ if [ "$RUN_SETUP" = true ]; then
     echo "========================================================================================================"
     echo ""
 
-    pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT_DIR/WebHost.ps1" -ShowVariables
+    pwsh -NoProfile -ExecutionPolicy Bypass -File "$SCRIPT_DIR/WebHost.ps1" -InitializeEnvironmentOnly
 
     if [ $? -eq 0 ]; then
         echo ""

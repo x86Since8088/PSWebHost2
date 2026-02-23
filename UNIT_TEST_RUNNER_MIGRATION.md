@@ -77,7 +77,7 @@ catch {
 **After:**
 ```yaml
 - Name: Unit Test Runner
-  url: /apps/UnitTests/api/v1/ui/elements/unit-test-runner
+  url: /apps/UnitTests/cards/unit-test-runner
   hover_description: Run in-browser unit tests for PSWebHost components and libraries
   parent: Admin Tools
   icon: flask
@@ -135,7 +135,7 @@ catch {
 
 | Component | Old Path | New Path |
 |-----------|----------|----------|
-| **Endpoint** | `/api/v1/ui/elements/unit-test-runner` | `/apps/UnitTests/api/v1/ui/elements/unit-test-runner` |
+| **Endpoint** | `/api/v1/ui/elements/unit-test-runner` | `/apps/UnitTests/cards/unit-test-runner` |
 | **Route File** | `routes/api/v1/ui/elements/unit-test-runner/get.ps1` | `apps/UnitTests/routes/api/v1/ui/elements/unit-test-runner/get.ps1` |
 | **Component** | (referenced by old endpoint) | `apps/UnitTests/public/elements/unit-test-runner/component.js` |
 | **Styles** | (referenced by component) | `apps/UnitTests/public/elements/unit-test-runner/style.css` |
@@ -201,7 +201,7 @@ After migration, verify:
 ### 1. Endpoint Accessibility
 ```powershell
 # Test new endpoint
-Invoke-WebRequest -Uri "http://localhost:8080/apps/UnitTests/api/v1/ui/elements/unit-test-runner"
+Invoke-WebRequest -Uri "http://localhost:8080/apps/UnitTests/cards/unit-test-runner"
 
 # Expected: JSON response with component metadata
 # {

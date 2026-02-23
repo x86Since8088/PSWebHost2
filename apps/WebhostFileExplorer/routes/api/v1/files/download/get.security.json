@@ -1,5 +1,1 @@
-{
-  "requireAuthentication": true,
-  "requireRole": "",
-  "description": "File download endpoint with HTTP 206 range request support for resumable downloads"
-}
+{"Allowed_Roles":["authenticated"]}

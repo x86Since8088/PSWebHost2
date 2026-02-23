@@ -108,13 +108,13 @@ Main Menu
 ```yaml
 - Name: Task Management
   parent: System Management\WebHost
-  url: /apps/WebHostTaskManagement/api/v1/ui/elements/task-manager
+  url: /apps/WebHostTaskManagement/cards/task-manager
   hover_description: Manage scheduled tasks
 ```
 
 ### Step 2: User Clicks Menu Item
 
-- Menu system navigates to: `/apps/WebHostTaskManagement/api/v1/ui/elements/task-manager`
+- Menu system navigates to: `/apps/WebHostTaskManagement/cards/task-manager`
 
 ### Step 3: Endpoint Returns Component Metadata
 
@@ -153,7 +153,7 @@ context_reponse -Response $Response -StatusCode 200 -String $jsonData -ContentTy
 
 - Name: Task Management
   parent: System Management\WebHost
-  url: /apps/WebHostTaskManagement/api/v1/ui/elements/task-manager
+  url: /apps/WebHostTaskManagement/cards/task-manager
   hover_description: Manage scheduled tasks, monitor background jobs, and view active runspaces
   icon: tasks
   tags:
@@ -172,7 +172,7 @@ context_reponse -Response $Response -StatusCode 200 -String $jsonData -ContentTy
 
 ```yaml
 - Name: Credential Manager
-  url: /apps/vault/api/v1/ui/elements/vault-manager
+  url: /apps/vault/cards/vault-manager
   hover_description: Manage stored credentials securely
   icon: key
   tags:
@@ -187,7 +187,7 @@ With explicit parent:
 ```yaml
 - Name: Credential Manager
   parent: Apps\vault
-  url: /apps/vault/api/v1/ui/elements/vault-manager
+  url: /apps/vault/cards/vault-manager
   hover_description: Manage stored credentials securely
   icon: key
 ```
@@ -231,7 +231,7 @@ Contains child entries (no URL).
   collapsed: true
   children:
   - Name: Site Settings
-    url: /api/v1/ui/elements/site-settings
+    url: /cards/site-settings
 ```
 
 ### 3. External Link Entry
@@ -400,7 +400,7 @@ When adding menu.yaml to an existing app:
 # apps/WebHostTaskManagement/menu.yaml
 - Name: Task Management
   parent: System Management\WebHost
-  url: /apps/WebHostTaskManagement/api/v1/ui/elements/task-manager
+  url: /apps/WebHostTaskManagement/cards/task-manager
   hover_description: Manage scheduled tasks, monitor background jobs, and view active runspaces
   icon: tasks
   tags:

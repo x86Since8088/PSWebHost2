@@ -8,14 +8,55 @@ param (
     [hashtable]$Query = @{}
 )
 
-# Metrics History API Endpoint (New Architecture - SQLite Backend)
-# Returns historical metrics data from pswebhost_perf.db in Chart.js compatible format
+# Metrics History API Endpoint (CSV-based Architecture)
+# Returns historical metrics data from CSV files in PsWebHost_Data/metrics/
+# CSV data is embedded in JSON response for efficient transmission
 
-# Handle test mode
+# Load required modules and functions for test mode
 if ($Test) {
+    # $PSScriptRoot = apps/WebHostMetrics/routes/api/v1/metrics/history
+    # Need to go up 7 levels to reach project root
+    $projectRoot = Split-Path (Split-Path (Split-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) -Parent) -Parent) -Parent
+
+    # Initialize global PSWebServer if needed
+    if (-not $Global:PSWebServer) {
+        $Global:PSWebServer = @{
+            Project_Root = @{ Path = $projectRoot }
+        }
+    }
+    elseif (-not $Global:PSWebServer.Project_Root) {
+        $Global:PSWebServer.Project_Root = @{ Path = $projectRoot }
+    }
+
+    # Mock Write-PSWebHostLog if not available
+    if (-not (Get-Command Write-PSWebHostLog -ErrorAction SilentlyContinue)) {
+        function Write-PSWebHostLog {
+            param($Severity, $Category, $Message, $Data)
+            Write-Host "[$Severity] [$Category] $Message" -ForegroundColor Yellow
+        }
+    }
+}
+
+# Handle test mode session setup
+if ($Test) {
+    # Read and display security configuration
+    $securityFile = Join-Path $PSScriptRoot "get.security.json"
+    if (Test-Path $securityFile) {
+        $securityConfig = Get-Content $securityFile -Raw | ConvertFrom-Json
+        Write-Host "`n=== Security Configuration ===" -ForegroundColor Cyan
+        Write-Host "Allowed Roles: $($securityConfig.Allowed_Roles -join ', ')" -ForegroundColor Yellow
+        Write-Host "================================`n" -ForegroundColor Cyan
+    }
+
     # Create mock sessiondata
     if ($Roles.Count -eq 0) {
         $Roles = @('authenticated')
+    }
+    else {
+        # Ensure 'authenticated' is always included when roles are specified
+        if ('authenticated' -notin $Roles) {
+            $Roles = @('authenticated') + $Roles
+        }
     }
     $sessiondata = @{
         Roles = $Roles
@@ -40,9 +81,9 @@ try {
     # Parse query parameters
     $starting = $queryParams["starting"]
     $ending = $queryParams["ending"]
-    $metric = $queryParams["metric"] ?? "cpu"
-    $granularity = $queryParams["granularity"]  # Optional: 5s or 60s
-    $timeRange = $queryParams["timerange"]  # Optional: 5m, 1h, etc.
+    $metrics = $queryParams["metrics"]  # Comma-separated: cpu,memory,disk,network (or empty for all)
+    $timeRange = $queryParams["timerange"]  # Optional: 5m, 1h, 24h, etc.
+    $granularity = $queryParams["granularity"]  # Optional: 5s, 15s, 30s, 1m (default: 5s)
 
     # Handle timerange parameter if starting is not provided
     if (-not $starting -and $timeRange) {
@@ -66,7 +107,7 @@ try {
         catch {
             $errorResponse = @{
                 status = 'error'
-                message = "Invalid datetime format. Use ISO 8601 format (e.g., 2026-01-06T10:00:00)"
+                message = "Invalid datetime format. Use ISO 8601 format (e.g., 2026-01-20T10:00:00)"
             } | ConvertTo-Json
             if ($Test) {
                 Write-Host "`n=== API Endpoint Test Results ===" -ForegroundColor Cyan
@@ -86,221 +127,161 @@ try {
         $endTime = Get-Date
     }
 
-    # Auto-select granularity based on time range if not specified
-    $rangeHours = ($endTime - $startTime).TotalHours
-    if (-not $granularity) {
-        $granularity = if ($rangeHours -lt 1) { '5s' } else { '60s' }
+    # Determine which metrics to fetch
+    $requestedMetrics = if ($metrics) { $metrics -split ',' } else { @('cpu', 'memory', 'disk', 'network') }
+
+    # Parse granularity (default to 5s which is native collection interval)
+    $granularitySeconds = switch ($granularity) {
+        '5s'  { 5 }
+        '15s' { 15 }
+        '30s' { 30 }
+        '1m'  { 60 }
+        default { 5 }  # Native granularity is 5 seconds
     }
-    $secondsFilter = if ($granularity -eq '5s') { 5 } else { 60 }
+    $granularityLabel = if ($granularity) { $granularity } else { '5s' }
 
-    # Format timestamps for SQL query
-    $startTimeStr = $startTime.ToString('yyyy-MM-dd HH:mm:ss')
-    $endTimeStr = $endTime.ToString('yyyy-MM-dd HH:mm:ss')
-
-    # Determine table name and query based on metric type
-    $tableName = switch ($metric) {
-        'cpu' { 'Perf_CPUCore' }
-        'memory' { 'Perf_MemoryUsage' }
-        'disk' { 'Perf_DiskIO' }
-        'network' { 'Network' }
-        default { 'Perf_CPUCore' }
-    }
-
-    # Query SQLite
-    $query = @"
-SELECT * FROM $tableName
-WHERE Timestamp >= '$startTimeStr'
-  AND Timestamp <= '$endTimeStr'
-  AND Seconds = $secondsFilter
-ORDER BY Timestamp ASC;
-"@
-
-    $results = Get-PSWebSQLiteData -File 'pswebhost_perf.db' -Query $query
-
-    # Transform results to Chart.js format
-    $metricsData = @{
-        datasets = @()
+    # Map metric names to CSV file prefixes
+    $metricFileMap = @{
+        'cpu' = 'Perf_CPUCore'
+        'memory' = 'Perf_MemoryUsage'
+        'disk' = 'Perf_DiskIO'
+        'network' = 'Network'
     }
 
-    $colors = @('#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16')
+    # Test mode: show query info
+    if ($Test) {
+        Write-Host "[Test Mode] Time range: $($startTime.ToString('yyyy-MM-dd HH:mm:ss')) to $($endTime.ToString('yyyy-MM-dd HH:mm:ss'))" -ForegroundColor Cyan
+        Write-Host "[Test Mode] Requested metrics: $($requestedMetrics -join ', ')" -ForegroundColor Cyan
+        Write-Host "[Test Mode] Granularity: $granularityLabel ($granularitySeconds seconds)" -ForegroundColor Cyan
+    }
 
-    switch ($metric) {
-        'cpu' {
-            # Group by core number
-            $coreMap = @{}
-            foreach ($row in $results) {
-                $coreNum = $row.CoreNumber
-                if (-not $coreMap.ContainsKey($coreNum)) {
-                    $coreMap[$coreNum] = @()
-                }
-                $coreMap[$coreNum] += @{
-                    x = Get-Date $row.Timestamp -Format 'o'
-                    y = [double]$row.Percent_Avg
-                }
-            }
+    # Get CSV directory
+    $projectRoot = $Global:PSWebServer.Project_Root.Path
+    $csvDir = Join-Path $projectRoot "PsWebHost_Data\metrics"
 
-            # Create dataset for each core
-            $coreIndex = 0
-            foreach ($coreNum in ($coreMap.Keys | Sort-Object)) {
-                $metricsData.datasets += @{
-                    label = "CPU $coreNum"
-                    data = $coreMap[$coreNum]
-                    borderColor = $colors[$coreIndex % $colors.Length]
-                    backgroundColor = ($colors[$coreIndex % $colors.Length] + '40')
-                    borderWidth = 2
-                    tension = 0.4
-                    pointRadius = 0
-                    fill = $false
-                }
-                $coreIndex++
-            }
+    if (-not (Test-Path $csvDir)) {
+        $response_data = @{
+            status = 'success'
+            startTime = $startTime.ToString('o')
+            endTime = $endTime.ToString('o')
+            granularity = $granularityLabel
+            metrics = @{}
+            message = 'No metrics data directory found'
+        }
+    }
+    else {
+        # Build response with CSV data grouped by source
+        $csvDataBySources = @{}
 
-            # Add average line (average of all cores at each timestamp)
-            $timestampMap = @{}
-            foreach ($row in $results) {
-                $timestamp = $row.Timestamp
-                if (-not $timestampMap.ContainsKey($timestamp)) {
-                    $timestampMap[$timestamp] = @()
-                }
-                $timestampMap[$timestamp] += [double]$row.Percent_Avg
-            }
+        foreach ($metricName in $requestedMetrics) {
+            $filePrefix = $metricFileMap[$metricName]
+            if (-not $filePrefix) { continue }
 
-            $avgData = @()
-            foreach ($timestamp in ($timestampMap.Keys | Sort-Object)) {
-                $avgValue = ($timestampMap[$timestamp] | Measure-Object -Average).Average
-                $avgData += @{
-                    x = Get-Date $timestamp -Format 'o'
-                    y = [math]::Round($avgValue, 1)
+            # Find CSV files matching the time range
+            # Format: Perf_CPUCore_2026-01-20_13-00-00.csv
+            $pattern = "${filePrefix}_*.csv"
+            $csvFiles = Get-ChildItem -Path $csvDir -Filter $pattern -ErrorAction SilentlyContinue | Where-Object {
+                # Parse timestamp from filename: Perf_CPUCore_2026-01-20_13-00-00.csv
+                if ($_.BaseName -match '_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})$') {
+                    $timestampStr = "$($matches[1])T$($matches[2]):$($matches[3]):$($matches[4])"
+                    try {
+                        $fileTime = [datetime]::Parse($timestampStr)
+                        return $fileTime -ge $startTime -and $fileTime -le $endTime
+                    }
+                    catch {
+                        return $false
+                    }
                 }
-            }
+                return $false
+            } | Sort-Object Name
 
-            $metricsData.datasets += @{
-                label = "Average"
-                data = $avgData
-                borderColor = '#ffffff'
-                backgroundColor = 'rgba(255, 255, 255, 0.3)'
-                borderWidth = 3
-                tension = 0.4
-                pointRadius = 0
-                fill = $false
+            if ($csvFiles) {
+                # Read and concatenate CSV files
+                $csvContent = @()
+                $headerWritten = $false
+
+                foreach ($file in $csvFiles) {
+                    $lines = Get-Content -Path $file.FullName
+
+                    if (-not $headerWritten) {
+                        # Include header from first file
+                        $csvContent += $lines
+                        $headerWritten = $true
+                    }
+                    else {
+                        # Skip header from subsequent files
+                        $csvContent += $lines | Select-Object -Skip 1
+                    }
+                }
+
+                # Apply downsampling if granularity > 5s
+                if ($granularitySeconds -gt 5 -and $csvContent.Count -gt 1) {
+                    # Parse CSV and aggregate
+                    $header = $csvContent[0]
+                    $dataLines = $csvContent | Select-Object -Skip 1
+
+                    # For now, simple downsampling: take every Nth row where N = granularitySeconds / 5
+                    # More sophisticated aggregation (averaging) could be added later
+                    $skipFactor = [int]($granularitySeconds / 5)
+                    $sampledLines = @($header)
+
+                    for ($i = 0; $i -lt $dataLines.Count; $i += $skipFactor) {
+                        $sampledLines += $dataLines[$i]
+                    }
+
+                    $csvContent = $sampledLines
+                }
+
+                # Store as single CSV string using user-friendly metric name as key
+                if ($csvContent.Count -gt 0) {
+                    $csvDataBySources[$metricName] = $csvContent -join "`n"
+                }
             }
         }
 
-        'memory' {
-            $memData = $results | ForEach-Object {
-                @{
-                    x = Get-Date $_.Timestamp -Format 'o'
-                    y = [double]$_.MB_Avg
-                }
-            }
-
-            $metricsData.datasets += @{
-                label = "Memory Usage (MB)"
-                data = $memData
-                borderColor = '#3b82f6'
-                backgroundColor = 'rgba(59, 130, 246, 0.2)'
-                borderWidth = 2
-                tension = 0.4
-                pointRadius = 0
-                fill = $true
-            }
-        }
-
-        'disk' {
-            # Group by drive
-            $driveMap = @{}
-            foreach ($row in $results) {
-                $drive = $row.Drive
-                if (-not $driveMap.ContainsKey($drive)) {
-                    $driveMap[$drive] = @()
-                }
-                $driveMap[$drive] += @{
-                    x = Get-Date $row.Timestamp -Format 'o'
-                    y = [double]$row.KBPerSec_Avg
-                }
-            }
-
-            # Create dataset for each drive
-            $driveIndex = 0
-            foreach ($drive in ($driveMap.Keys | Sort-Object)) {
-                $metricsData.datasets += @{
-                    label = "$drive KB/s"
-                    data = $driveMap[$drive]
-                    borderColor = $colors[$driveIndex % $colors.Length]
-                    backgroundColor = ($colors[$driveIndex % $colors.Length] + '40')
-                    borderWidth = 2
-                    tension = 0.4
-                    pointRadius = 0
-                    fill = $false
-                }
-                $driveIndex++
-            }
-        }
-
-        'network' {
-            # Group by adapter name
-            $adapterMap = @{}
-            foreach ($row in $results) {
-                $adapter = $row.AdapterName
-                if (-not $adapterMap.ContainsKey($adapter)) {
-                    $adapterMap[$adapter] = @()
-                }
-                $totalKB = [double]$row.IngressKB_Avg + [double]$row.EgressKB_Avg
-                $adapterMap[$adapter] += @{
-                    x = Get-Date $row.Timestamp -Format 'o'
-                    y = $totalKB
-                }
-            }
-
-            # Create dataset for each adapter
-            $adapterIndex = 0
-            foreach ($adapter in ($adapterMap.Keys | Sort-Object)) {
-                $metricsData.datasets += @{
-                    label = "$adapter KB/s"
-                    data = $adapterMap[$adapter]
-                    borderColor = $colors[$adapterIndex % $colors.Length]
-                    backgroundColor = ($colors[$adapterIndex % $colors.Length] + '40')
-                    borderWidth = 2
-                    tension = 0.4
-                    pointRadius = 0
-                    fill = $false
-                }
-                $adapterIndex++
-            }
+        # Build response
+        $response_data = @{
+            status = 'success'
+            startTime = $startTime.ToString('o')
+            endTime = $endTime.ToString('o')
+            granularity = $granularityLabel
+            format = 'csv'
+            sources = $csvDataBySources.Keys -join ','
+            data = $csvDataBySources
         }
     }
 
-    $successResponse = @{
-        status = 'success'
-        metric = $metric
-        startTime = $startTime.ToString('o')
-        endTime = $endTime.ToString('o')
-        granularity = $granularity
-        sampleCount = $results.Count
-        data = $metricsData
-    }
+    $jsonResponse = $response_data | ConvertTo-Json -Depth 10 -Compress
 
     # Test mode output
     if ($Test) {
         Write-Host "`n=== API Endpoint Test Results ===" -ForegroundColor Cyan
         Write-Host "Status: 200 OK" -ForegroundColor Green
         Write-Host "Content-Type: application/json" -ForegroundColor Gray
-        Write-Host "`nResponse Data:" -ForegroundColor Cyan
-        $successResponse | ConvertTo-Json -Depth 10 | Write-Host
-        Write-Host "`n=== Summary ===" -ForegroundColor Cyan
-        Write-Host "Metric: $metric" -ForegroundColor Yellow
-        Write-Host "Granularity: $granularity" -ForegroundColor Yellow
-        Write-Host "Sample Count: $($results.Count)" -ForegroundColor Yellow
-        Write-Host "Datasets: $($metricsData.datasets.Count)" -ForegroundColor Yellow
-        Write-Host "Time Range: $($startTime.ToString('o')) to $($endTime.ToString('o'))" -ForegroundColor Yellow
+        Write-Host "`nResponse Summary:" -ForegroundColor Cyan
+        Write-Host "  Time Range: $($response_data.startTime) to $($response_data.endTime)" -ForegroundColor Yellow
+        Write-Host "  Format: $($response_data.format)" -ForegroundColor Yellow
+        Write-Host "  Sources: $($response_data.sources)" -ForegroundColor Yellow
+        foreach ($source in $response_data.data.Keys) {
+            $lineCount = ($response_data.data[$source] -split "`n").Count
+            Write-Host "  $source`: $lineCount lines" -ForegroundColor Yellow
+        }
+
+        Write-Host "`nSample CSV Data (first 5 lines):" -ForegroundColor Cyan
+        foreach ($source in $response_data.data.Keys) {
+            Write-Host "`n[$source]" -ForegroundColor Green
+            ($response_data.data[$source] -split "`n") | Select-Object -First 5 | ForEach-Object {
+                Write-Host "  $_" -ForegroundColor Gray
+            }
+        }
+
         Write-Host "`n=== End Test Results ===" -ForegroundColor Cyan
         return
     }
 
-    $successResponseJson = $successResponse | ConvertTo-Json -Depth 10 -Compress
-    context_response -Response $Response -String $successResponseJson -ContentType "application/json"
-
-} catch {
+    context_response -Response $Response -StatusCode 200 -String $jsonResponse -ContentType "application/json"
+}
+catch {
     Write-PSWebHostLog -Severity 'Error' -Category 'Metrics' -Message "Error in metrics history API: $($_.Exception.Message)"
 
     # Test mode error output
@@ -313,12 +294,6 @@ ORDER BY Timestamp ASC;
         return
     }
 
-    $errorResponse = @{
-        status = 'error'
-        message = "Error processing metrics history: $($_.Exception.Message)"
-        metric = $metric
-        timeRange = $timeRange
-        starting = $starting
-    } | ConvertTo-Json
-    context_response -Response $Response -StatusCode 500 -String $errorResponse -ContentType "application/json"
+    $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
+    context_response -Response $Response -StatusCode $Report.statusCode -String $Report.body -ContentType $Report.contentType
 }

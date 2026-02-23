@@ -31,7 +31,7 @@
             "elementId": "file-explorer",
             "title": "File Explorer",
             "type": "dynamic",
-            "endpoint": "/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer",
+            "endpoint": "/apps/WebhostFileExplorer/cards/file-explorer",
             "componentPath": "/apps/WebhostFileExplorer/public/elements/file-explorer/component.js",
             "backgroundColor": "#1a1a1a"
         },

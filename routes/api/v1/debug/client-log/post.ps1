@@ -21,6 +21,64 @@ try {
 
     $logData = $body | ConvertFrom-Json
 
+    # Check if this is a batch submission
+    if ($logData.batch -and $logData.logs) {
+        # Process batch logs
+        $processedCount = 0
+        $skippedCount = 0
+
+        foreach ($entry in $logData.logs) {
+            $level = if ($entry.level) { $entry.level } else { 'Info' }
+            $category = if ($entry.category) { $entry.category } else { 'ClientLog' }
+            $message = if ($entry.message) { $entry.message } else { 'No message' }
+            $timestamp = if ($entry.timestamp) { $entry.timestamp } else { (Get-Date).ToString('o') }
+            $caller = if ($entry.caller) { $entry.caller } else { 'unknown' }
+
+            # Add user info if available
+            $userID = if ($sessiondata -and $sessiondata.UserID) { $sessiondata.UserID } else { 'anonymous' }
+
+            # Build enriched message with caller info
+            $enrichedMessage = "[$timestamp][$caller] $message | User: $userID"
+
+            # Add data if present
+            if ($entry.data) {
+                try {
+                    $dataStr = $entry.data | ConvertTo-Json -Compress -Depth 3
+                    $enrichedMessage += " | Data: $dataStr"
+                } catch {
+                    $enrichedMessage += " | Data: $($entry.data.ToString())"
+                }
+            }
+
+            # Validate level before logging
+            $validLevels = @('Critical', 'Error', 'Warning', 'Info', 'Verbose', 'Debug')
+            if ($level -notin $validLevels) {
+                Write-Warning "Invalid log level '$level' for message: $message. Defaulting to Info."
+                $level = 'Info'
+            }
+
+            # Log to server
+            try {
+                Write-PSWebHostLog -Severity $level -Category $category -Message $enrichedMessage
+                $processedCount++
+            } catch {
+                Write-Warning "Failed to log batch entry: $($_.Exception.Message) | Level: $level | Category: $category | Message: $($message.Substring(0, [Math]::Min(50, $message.Length)))"
+                $skippedCount++
+            }
+        }
+
+        # Return success
+        $responseData = @{
+            status = 'success'
+            batch = $true
+            processed = $processedCount
+            skipped = $skippedCount
+        } | ConvertTo-Json -Compress
+        context_response -Response $Response -StatusCode 200 -String $responseData -ContentType "application/json"
+        return
+    }
+
+    # Single log entry (legacy path)
     # Extract log details
     $level = if ($logData.level) { $logData.level } else { 'Info' }
     $category = if ($logData.category) { $logData.category } else { 'ClientLog' }
@@ -96,6 +154,13 @@ try {
 
     # Build enriched data as simple string to avoid serialization issues
     $enrichedMessage = "$message | User: $userID | URL: $($logData.url) | Data: $clientDataStr"
+
+    # Validate level before logging (legacy single-log path)
+    $validLevels = @('Critical', 'Error', 'Warning', 'Info', 'Verbose', 'Debug')
+    if ($level -notin $validLevels) {
+        Write-Warning "Invalid log level '$level' in legacy path for message: $($message.Substring(0, [Math]::Min(50, $message.Length))). Defaulting to Info."
+        $level = 'Info'
+    }
 
     # Log to server - use simple string instead of complex object
     Write-PSWebHostLog -Severity $level -Category $category -Message $enrichedMessage

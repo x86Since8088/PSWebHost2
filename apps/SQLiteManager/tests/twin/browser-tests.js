@@ -73,20 +73,15 @@ const SQLiteManagerBrowserTests = {
 
     // Test: Component Loading
     async testComponentLoading() {
-        const testElement = document.createElement('sqlitemanager-home');
-        document.body.appendChild(testElement);
-
-        // Wait for component to initialize
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        const initialized = testElement.shadowRoot || testElement.innerHTML;
-
-        if (!initialized) {
-            throw new Error('Component did not initialize');
+        // Check if React card components are available
+        if (!window.cardComponents || !window.cardComponents['sqlite-manager']) {
+            throw new Error('SQLite Manager component not registered');
         }
 
-        // Cleanup
-        testElement.remove();
+        // Verify component is a function/class
+        if (typeof window.cardComponents['sqlite-manager'] !== 'function') {
+            throw new Error('SQLite Manager component is not a valid React component');
+        }
 
         return 'Component loaded successfully';
     },
@@ -108,97 +103,97 @@ const SQLiteManagerBrowserTests = {
         return `API endpoint responding correctly (v${data.version})`;
     },
 
-    // Test: UI Element Rendering
-    async testUIElementRendering() {
-        const response = await fetch('/apps/SQLiteManager/api/v1/ui/elements/SQLiteManager-home');
+    // Test: Card Metadata Loading
+    async testCardMetadata() {
+        const response = await fetch('/apps/sqlitemanager/cards/sqlite-manager');
 
         if (!response.ok) {
-            throw new Error(`UI endpoint returned ${response.status}`);
+            throw new Error(`Card endpoint returned ${response.status}`);
         }
 
-        const html = await response.text();
+        const metadata = await response.json();
 
-        if (!html.includes('<sqlitemanager-home')) {
-            throw new Error('UI endpoint does not contain expected component');
+        if (!metadata.component || metadata.component !== 'sqlite-manager') {
+            throw new Error('Card metadata missing or incorrect component name');
         }
 
-        return 'UI element renders correctly';
+        if (!metadata.scriptPath || !metadata.scriptPath.includes('sqlite-manager/component.js')) {
+            throw new Error('Card metadata missing or incorrect script path');
+        }
+
+        return 'Card metadata loads correctly';
     },
 
-    // Test: Data Operations (CRUD)
-    async testDataOperations() {
-        // Example: Create
-        const createData = { name: 'Test Item', value: 42 };
-        const created = await this.apiCall('/apps/SQLiteManager/api/v1/data', {
+    // Test: SQLite Query Execution
+    async testQueryExecution() {
+        // Test SELECT query
+        const queryData = { query: "SELECT name FROM sqlite_master WHERE type='table' LIMIT 1" };
+        const response = await fetch('/apps/sqlitemanager/api/v1/sqlite/query', {
             method: 'POST',
-            body: createData
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(queryData)
         });
 
-        if (!created.id) {
-            throw new Error('Create operation failed');
+        if (!response.ok) {
+            throw new Error(`Query endpoint returned ${response.status}`);
         }
 
-        // Example: Read
-        const read = await this.apiCall(`/apps/SQLiteManager/api/v1/data/${created.id}`);
+        const result = await response.json();
 
-        if (read.name !== createData.name) {
-            throw new Error('Read operation returned incorrect data');
+        if (!result.success) {
+            throw new Error(`Query execution failed: ${result.error || 'Unknown error'}`);
         }
 
-        // Example: Update
-        const updateData = { ...createData, value: 84 };
-        const updated = await this.apiCall(`/apps/SQLiteManager/api/v1/data/${created.id}`, {
-            method: 'PUT',
-            body: updateData
-        });
-
-        if (updated.value !== 84) {
-            throw new Error('Update operation failed');
+        if (result.queryType !== 'SELECT') {
+            throw new Error(`Expected queryType SELECT, got ${result.queryType}`);
         }
 
-        // Example: Delete
-        await this.apiCall(`/apps/SQLiteManager/api/v1/data/${created.id}`, {
-            method: 'DELETE'
-        });
-
-        // Verify deletion
-        try {
-            await this.apiCall(`/apps/SQLiteManager/api/v1/data/${created.id}`);
-            throw new Error('Delete operation failed - item still exists');
-        } catch (err) {
-            // Expected to fail (404)
-            if (!err.message.includes('404')) {
-                throw err;
-            }
+        if (!Array.isArray(result.rows)) {
+            throw new Error('Query result should contain rows array');
         }
 
-        return 'CRUD operations completed successfully';
+        return `Query executed successfully (${result.rows.length} rows in ${result.executionTime}ms)`;
     },
 
-    // Test: Event Handling
-    async testEventHandling() {
-        const testElement = document.createElement('sqlitemanager-home');
-        document.body.appendChild(testElement);
-
-        let eventFired = false;
-
-        testElement.addEventListener('custom-event', () => {
-            eventFired = true;
+    // Test: Invalid Query Handling
+    async testInvalidQueryHandling() {
+        // Test with empty query
+        const emptyQueryData = { query: "" };
+        const response1 = await fetch('/apps/sqlitemanager/api/v1/sqlite/query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(emptyQueryData)
         });
 
-        // Trigger event
-        testElement.dispatchEvent(new CustomEvent('custom-event', {
-            detail: { test: true }
-        }));
-
-        if (!eventFired) {
-            throw new Error('Event was not triggered');
+        if (response1.ok) {
+            throw new Error('Empty query should return error status');
         }
 
-        // Cleanup
-        testElement.remove();
+        // Test with invalid SQL
+        const invalidQueryData = { query: "INVALID SQL SYNTAX HERE" };
+        const response2 = await fetch('/apps/sqlitemanager/api/v1/sqlite/query', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(invalidQueryData)
+        });
 
-        return 'Event handling works correctly';
+        const result = await response2.json();
+
+        if (result.success) {
+            throw new Error('Invalid SQL should not succeed');
+        }
+
+        if (!result.error) {
+            throw new Error('Invalid SQL should return error message');
+        }
+
+        return 'Error handling works correctly';
     },
 
     // Test: Local Storage

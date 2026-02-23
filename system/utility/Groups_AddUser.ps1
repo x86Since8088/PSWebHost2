@@ -14,7 +14,7 @@ $ErrorActionPreference = 'Stop'
 
 # Load WebHost environment
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\')).Path
-. (Join-Path $ProjectRoot "WebHost.ps1") -ShowVariables 3>$null 4>$null | Out-Null
+. (Join-Path $ProjectRoot "WebHost.ps1") -InitializeEnvironmentOnly 3>$null 4>$null | Out-Null
 
 $MyTag = '[Groups_AddUser.ps1]'
 $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"

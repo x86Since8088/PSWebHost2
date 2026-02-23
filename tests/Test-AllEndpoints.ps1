@@ -482,11 +482,11 @@ try {
     $uiEndpoints = @(
         @{Name="Main menu"; Path="/api/v1/ui/elements/main-menu"},
         @{Name="File explorer"; Path="/api/v1/ui/elements/file-explorer"},
-        @{Name="System status"; Path="/api/v1/ui/elements/system-status"},
-        @{Name="World map"; Path="/apps/Maps/api/v1/ui/elements/world-map"},
+        @{Name="System status"; Path="/cards/system-status"},
+        @{Name="World map"; Path="/apps/Maps/cards/world-map"},
         @{Name="Server heatmap"; Path="/api/v1/ui/elements/server-heatmap"},
-        @{Name="Event stream"; Path="/api/v1/ui/elements/event-stream"},
-        @{Name="Users management"; Path="/api/v1/ui/elements/admin/users-management"}
+        @{Name="Event stream"; Path="/cards/event-stream"},
+        @{Name="Users management"; Path="/cards/admin/users-management"}
     )
 
     foreach ($ui in $uiEndpoints) {

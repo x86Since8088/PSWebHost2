@@ -2,10 +2,12 @@
 
 <#
 .SYNOPSIS
-    DELETE /apps/WebHostTaskManagement/api/v1/jobs?jobId=123
+    DELETE /apps/WebHostTaskManagement/api/v1/jobs?jobId={guid}
 
 .DESCRIPTION
-    Stops and removes a background job
+    Stops a running job OR deletes a completed job result
+    - For running jobs: Stops and saves result
+    - For completed jobs: Deletes the result file
 #>
 
 param (
@@ -21,48 +23,60 @@ param (
 $MyTag = '[WebHostTaskManagement:API:Jobs:Delete]'
 
 try {
-    # Get query parameters
-    if ($Test -and $Query.Count -gt 0) {
-        $queryParams = $Query
-    } elseif ($Request) {
-        $queryParams = @{}
-        foreach ($key in $Request.QueryString.AllKeys) {
-            $queryParams[$key] = $Request.QueryString[$key]
-        }
+    # Import job execution module
+    $modulePath = Join-Path $Global:PSWebServer.Project_Root.Path "modules\PSWebHost_JobExecution\PSWebHost_JobExecution.psd1"
+    if (Test-Path $modulePath) {
+        Import-Module $modulePath -DisableNameChecking -Force
     } else {
-        $queryParams = @{}
+        throw "Job execution module not found"
     }
 
-    $jobId = [int]$queryParams.jobId
+    # Validate session
+    if (-not $sessiondata.UserID) {
+        throw "Unauthorized: No user ID in session"
+    }
 
-    if (-not $jobId) {
+    # Get query parameters
+    $queryParams = if ($Test -and $Query.Count -gt 0) {
+        $Query
+    } elseif ($Request) {
+        $params = @{}
+        foreach ($key in $Request.QueryString.AllKeys) {
+            if ($key) {
+                $params[$key] = $Request.QueryString[$key]
+            }
+        }
+        $params
+    } else {
+        @{}
+    }
+
+    if (-not $queryParams.jobId) {
         throw "Missing required parameter: jobId"
     }
 
-    # Get the job
-    $job = Get-Job -Id $jobId -ErrorAction Stop
+    $jobId = $queryParams.jobId
 
-    # Stop the job if running
-    if ($job.State -eq 'Running') {
-        Stop-Job -Job $job -ErrorAction SilentlyContinue
-        Start-Sleep -Milliseconds 500  # Give it time to stop
+    # Try to stop if running
+    $message = ""
+    try {
+        $result = Stop-PSWebHostJob -JobID $jobId -UserID $sessiondata.UserID
+        $message = "Job stopped successfully"
     }
-
-    # Remove from task tracking if it's a task job
-    $taskEntry = $Global:PSWebServer.Tasks.RunningJobs.Keys | Where-Object {
-        $Global:PSWebServer.Tasks.RunningJobs[$_].Job.Id -eq $jobId
-    } | Select-Object -First 1
-
-    if ($taskEntry) {
-        $Global:PSWebServer.Tasks.RunningJobs.Remove($taskEntry)
+    catch {
+        # If not running, try to delete result
+        $deleted = Remove-PSWebHostJobResults -JobID $jobId
+        if ($deleted) {
+            $message = "Job result deleted successfully"
+        } else {
+            throw "Job not found or already deleted"
+        }
     }
-
-    # Remove the job
-    Remove-Job -Job $job -Force
 
     $response_data = @{
         success = $true
-        message = "Job $jobId stopped and removed"
+        message = $message
+        jobId = $jobId
         timestamp = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ss.fffZ")
     }
 

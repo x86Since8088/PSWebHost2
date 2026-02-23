@@ -1,7 +1,10 @@
 # Dependencies
 /node_modules
-/PsWebHost_Data/Logs
+/PsWebHost_Data/*
 /backups
+
+nul
+
 
 # VS Code
 .vscode/
@@ -9,8 +12,16 @@
 # Claude Code
 .claude/
 
+*.db
+*.log
+*.tmp
+*.backup
+
 # Configuration
-/config/settings.json
+/config/*.json
+/config/*.csv
+/config/*.txt
+
 
 /PsWebHost_Data
 /_ImportFrom
@@ -18,3 +29,9 @@
 
 # Test artifacts
 tests/twin/process-tracking-report.txt
+
+# Test API keys (sensitive)
+**/tests/twin/.config/
+**/tests/twin/.config/test-api-keys.json
+
+/tests/test-host-logs/*

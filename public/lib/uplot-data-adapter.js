@@ -1,176 +1,185 @@
 /**
- * uPlot Data Adapter - Incremental chart updates without destruction
+ * UPlotDataAdapter - Manages incremental chart data updates with automatic time-window pruning
  *
- * Provides efficient incremental updates for uPlot charts with automatic
- * data trimming and point limit management.
+ * Provides intelligent data merging for uPlot charts:
+ * - Appends new time-series data to existing chart
+ * - Deduplicates timestamps
+ * - Prunes data outside time window
+ * - Limits total data points for performance
  *
  * Usage:
  *   const adapter = new UPlotDataAdapter(uplotInstance, {
  *     maxDataPoints: 1000,
  *     timeWindow: 3600000  // 1 hour in ms
  *   });
- *
- *   adapter.appendData(newData);
- *   adapter.replaceData(fullData);
+ *   adapter.replaceData(newData, false);
  */
 
 class UPlotDataAdapter {
-    /**
-     * @param {uPlot} uplotInstance - The uPlot instance to manage
-     * @param {Object} options - Configuration options
-     * @param {number} options.maxDataPoints - Maximum points per dataset (default: 1000)
-     * @param {number} options.timeWindow - Time window in milliseconds (null = no trimming)
-     */
     constructor(uplotInstance, options = {}) {
-        this.uplot = uplotInstance;
+        this.chart = uplotInstance;
         this.maxDataPoints = options.maxDataPoints || 1000;
-        this.timeWindow = options.timeWindow || null;
-        this.appendCount = 0;
-        this.replaceCount = 0;
+        this.timeWindowMs = options.timeWindow || 3600000; // 1 hour default
     }
 
     /**
-     * Append new data points incrementally
-     * @param {Array} newData - uPlot data format: [[timestamps], [series1], [series2], ...]
-     * @param {boolean} resetScales - Whether to reset axis scales (default: false)
+     * Replace or merge chart data
+     * @param {Array} newData - uPlot format: [[timestamps], [series1], [series2], ...]
+     * @param {boolean} clearExisting - If true, completely replace data; if false, merge
      */
-    appendData(newData, resetScales = false) {
-        if (!newData || !newData[0] || newData[0].length === 0) {
+    replaceData(newData, clearExisting = false) {
+        // Validate input
+        if (!newData || !Array.isArray(newData) || newData.length === 0) {
+            console.warn('[UPlotDataAdapter] Invalid newData:', newData);
             return;
         }
 
-        const currentData = this.uplot.data;
-        const mergedData = this._mergeData(currentData, newData);
-        const trimmedData = this._trimData(mergedData);
+        // If clearing existing data, just set it directly
+        if (clearExisting) {
+            this.chart.setData(newData);
+            return;
+        }
 
-        this.uplot.setData(trimmedData, resetScales);
-        this.appendCount++;
+        // Get current data from chart
+        const currentData = this.chart.data;
+        if (!currentData || !currentData[0] || currentData[0].length === 0) {
+            // No existing data, just set the new data
+            this.chart.setData(newData);
+            return;
+        }
+
+        // Merge: Append new timestamps, deduplicate, prune old data
+        const mergedData = this._mergeTimeSeries(currentData, newData);
+        const prunedData = this._pruneByTimeWindow(mergedData);
+        const limitedData = this._limitDataPoints(prunedData);
+
+        // Update chart with merged data
+        this.chart.setData(limitedData);
     }
 
     /**
-     * Replace all data (e.g., on time range change)
-     * @param {Array} newData - uPlot data format: [[timestamps], [series1], [series2], ...]
-     * @param {boolean} resetScales - Whether to reset axis scales (default: true)
+     * Merge two time-series datasets, removing duplicates and maintaining chronological order
+     * @param {Array} existing - Current chart data
+     * @param {Array} incoming - New data to merge
+     * @returns {Array} Merged data in uPlot format
      */
-    replaceData(newData, resetScales = true) {
-        const trimmedData = this._trimData(newData);
-        this.uplot.setData(trimmedData, resetScales);
-        this.replaceCount++;
-    }
+    _mergeTimeSeries(existing, incoming) {
+        // Both datasets should have same number of series
+        const seriesCount = Math.max(existing.length, incoming.length);
+        const merged = [];
 
-    /**
-     * Merge new data with existing data, removing duplicates
-     * @private
-     */
-    _mergeData(currentData, newData) {
-        if (!currentData || currentData.length === 0 || !currentData[0]) {
-            return newData;
+        // Create timestamp map for deduplication
+        const timestampMap = new Map();
+
+        // Add existing data to map
+        const existingTimestamps = existing[0] || [];
+        for (let i = 0; i < existingTimestamps.length; i++) {
+            const timestamp = existingTimestamps[i];
+            const dataPoint = [];
+            for (let s = 0; s < seriesCount; s++) {
+                dataPoint.push(existing[s] ? existing[s][i] : null);
+            }
+            timestampMap.set(timestamp, dataPoint);
         }
 
-        // Clone current data
-        const merged = currentData.map(series => [...series]);
-
-        // Get timestamp arrays
-        const currentTimestamps = merged[0];
-        const newTimestamps = newData[0];
-
-        if (!newTimestamps || newTimestamps.length === 0) {
-            return merged;
+        // Merge incoming data (overwrites duplicates)
+        const incomingTimestamps = incoming[0] || [];
+        for (let i = 0; i < incomingTimestamps.length; i++) {
+            const timestamp = incomingTimestamps[i];
+            const dataPoint = [];
+            for (let s = 0; s < seriesCount; s++) {
+                dataPoint.push(incoming[s] ? incoming[s][i] : null);
+            }
+            timestampMap.set(timestamp, dataPoint);
         }
 
-        // Find insertion point (first new timestamp > last current timestamp)
-        const lastCurrentTime = currentTimestamps[currentTimestamps.length - 1];
-        const insertIndex = newTimestamps.findIndex(t => t > lastCurrentTime);
+        // Sort timestamps chronologically
+        const sortedTimestamps = Array.from(timestampMap.keys()).sort((a, b) => a - b);
 
-        if (insertIndex === -1) {
-            // All new data is older than current data, skip
-            return merged;
+        // Build merged arrays
+        for (let s = 0; s < seriesCount; s++) {
+            merged[s] = [];
         }
 
-        // Append new data points
-        for (let i = 0; i < merged.length && i < newData.length; i++) {
-            const newPoints = newData[i].slice(insertIndex);
-            merged[i] = merged[i].concat(newPoints);
-        }
+        sortedTimestamps.forEach(timestamp => {
+            const dataPoint = timestampMap.get(timestamp);
+            for (let s = 0; s < seriesCount; s++) {
+                merged[s].push(dataPoint[s]);
+            }
+        });
 
         return merged;
     }
 
     /**
-     * Trim data based on maxDataPoints and timeWindow
-     * @private
+     * Remove timestamps older than timeWindowMs
+     * @param {Array} data - uPlot format data
+     * @returns {Array} Pruned data
      */
-    _trimData(data) {
-        if (!data || !data[0] || data[0].length === 0) {
+    _pruneByTimeWindow(data) {
+        if (!this.timeWindowMs || this.timeWindowMs <= 0) {
+            return data; // No pruning
+        }
+
+        const timestamps = data[0] || [];
+        if (timestamps.length === 0) {
             return data;
         }
 
-        let trimmed = data.map(series => [...series]);
-        const timestamps = trimmed[0];
+        // Calculate cutoff time (in seconds if timestamps are in seconds)
+        const now = Date.now() / 1000; // Assume timestamps are in seconds (uPlot convention)
+        const cutoffTime = now - (this.timeWindowMs / 1000);
 
-        // Trim by time window
-        if (this.timeWindow !== null) {
-            const now = Date.now() / 1000;  // uPlot uses seconds
-            const cutoff = now - (this.timeWindow / 1000);
-
-            const startIndex = timestamps.findIndex(t => t >= cutoff);
-            if (startIndex > 0) {
-                trimmed = trimmed.map(series => series.slice(startIndex));
+        // Find first index to keep
+        let startIndex = 0;
+        for (let i = 0; i < timestamps.length; i++) {
+            if (timestamps[i] >= cutoffTime) {
+                startIndex = i;
+                break;
             }
         }
 
-        // Trim by max data points
-        if (this.maxDataPoints && trimmed[0].length > this.maxDataPoints) {
-            const excess = trimmed[0].length - this.maxDataPoints;
-            trimmed = trimmed.map(series => series.slice(excess));
+        // If all data is too old, return empty dataset with proper structure
+        if (startIndex === 0 && timestamps[0] < cutoffTime) {
+            return data.map(() => []);
         }
 
-        return trimmed;
+        // Slice all series from startIndex
+        return data.map(series => series.slice(startIndex));
     }
 
     /**
-     * Get current data point count
+     * Limit total data points to maxDataPoints
+     * @param {Array} data - uPlot format data
+     * @returns {Array} Limited data
      */
-    getDataCount() {
-        return this.uplot.data[0] ? this.uplot.data[0].length : 0;
+    _limitDataPoints(data) {
+        const timestamps = data[0] || [];
+
+        if (timestamps.length <= this.maxDataPoints) {
+            return data; // No limiting needed
+        }
+
+        // Keep only last maxDataPoints entries
+        return data.map(series => series.slice(-this.maxDataPoints));
     }
 
     /**
-     * Get adapter statistics
+     * Get current chart data
+     * @returns {Array} Current chart data in uPlot format
      */
-    getStats() {
-        return {
-            dataPointCount: this.getDataCount(),
-            seriesCount: this.uplot.data.length - 1,
-            appendOperations: this.appendCount,
-            replaceOperations: this.replaceCount,
-            maxDataPoints: this.maxDataPoints,
-            timeWindow: this.timeWindow
-        };
+    getData() {
+        return this.chart.data;
     }
 
     /**
-     * Clear all data
+     * Clear all chart data
      */
-    clear() {
-        const emptyData = this.uplot.data.map(() => []);
-        this.uplot.setData(emptyData);
-    }
-
-    /**
-     * Destroy the adapter (cleanup)
-     */
-    destroy() {
-        this.uplot = null;
+    clearData() {
+        const emptyData = this.chart.data.map(() => []);
+        this.chart.setData(emptyData);
     }
 }
 
-// Export for browser usage
-if (typeof window !== 'undefined') {
-    window.UPlotDataAdapter = UPlotDataAdapter;
-}
-
-// Export for Node.js usage
-if (typeof module !== 'undefined' && module.exports) {
-    module.exports = UPlotDataAdapter;
-}
+// Export to global scope
+window.UPlotDataAdapter = UPlotDataAdapter;

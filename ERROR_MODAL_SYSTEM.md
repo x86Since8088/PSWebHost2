@@ -280,11 +280,11 @@ All these endpoints now support error modals:
 - `/api/v1/debug/test-error` - Error testing (NEW)
 
 ### UI Elements
-- `/api/v1/ui/elements/system-log` - System logs
-- `/api/v1/ui/elements/job-status` - Background jobs
+- `/cards/system-log` - System logs
+- `/cards/job-status` - Background jobs
 - `/api/v1/ui/elements/file-explorer` (GET & POST) - File operations
 - `/api/v1/ui/elements/server-heatmap` - System metrics
-- `/api/v1/ui/elements/event-stream` - Event log
+- `/cards/event-stream` - Event log
 
 ### Authentication
 - `/api/v1/authprovider/password` - Password login

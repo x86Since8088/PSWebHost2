@@ -1,12 +1,14 @@
 [cmdletbinding()]
 param (
     [switch]$RunInProcess,
-    [switch]$ShowVariables, # For validateInstall.ps1
+    [switch]$InitializeEnvironmentOnly, # For validateInstall.ps1
     [string]$AuthenticationSchemes = "Anonymous",
     [switch]$Async, # New parameter for asynchronous handling
     [int]$Port = 8080,
     [switch]$ReloadOnScriptUpdate,
-    [switch]$StopOnScriptUpdate
+    [switch]$StopOnScriptUpdate,
+    [switch]$Resume,
+    [switch]$ForceInit
 )
 
 begin {
@@ -66,230 +68,275 @@ begin {
         exit 1
     }
 
-    Write-Verbose 'Starting init.ps1...'
-    $Start = Get-Date
-    $WebHostRoot = $PSScriptRoot  # Save before dot-sourcing changes context
-    . (Join-Path $WebHostRoot 'system/init.ps1')
-    Write-Host "Init.ps1 completed after $(((Get-date) - $start).TotalMilliseconds) milliseconds"
-
-    # Load async runspace pool module if -Async is specified
-    if ($Async) {
-        Write-Verbose 'Loading AsyncRunspacePool module...'
-        . (Join-Path $WebHostRoot 'system/AsyncRunspacePool.ps1')
-        Write-Host "AsyncRunspacePool module loaded."
+    if ($null -ne $global:PSWebServer -and -not $ForceInit.IsPresent) {
+        return Get-Variable -Scope Global -Name *web* | %{Get-ObjectSafeWalk $_}| ConvertTo-Json -Depth 20
     }
-    $InitialFileDate = (get-item $MyInvocation.MyCommand.Path).LastWriteTime # This is the initial script's last write time
 
-    # Replace API key placeholder in spa-shell.html
-    $spaShellPath = Join-Path $Global:PSWebServer.Project_Root.Path "public/spa-shell.html"
-    if (Test-Path $spaShellPath) {
-        $apiKey = $Global:PSWebServer.Config.GoogleMaps.ApiKey
-        if (-not [string]::IsNullOrEmpty($apiKey)) {
-            $spaShellContent = Get-Content -Path $spaShellPath -Raw
-            $spaShellContent = $spaShellContent -replace "YOUR_API_KEY", $apiKey
-            Set-Content -Path $spaShellPath -Value $spaShellContent -NoNewline
+    if (!$Resume.IsPresent) {
+        Write-Verbose 'Starting init.ps1...'
+        $Start = Get-Date
+        $WebHostRoot = $PSScriptRoot  # Save before dot-sourcing changes context
+        if ($null -ne $global:PSWebServer -and (! $ForceInit.IsPresent)) {
+            . (Join-Path $WebHostRoot 'system/init.ps1')
+            Write-Host "Init.ps1 completed after $(((Get-date) - $start).TotalMilliseconds) milliseconds"
         }
-    }
+        else {
+            Write-Host "Using the previously loaded environment..."
+        }
 
-    # Call validateInstall.ps1 if -ShowVariables is present
-    if ($ShowVariables.IsPresent) {
-        Write-Verbose "Calling validateInstall.ps1 with -ShowVariables..."
-        . (Join-Path $Global:PSWebServer.Project_Root.Path "system\validateInstall.ps1") -ShowVariables
-        return # Exit after showing variables
-    }
-    elseif ($ReloadOnScriptUpdate.IsPresent) {
-        # Launch this script in a while ($true) loop with -StopOnScriptUpdate added to the other parameters except for -ReloadOnScriptUpdate.
-        while($true) {
-            $splat = @{}
-            $PSBoundParameters.Keys|Where-Object{$_ -ne 'ReloadOnScriptUpdate'}|ForEach-Object{$splat[$_]=$PSBoundParameters[$_]}
-            [string[]]$ArgumentList = @("-ExecutionPolicy","RemoteSigned","-Command", "$PSScriptRoot\WebHost.ps1", "-StopOnScriptUpdate") +  
-                (
-                    $splat.keys|ForEach-Object{
-                        if ($PSBoundParameters[$_] -is [switch]) {
-                            "-$_`:([bool]$([int]$splat[$_].ispresent))"
-                        }
-                        else {
-                            "-$_",$splat[$_]
-                        }
-                    }
-                ) + '2>&1 |' +
-            {
-                Where-Object{$_}|ForEach-Object{
-                    .{
-                        $OutputItem = $_ 
-                        if ($OutputItem -is [System.Management.Automation.ErrorRecord]) {
-                            $OutputItem.gettype()|Format-Table
-                            $_
-                            Get-PSCallStack | Select-Object Command, Arguments, Location,@{ 
-                                    N='Source';
-                                    E={$_.InvocationInfo.MyCommand.Source}
-                                }
-                        }
-                        ELSE {$_}
-                    }
+        # Load and initialize PSWebHost_Jobs module
+        Write-Verbose 'Loading PSWebHost_Jobs module...'
+        $jobsModulePath = Join-Path $Global:PSWebServer.Project_Root.Path "modules\PSWebHost_Jobs"
+
+        if($InitializeEnvironmentOnly.IsPresent) {
+            Write-Host "Skipping Jobs initialization while -InitializeEnvironmentOnly is present."
+        }
+        elseif (Test-Path $jobsModulePath) {
+            try {
+                Import-Module $jobsModulePath -DisableNameChecking -Force -ErrorAction Stop
+                Write-Host "✓ PSWebHost_Jobs module imported" -ForegroundColor Green
+
+                # Initialize job system
+                Initialize-PSWebHostJobSystem
+                Write-Host "✓ Job system initialized" -ForegroundColor Green
+
+                # Discover jobs from all apps
+                $catalog = Get-PSWebHostJobCatalog -ProjectRoot $Global:PSWebServer.Project_Root.Path
+                $Global:PSWebServer.Jobs.Catalog = $catalog
+
+                Write-Host "PSWebHost_Jobs module loaded (discovered $($catalog.Count) jobs)" -ForegroundColor Cyan
+            } catch {
+                Write-Host "❌ Failed to load PSWebHost_Jobs module: $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "   Error details: $($_.Exception.ToString())" -ForegroundColor Yellow
+                Write-PSWebHostLog -Severity 'Error' -Category 'Startup' -Message "Failed to load PSWebHost_Jobs: $($_.Exception.Message)" -Data @{
+                    ModulePath = $jobsModulePath
+                    Error = $_.Exception.ToString()
                 }
-        }.tostring()
-        Write-Verbose "Starting pwsh directly so that output is directly parsed.`n`tpwsh.exe $ArgumentList"
-            pwsh.exe $ArgumentList 
+            }
+        } else {
+            Write-Warning "PSWebHost_Jobs module not found at: $jobsModulePath"
+            Write-PSWebHostLog -Severity 'Warning' -Category 'Startup' -Message "PSWebHost_Jobs module not found at: $jobsModulePath"
         }
-        return
-    }
 
-    # Listener setup
-    Write-Verbose "Creating HttpListener object..."
-    $listener = New-Object System.Net.HttpListener
-    Write-Verbose "HttpListener object created."
-    if ($Port -notmatch '\d') {
-        $port = $Global:PSWebServer.Config.WebServer.Port
-        Write-Verbose "Using port from config: $port"
-    }
-    
-    # Check if running as admin
-    $isAdmin = ([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+        # Load async runspace pool module if -Async is specified
+        if ($Async) {
+            Write-Verbose 'Loading AsyncRunspacePool module...'
+            . (Join-Path $WebHostRoot 'system/AsyncRunspacePool.ps1')
+            Write-Host "AsyncRunspacePool module loaded."
+        }
+        $InitialFileDate = (get-item $MyInvocation.MyCommand.Path).LastWriteTime # This is the initial script's last write time
 
-    # Try localhost first (works without URL ACL), then fall back to + (requires URL ACL or admin)
-    $prefixesToTry = @()
-    $prefixesToTry += "http://localhost:$port/"
-    if ($isAdmin) {
-        $prefixesToTry += "http://+:$port/"
-    }
-    
-    $listenerStarted = $false
-    $lastError = $null
-    
-    foreach ($prefix in $prefixesToTry) {
-        try {
-            Write-Verbose "Adding prefix: $prefix"
-            $listener.Prefixes.Add($prefix)
-            Write-Verbose "Prefix '$prefix' added."
-            Write-Verbose "Setting AuthenticationSchemes to: $AuthenticationSchemes"
-            $listener.AuthenticationSchemes = [System.Net.AuthenticationSchemes]::$AuthenticationSchemes
-            Write-Verbose "AuthenticationSchemes set."
-            
-            Write-Verbose "Starting listener with prefix: $prefix"
-            $listener.Start()
-            Write-Verbose "Listener started successfully on $prefix"
-            $listenerStarted = $true
-            break
-        } catch {
-            $lastError = $_
-            Write-Verbose "Failed to bind to $prefix - Error: $($_.Exception.Message)"
-            # Dispose current listener and create a new one for next attempt
-            if ($listener) {
-                try { $listener.Dispose() } catch { }
-                $listener = New-Object System.Net.HttpListener
+        # Replace API key placeholder in spa-shell.html
+        $spaShellPath = Join-Path $Global:PSWebServer.Project_Root.Path "public/spa-shell.html"
+        if (Test-Path $spaShellPath) {
+            $apiKey = $Global:PSWebServer.Config.GoogleMaps.ApiKey
+            if (-not [string]::IsNullOrEmpty($apiKey)) {
+                $spaShellContent = Get-Content -Path $spaShellPath -Raw
+                $spaShellContent = $spaShellContent -replace "YOUR_API_KEY", $apiKey
+                Set-Content -Path $spaShellPath -Value $spaShellContent -NoNewline
             }
         }
-    }
+
+        # Call validateInstall.ps1 if -InitializeEnvironmentOnly is present
+        if ($InitializeEnvironmentOnly.IsPresent) {
+            Write-Verbose "Calling validateInstall.ps1 with -InitializeEnvironmentOnly..."
+            . (Join-Path $Global:PSWebServer.Project_Root.Path "system\validateInstall.ps1") -InitializeEnvironmentOnly
+            return # Exit after showing variables
+        }
+        elseif ($ReloadOnScriptUpdate.IsPresent) {
+            # Launch this script in a while ($true) loop with -StopOnScriptUpdate added to the other parameters except for -ReloadOnScriptUpdate.
+            while($true) {
+                $splat = @{}
+                $PSBoundParameters.Keys|Where-Object{$_ -ne 'ReloadOnScriptUpdate'}|ForEach-Object{$splat[$_]=$PSBoundParameters[$_]}
+                [string[]]$ArgumentList = @("-ExecutionPolicy","RemoteSigned","-Command", "$PSScriptRoot\WebHost.ps1", "-StopOnScriptUpdate") +  
+                    (
+                        $splat.keys|ForEach-Object{
+                            if ($PSBoundParameters[$_] -is [switch]) {
+                                "-$_`:([bool]$([int]$splat[$_].ispresent))"
+                            }
+                            else {
+                                "-$_",$splat[$_]
+                            }
+                        }
+                    ) + '2>&1 |' +
+                {
+                    Where-Object{$_}|ForEach-Object{
+                        .{
+                            $OutputItem = $_ 
+                            if ($OutputItem -is [System.Management.Automation.ErrorRecord]) {
+                                $OutputItem.gettype()|Format-Table
+                                $_
+                                Get-PSCallStack | Select-Object Command, Arguments, Location,@{ 
+                                        N='Source';
+                                        E={$_.InvocationInfo.MyCommand.Source}
+                                    }
+                            }
+                            ELSE {$_}
+                        }
+                    }
+            }.tostring()
+            Write-Verbose "Starting pwsh directly so that output is directly parsed.`n`tpwsh.exe $ArgumentList"
+                pwsh.exe $ArgumentList 
+            }
+            return
+        }
+
+        # Listener setup
+        Write-Verbose "Creating HttpListener object..."
+        $listener = New-Object System.Net.HttpListener
+        Write-Verbose "HttpListener object created."
+        if ($Port -notmatch '\d') {
+            $port = $Global:PSWebServer.Config.WebServer.Port
+            Write-Verbose "Using port from config: $port"
+        }
+        
+        # Check if running as admin
+        $isAdmin = ([System.Security.Principal.WindowsPrincipal][System.Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+
+        # Try localhost first (works without URL ACL), then fall back to + (requires URL ACL or admin)
+        $prefixesToTry = @()
+        $prefixesToTry += "http://localhost:$port/"
+        if ($isAdmin) {
+            $prefixesToTry += "http://+:$port/"
+        }
+        
+        $listenerStarted = $false
+        $lastError = $null
     
-    if (-not $listenerStarted) {
-        $errMsg = if ($lastError) { $lastError.Exception.ToString() } else { "Unable to bind to any prefix" }
-        Write-Error "Failed to start listener. Error: $errMsg"
-        # Record failure info for callers to inspect instead of terminating the process
-        $script:ListenerStartResult = @{ ExitCode = 1; Message = $errMsg }
-        return
-    }
+        foreach ($prefix in $prefixesToTry) {
+            try {
+                Write-Verbose "Adding prefix: $prefix"
+                $listener.Prefixes.Add($prefix)
+                Write-Verbose "Prefix '$prefix' added."
+                Write-Verbose "Setting AuthenticationSchemes to: $AuthenticationSchemes"
+                $listener.AuthenticationSchemes = [System.Net.AuthenticationSchemes]::$AuthenticationSchemes
+                Write-Verbose "AuthenticationSchemes set."
+                
+                Write-Verbose "Starting listener with prefix: $prefix"
+                $listener.Start()
+                Write-Verbose "Listener started successfully on $prefix"
+                $listenerStarted = $true
+                break
+            } catch {
+                $lastError = $_
+                Write-Verbose "Failed to bind to $prefix - Error: $($_.Exception.Message)"
+                # Dispose current listener and create a new one for next attempt
+                if ($listener) {
+                    try { $listener.Dispose() } catch { }
+                    $listener = New-Object System.Net.HttpListener
+                }
+            }
+        }
+        
+        if (-not $listenerStarted) {
+            $errMsg = if ($lastError) { $lastError.Exception.ToString() } else { "Unable to bind to any prefix" }
+            Write-Error "Failed to start listener. Error: $errMsg"
+            # Record failure info for callers to inspect instead of terminating the process
+            $script:ListenerStartResult = @{ ExitCode = 1; Message = $errMsg }
+            return
+        }
 
-    $script:ListenerInstance = $listener # Store for cleanup
+        $script:ListenerInstance = $listener # Store for cleanup
 
-    # Initialize async runspace pool if -Async mode
-    # This must happen AFTER listener starts since workers need the ListenerInstance
-    if ($Async) {
-        Write-Host "Initializing async runspace pool with 15 worker runspaces..."
-        # Force re-initialization to clean up any old runspaces from previous runs
-        # This prevents runspace jamming on server restart
-        Initialize-AsyncRunspacePool -PoolSize 15 -ListenerInstance $script:ListenerInstance -Force
-        Write-Host "Async workers are now handling requests directly from the listener."
-    }
+        # Initialize async runspace pool if -Async mode
+        # This must happen AFTER listener starts since workers need the ListenerInstance
+        if ($Async) {
+            Write-Host "Initializing async runspace pool with 15 worker runspaces..."
+            # Force re-initialization to clean up any old runspaces from previous runs
+            # This prevents runspace jamming on server restart
+            Initialize-AsyncRunspacePool -PoolSize 15 -ListenerInstance $script:ListenerInstance -Force
+            Write-Host "Async workers are now handling requests directly from the listener."
+        }
 
-    # Start performance monitoring job
-    Write-Host "Starting performance monitoring job..."
-    $perfJobScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1"
-    if (Test-Path $perfJobScript) {
-        & $perfJobScript -StartJob
-        Write-Host "Performance monitoring job started."
-    } else {
-        Write-Warning "Performance monitoring script not found: $perfJobScript"
-    }
+        # Start performance monitoring job
+        Write-Host "Starting performance monitoring job..."
+        $perfJobScript = Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1"
+        if (Test-Path $perfJobScript) {
+            & $perfJobScript -StartJob
+            Write-Host "Performance monitoring job started."
+        } else {
+            Write-Warning "Performance monitoring script not found: $perfJobScript"
+        }
 
-    # Start log tail job for real-time event stream
-    Write-Host "Starting log tail job for event stream..."
+        # Start log tail job for real-time event stream
+        Write-Host "Starting log tail job for event stream..."
 
-    # Use improved log selection to find most recent log file
-    $logsDir = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\Logs"
-    $LogBaseNames = (Get-ChildItem $logsDir -ErrorAction SilentlyContinue |
-        Where-Object { $_.basename -match '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}' }) -replace '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}', '*' |
-        Sort-Object -Unique
+        # Use improved log selection to find most recent log file
+        $logsDir = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\Logs"
+        $LogBaseNames = (Get-ChildItem $logsDir -ErrorAction SilentlyContinue |
+            Where-Object { $_.basename -match '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}' }) -replace '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}', '*' |
+            Sort-Object -Unique
 
-    if ($LogBaseNames) {
-        $mostRecentLog = Get-ChildItem $LogBaseNames |
-            Where-Object { $_.basename -match '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}' } |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
+        if ($LogBaseNames) {
+            $mostRecentLog = Get-ChildItem $LogBaseNames |
+                Where-Object { $_.basename -match '_\d{4}-\d\d-\d\dT\d{6}[_\.]\d+-\d{4}' } |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1
 
-        if ($mostRecentLog) {
-            $logPath = $mostRecentLog.FullName
-            Write-Host "Selected log file: $($mostRecentLog.Name)"
+            if ($mostRecentLog) {
+                $logPath = $mostRecentLog.FullName
+                Write-Host "Selected log file: $($mostRecentLog.Name)"
+            } else {
+                $logPath = $Global:PSWebServer.LogFilePath
+                Write-Warning "No timestamped log files found, using configured path: $logPath"
+            }
         } else {
             $logPath = $Global:PSWebServer.LogFilePath
             Write-Warning "No timestamped log files found, using configured path: $logPath"
         }
-    } else {
-        $logPath = $Global:PSWebServer.LogFilePath
-        Write-Warning "No timestamped log files found, using configured path: $logPath"
-    }
 
-    $tailScriptBlock = {
-        param($FilePath)
+        $tailScriptBlock = {
+            param($FilePath)
 
-        $fileStream = New-Object System.IO.FileStream(
-            $FilePath,
-            [System.IO.FileMode]::Open,
-            [System.IO.FileAccess]::Read,
-            [System.IO.FileShare]::ReadWrite
-        )
+            $fileStream = New-Object System.IO.FileStream(
+                $FilePath,
+                [System.IO.FileMode]::Open,
+                [System.IO.FileAccess]::Read,
+                [System.IO.FileShare]::ReadWrite
+            )
 
-        try {
-            # Seek to end of file to only show new lines
-            [void]$fileStream.Seek(0, [System.IO.SeekOrigin]::End)
-            $reader = New-Object System.IO.StreamReader($fileStream, [System.Text.Encoding]::UTF8)
+            try {
+                # Seek to end of file to only show new lines
+                [void]$fileStream.Seek(0, [System.IO.SeekOrigin]::End)
+                $reader = New-Object System.IO.StreamReader($fileStream, [System.Text.Encoding]::UTF8)
 
-            $lineNumber = 0
-            while ($true) {
-                $line = $reader.ReadLine()
+                $lineNumber = 0
+                while ($true) {
+                    $line = $reader.ReadLine()
 
-                if ($null -ne $line) {
-                    $lineNumber++
-                    [PSCustomObject]@{
-                        Path = $FilePath
-                        Date = Get-Date
-                        LineNumber = $lineNumber
-                        Line = $line
+                    if ($null -ne $line) {
+                        $lineNumber++
+                        [PSCustomObject]@{
+                            Path = $FilePath
+                            Date = Get-Date
+                            LineNumber = $lineNumber
+                            Line = $line
+                        }
+                    } else {
+                        Start-Sleep -Milliseconds 100
                     }
-                } else {
-                    Start-Sleep -Milliseconds 100
                 }
             }
+            finally {
+                if ($reader) { $reader.Close() }
+                if ($fileStream) { $fileStream.Close() }
+            }
         }
-        finally {
-            if ($reader) { $reader.Close() }
-            if ($fileStream) { $fileStream.Close() }
+
+        $jobName = "Log_Tail:$logPath"
+
+        # Check for existing job (suppress all errors)
+        $existingJob = Get-Job | Where-Object { $_.Name -eq $jobName }
+        if ($existingJob) {
+            Stop-Job -Job $existingJob -ErrorAction SilentlyContinue
+            Remove-Job -Job $existingJob -Force -ErrorAction SilentlyContinue
         }
+
+        $job = Start-Job -Name $jobName -ScriptBlock $tailScriptBlock -ArgumentList $logPath
+        Write-Host "Log tail job started: $jobName (Job ID: $($job.Id))"
+
+        # Note: Async runspace pool is initialized later after listener starts
     }
-
-    $jobName = "Log_Tail:$logPath"
-
-    # Check for existing job (suppress all errors)
-    $existingJob = Get-Job | Where-Object { $_.Name -eq $jobName }
-    if ($existingJob) {
-        Stop-Job -Job $existingJob -ErrorAction SilentlyContinue
-        Remove-Job -Job $existingJob -Force -ErrorAction SilentlyContinue
-    }
-
-    $job = Start-Job -Name $jobName -ScriptBlock $tailScriptBlock -ArgumentList $logPath
-    Write-Host "Log tail job started: $jobName (Job ID: $($job.Id))"
-
-    # Note: Async runspace pool is initialized later after listener starts
 }
 
 end {
@@ -298,45 +345,46 @@ end {
         return
     }
 
-    function Invoke-ModuleRefreshAsNeeded {
-        if ($null -eq $script:ModuleRefreshAsNeeded) {
-            $script:ModuleRefreshAsNeeded = (Get-Date).AddSeconds(30)
-            return 
-        }
-        elseif ($Script:ModuleRefreshAsNeeded -lt (get-date)) {
-            return
-        }
-        $script:ModuleRefreshAsNeeded = (Get-Date).AddSeconds(30)
-        foreach ($entry in $Global:PSWebServer.Modules.GetEnumerator()) {
-            $moduleName = $entry.Name
-            $moduleData = $entry.Value
-            $fileInfo = Get-Item -Path $moduleData.Path -ErrorAction SilentlyContinue
-            if ($fileInfo -and $fileInfo.LastWriteTime -gt $moduleData.LastWriteTime) {
-                Write-Verbose "Module '$moduleName' has changed. Reloading..."
-                try {
-                    Remove-Module -Name $moduleName -Force
-                    if (-not $?) {
-                        Write-Warning "Remove-Module reported failure for module '$moduleName' - continuing."
-                    }
-                    $reloadedModuleInfo = Import-Module -Name $moduleData.Path -Force -PassThru -ErrorAction Continue -DisableNameChecking 2>&1
-                    $newFileInfo = Get-Item -Path $moduleData.Path
-                    $Global:PSWebServer.Modules[$moduleName].LastWriteTime = $newFileInfo.LastWriteTime
-                    $Global:PSWebServer.Modules[$moduleName].Loaded = (Get-Date)
-                    Write-Verbose "Module '$moduleName' reloaded successfully."
-                } catch {
-                    Write-Error "Failed to reload module '$moduleName': $_"
-                }
-            }
-        }
-    }
+    if (!$Resume.IsPresent) {
 
-    Write-Verbose "Entering listener loop."
-    if ($Null -eq $Logpos) {$Logpos = 0}
-    if ($Null -eq $UIQueuePos) {$UIQueuePos = 0}
-    $Loop_Start = Get-Date
-    $lastSettingsCheck = Get-Date
-    $lastSessionSync = Get-Date
-    $lastGlobalCacheUpdate = Get-Date
+        Write-Verbose "Entering listener loop."
+        if ($Null -eq $Logpos) {$Logpos = 0}
+        if ($Null -eq $UIQueuePos) {$UIQueuePos = 0}
+        $Loop_Start = Get-Date
+        $lastSettingsCheck = Get-Date
+        $lastSessionSync = Get-Date
+        $lastGlobalCacheUpdate = Get-Date
+        $lastJobProcessing = Get-Date
+
+    }
+    else {
+        # Resume mode - reinitialize ConcurrentQueue objects that were deserialized
+        Write-Host "Resume mode: Reinitializing queue objects..." -ForegroundColor Yellow
+
+        # Reinitialize log queue
+        if ($global:PSWebHostLogQueue -and $global:PSWebHostLogQueue.GetType().Name -like "*Deserialized*") {
+            $oldQueue = $global:PSWebHostLogQueue
+            $global:PSWebHostLogQueue = [System.Collections.Concurrent.ConcurrentQueue[hashtable]]::new()
+            Write-Host "  Reinitialized PSWebHostLogQueue" -ForegroundColor Green
+        }
+
+        # Reinitialize UI queue if it exists
+        if ($global:PSHostUIQueue -and $global:PSHostUIQueue.GetType().Name -like "*Deserialized*") {
+            $oldUIQueue = $global:PSHostUIQueue
+            $global:PSHostUIQueue = [System.Collections.Concurrent.ConcurrentQueue[hashtable]]::new()
+            Write-Host "  Reinitialized PSHostUIQueue" -ForegroundColor Green
+        }
+
+        # Ensure tracking variables exist
+        if ($Null -eq $Logpos) {$Logpos = 0}
+        if ($Null -eq $UIQueuePos) {$UIQueuePos = 0}
+        if ($Null -eq $lastSettingsCheck) {$lastSettingsCheck = Get-Date}
+        if ($Null -eq $lastSessionSync) {$lastSessionSync = Get-Date}
+        if ($Null -eq $lastGlobalCacheUpdate) {$lastGlobalCacheUpdate = Get-Date}
+        if ($Null -eq $lastJobProcessing) {$lastJobProcessing = Get-Date}
+
+        Write-Host "Resume mode: Reinitialization complete" -ForegroundColor Green
+    }
 
     # Initialize global cache structures
     if (-not $Global:PSWebServer.Jobs) {
@@ -356,6 +404,12 @@ end {
         .DESCRIPTION
             This function runs in the main server loop and caches data that listener
             runspaces need access to but cannot query directly (like Get-Job).
+
+            For runspace data, this function MERGES with worker-reported data from
+            Set-WebHostRunSpaceInfo rather than overwriting it. Worker-reported fields
+            (Name, PoolName, Purpose, RequestCount, LastRequest, etc.) are preserved,
+            while main-thread fields (Availability, RunspaceState, JobInfo) are updated.
+
             Data is stored in synchronized hashtables for thread-safe access.
         #>
         param()
@@ -398,7 +452,7 @@ end {
 
                     $jobsCache[$job.Id] = $jobData
                 } catch {
-                    Write-Verbose "[GlobalCache] Error caching job $($job.Id): $_"
+                    Write-PSWebHostLog -Severity 'Warning' -Category 'GlobalCache' -Message "Error caching job $($job.Id): $($_.Exception.Message)"
                 }
             }
 
@@ -417,61 +471,97 @@ end {
                     if ($childJob.Runspace) {
                         try {
                             $rs = $childJob.Runspace
-                            $rsData = @{
-                                Id = $rs.Id
-                                InstanceId = $rs.InstanceId.ToString()
-                                Name = $rs.Name
-                                Availability = $rs.RunspaceAvailability.ToString()
-                                State = $rs.RunspaceStateInfo.State.ToString()
-                                Reason = $rs.RunspaceStateInfo.Reason
-                                JobId = $job.Id
-                                JobName = $job.Name
-                                JobState = $job.State.ToString()
-                                ThreadOptions = if ($rs.ThreadOptions) { $rs.ThreadOptions.ToString() } else { $null }
-                                ApartmentState = if ($rs.ApartmentState) { $rs.ApartmentState.ToString() } else { $null }
-                            }
+                            $instanceId = $rs.InstanceId.ToString()
 
-                            $runspacesCache[$rs.InstanceId.ToString()] = $rsData
+                            # Check if worker has already reported data via Set-WebHostRunSpaceInfo
+                            $existingData = $Global:PSWebServer.Runspaces[$instanceId]
+
+                            if ($existingData) {
+                                # Merge: preserve worker-reported fields, update main-thread fields
+                                $existingData.Availability = $rs.RunspaceAvailability.ToString()
+                                $existingData.RunspaceState = $rs.RunspaceStateInfo.State.ToString()
+                                $existingData.RunspaceReason = $rs.RunspaceStateInfo.Reason
+                                $existingData.JobId = $job.Id
+                                $existingData.JobName = $job.Name
+                                $existingData.JobState = $job.State.ToString()
+                                $existingData.ThreadOptions = if ($rs.ThreadOptions) { $rs.ThreadOptions.ToString() } else { $null }
+                                $existingData.ApartmentState = if ($rs.ApartmentState) { $rs.ApartmentState.ToString() } else { $null }
+                                $existingData.CacheLastUpdated = Get-Date
+                            }
+                            else {
+                                # No worker-reported data yet - create minimal entry
+                                $rsData = @{
+                                    Id = $rs.Id
+                                    InstanceId = $instanceId
+                                    Name = $rs.Name
+                                    Availability = $rs.RunspaceAvailability.ToString()
+                                    RunspaceState = $rs.RunspaceStateInfo.State.ToString()
+                                    RunspaceReason = $rs.RunspaceStateInfo.Reason
+                                    JobId = $job.Id
+                                    JobName = $job.Name
+                                    JobState = $job.State.ToString()
+                                    ThreadOptions = if ($rs.ThreadOptions) { $rs.ThreadOptions.ToString() } else { $null }
+                                    ApartmentState = if ($rs.ApartmentState) { $rs.ApartmentState.ToString() } else { $null }
+                                    CacheLastUpdated = Get-Date
+                                }
+
+                                $runspacesCache[$instanceId] = $rsData
+                            }
                         } catch {
-                            Write-Verbose "[GlobalCache] Error caching runspace for job $($job.Id): $_"
+                            Write-PSWebHostLog -Severity 'Warning' -Category 'GlobalCache' -Message "Error caching runspace for job $($job.Id): $($_.Exception.Message)"
                         }
                     }
                 }
             }
 
             # Include async worker runspaces if available
-            if ($Async -and $global:AsyncRunspacePool -and $global:AsyncRunspacePool.Workers) {
-                foreach ($worker in $global:AsyncRunspacePool.Workers) {
-                    if ($worker.Runspace) {
+            if ($Async -and $global:AsyncRunspacePool -and $global:AsyncRunspacePool.Runspaces) {
+                foreach ($rsInfo in $global:AsyncRunspacePool.Runspaces) {
+                    if ($rsInfo.Runspace) {
                         try {
-                            $rs = $worker.Runspace
-                            $rsData = @{
-                                Id = $rs.Id
-                                InstanceId = $rs.InstanceId.ToString()
-                                Name = "AsyncWorker_$($worker.Id)"
-                                Availability = $rs.RunspaceAvailability.ToString()
-                                State = $rs.RunspaceStateInfo.State.ToString()
-                                Reason = $rs.RunspaceStateInfo.Reason
-                                WorkerId = $worker.Id
-                                WorkerState = $worker.State
-                                IsProcessing = $worker.IsProcessing
-                                RequestsProcessed = $worker.RequestsProcessed
-                                ThreadOptions = if ($rs.ThreadOptions) { $rs.ThreadOptions.ToString() } else { $null }
-                                ApartmentState = if ($rs.ApartmentState) { $rs.ApartmentState.ToString() } else { $null }
-                            }
+                            $rs = $rsInfo.Runspace
+                            $instanceId = $rs.InstanceId.ToString()
 
-                            $runspacesCache[$rs.InstanceId.ToString()] = $rsData
+                            # Check if worker has already reported data via Set-WebHostRunSpaceInfo
+                            $existingData = $Global:PSWebServer.Runspaces[$instanceId]
+
+                            if ($existingData) {
+                                # Merge: preserve worker-reported fields, update main-thread fields
+                                $existingData.Availability = $rs.RunspaceAvailability.ToString()
+                                $existingData.RunspaceState = $rs.RunspaceStateInfo.State.ToString()
+                                $existingData.RunspaceReason = $rs.RunspaceStateInfo.Reason
+                                $existingData.ThreadOptions = if ($rs.ThreadOptions) { $rs.ThreadOptions.ToString() } else { $null }
+                                $existingData.ApartmentState = if ($rs.ApartmentState) { $rs.ApartmentState.ToString() } else { $null }
+                                $existingData.CacheLastUpdated = Get-Date
+                            }
+                            else {
+                                # No worker-reported data yet - create minimal entry
+                                $rsData = @{
+                                    Id = $rs.Id
+                                    InstanceId = $instanceId
+                                    Name = "AsyncWorker_$($rsInfo.Index)"
+                                    Availability = $rs.RunspaceAvailability.ToString()
+                                    RunspaceState = $rs.RunspaceStateInfo.State.ToString()
+                                    RunspaceReason = $rs.RunspaceStateInfo.Reason
+                                    ThreadOptions = if ($rs.ThreadOptions) { $rs.ThreadOptions.ToString() } else { $null }
+                                    ApartmentState = if ($rs.ApartmentState) { $rs.ApartmentState.ToString() } else { $null }
+                                    CacheLastUpdated = Get-Date
+                                }
+
+                                $runspacesCache[$instanceId] = $rsData
+                            }
                         } catch {
-                            Write-Verbose "[GlobalCache] Error caching async worker runspace: $_"
+                            Write-PSWebHostLog -Severity 'Warning' -Category 'GlobalCache' -Message "Error caching async worker runspace: $($_.Exception.Message)"
                         }
                     }
                 }
             }
 
-            # Update global cache
-            $Global:PSWebServer.Runspaces.Clear()
+            # Update global cache - ADD new entries only (don't clear worker-reported data)
             foreach ($key in $runspacesCache.Keys) {
-                $Global:PSWebServer.Runspaces[$key] = $runspacesCache[$key]
+                if (-not $Global:PSWebServer.Runspaces.ContainsKey($key)) {
+                    $Global:PSWebServer.Runspaces[$key] = $runspacesCache[$key]
+                }
             }
 
             # Cache Tasks - Get task information from PSWebHostTasks module
@@ -513,7 +603,7 @@ end {
                             $tasksCache[$taskName] = $taskData
                         }
                     } catch {
-                        Write-Verbose "[GlobalCache] Error getting task definitions: $_"
+                        Write-PSWebHostLog -Severity 'Warning' -Category 'GlobalCache' -Message "Error getting task definitions: $($_.Exception.Message)"
                     }
                 }
 
@@ -543,15 +633,36 @@ end {
             }
 
             $updateDuration = ((Get-Date) - $updateStart).TotalMilliseconds
-            Write-Verbose "[GlobalCache] Updated cache: $($jobsCache.Count) jobs, $($runspacesCache.Count) runspaces, $($tasksCache.Count) tasks (${updateDuration}ms)"
+            Write-PSWebHostLog -Severity 'Debug' -Category 'GlobalCache' -Message "Updated cache: $($jobsCache.Count) jobs, $($runspacesCache.Count) runspaces, $($tasksCache.Count) tasks (${updateDuration}ms)"
 
         } catch {
-            Write-Warning "[GlobalCache] Error updating global cache: $_"
-            Write-PSWebHostLog -Severity 'Error' -Category 'GlobalCache' -Message "Error updating global cache: $($_.Exception.Message)"
+            Write-PSWebHostLog -Severity 'Error' -Category 'GlobalCache' -Message "Error updating global cache: $($_.Exception.Message)" -Data @{ Error = $_.Exception.ToString() }
         }
     }
 
     function ProcessLogQueue {
+        $now = Get-Date
+        if ($global:PSWebServer.LogQueueFlushDate -gt $now.AddSeconds(-15)) {
+            return
+        }
+        else {
+            $global:PSWebServer.LogQueueFlushDate = $now
+        }
+
+        # This check is to watch for balooning and improperly managed arrays and hashtables..
+        if ($null -eq $global:PSWebServer.Track_HashTables) {$global:PSWebServer.Track_HashTables = [hashtable]::Synchronized(@{})}
+        Get-Variable -Scope Global |
+            Where-Object{$null -ne $_.value -and ($_.value -is [hashtable])}| 
+            Select-Object Name,@{N='Count';E={$i=0;$_.Value.Count,$_.Value.Value.Count,$_.Value.Value.Value.Count,$_.Value.Value.Value.Value.Coun|ForEach-Object{$I+=$_};$i}},@{N='LastSeen';E={(get-date).ToString('o')}}|
+            ForEach-Object{$global:PSWebServer.Track_HashTables[$_.Name]=$_}
+        Write-PSWebHostLog -Message "Track_HashTables" -Severity Info -Data $global:PSWebServer.Track_HashTables -Category MetricsData -UserID Webhost -SessionID MainLoop -Source WebHost.ps1
+        if ($null -eq $global:PSWebServer.Track_Arrays) {$global:PSWebServer.Track_Arrays = [hashtable]::Synchronized(@{})}
+            $global:PSWebServer.Track_Arrays = [hashtable]::Synchronized(@{})
+        Get-Variable -Scope Global |?{$null -ne $_.value -and ($_.value -is [array])}|
+            Select-Object Name,@{N='Count';E={$i=0;$_.Value.Count,$_.Value.Value.Count,$_.Value.Value.Value.Count,$_.Value.Value.Value.Value.Coun|ForEach-Object{$I+=$_};$i}},@{N='LastSeen';E={(get-date).ToString('o')}}|
+            ForEach-Object{$global:PSWebServer.Track_Arrays[$_.Name]=$_}
+        Write-PSWebHostLog -Message "Track_HashTables" -Severity Info -Data $global:PSWebServer.Track_Arrays -Category MetricsData -UserID Webhost -SessionID MainLoop -Source WebHost.ps1
+
         $LogEnd = $global:PSWebHostLogQueue.count
         if ($LogEnd -lt $script:Logpos) {
             $script:Logpos = 0
@@ -559,10 +670,70 @@ end {
         if ([int]$script:Logpos -lt $LogEnd) {
             [array]$logEntries = $script:Logpos .. ($LogEnd -1)|ForEach-Object{$global:PSWebHostLogQueue[$_]}
             if ($logEntries.Count) {
-                $logEntries|Tee-Object -FilePath $global:PSWebServer.LogFilePath -Append|ForEach-Object{Write-Host "`tLogging: $_"}
+                try {
+                    # Check if log file needs header row
+                    if (Test-Path $global:PSWebServer.LogFilePath) {
+                        $firstLine = Get-Content $global:PSWebServer.LogFilePath -First 1 -ErrorAction SilentlyContinue
+                        if ($firstLine -notmatch "^$($global:PSWebServer.LogFileFields[0])") {
+                            # Header missing - read content, rewrite with header
+                            $existingContent = Get-Content $global:PSWebServer.LogFilePath -Raw -ErrorAction SilentlyContinue
+                            Write-Host -ForegroundColor Cyan "Adding missing fields row to log. '$($global:PSWebServer.LogFileFields -join "','")'"
+
+                            # Write header and existing content in single operation
+                            $headerLine = $global:PSWebServer.LogFileFields -join "`t"
+                            $combinedContent = $headerLine + "`n" + $existingContent
+                            [System.IO.File]::WriteAllText($global:PSWebServer.LogFilePath, $combinedContent, [System.Text.Encoding]::UTF8)
+
+                            # Force garbage collection to release file handle
+                            $existingContent = $null
+                            [gc]::Collect()
+                            [gc]::WaitForPendingFinalizers()
+                        }
+                    }
+                    else {
+                        # Create new file with header
+                        $headerLine = $global:PSWebServer.LogFileFields -join "`t"
+                        [System.IO.File]::WriteAllText($global:PSWebServer.LogFilePath, $headerLine + "`n", [System.Text.Encoding]::UTF8)
+                    }
+
+                    # Retry logic for appending log entries (file may be briefly locked)
+                    $maxRetries = 3
+                    $retryCount = 0
+                    $writeSuccess = $false
+
+                    while (-not $writeSuccess -and $retryCount -lt $maxRetries) {
+                        try {
+                            # Use StreamWriter for more reliable append with explicit close
+                            $sw = New-Object System.IO.StreamWriter($global:PSWebServer.LogFilePath, $true, [System.Text.Encoding]::UTF8)
+                            foreach ($entry in $logEntries) {
+                                $sw.WriteLine($entry)
+                                Write-Host "`tLogging: $entry"
+                            }
+                            $sw.Close()
+                            $sw.Dispose()
+                            $writeSuccess = $true
+                        }
+                        catch {
+                            $retryCount++
+                            if ($retryCount -lt $maxRetries) {
+                                Write-Verbose "[ProcessLogQueue] Log file locked, retry $retryCount/$maxRetries after 50ms..."
+                                Start-Sleep -Milliseconds 50
+                            }
+                            else {
+                                Write-Warning "[ProcessLogQueue] Failed to write log entries after $maxRetries retries: $($_.Exception.Message)"
+                                # Ensure stream is disposed on error
+                                if ($sw) { try { $sw.Dispose() } catch {} }
+                            }
+                        }
+                    }
+                }
+                catch {
+                    Write-Warning "[ProcessLogQueue] Error processing log queue: $($_.Exception.Message)"
+                }
             }
             $script:Logpos = $LogEnd
         }
+        [gc]::Collect()
     }
 
     while ($script:ListenerInstance.IsListening) {
@@ -579,6 +750,12 @@ end {
                 $global:PSWebServer.SettingsLastWriteTime = $currentSettingsWriteTime
                 $Global:PSWebServer.Config = (Get-Content $settingsFilePath) | ConvertFrom-Json
             }
+
+            # Refresh tracked modules if needed (hot reload)
+            if (Get-Command Invoke-ModuleRefreshAsNeeded -ErrorAction SilentlyContinue) {
+                Invoke-ModuleRefreshAsNeeded
+            }
+
             $lastSettingsCheck = Get-Date
         }
 
@@ -586,6 +763,84 @@ end {
         if ((Get-Date) - $lastGlobalCacheUpdate -gt [TimeSpan]::FromSeconds(10)) {
             Update-GlobalCache
             $lastGlobalCacheUpdate = Get-Date
+        }
+
+        # Process job submissions every 2 seconds
+        if ((Get-Date) - $lastJobProcessing -gt [TimeSpan]::FromSeconds(2)) {
+            try {
+                # Process app main_loop.ps1 files (cached scriptblock execution for efficiency)
+                # This runs in the main loop context with direct access to $Global:PSWebServer.Jobs
+                # Each app can have a main_loop.ps1 that runs every loop iteration
+
+                # Initialize Apps scriptblock cache if not exists
+                if (-not $Global:PSWebServer.Apps) {
+                    $Global:PSWebServer.Apps = [hashtable]::Synchronized(@{})
+                }
+
+                # Get all app directories
+                $appsPath = Join-Path $Global:PSWebServer.Project_Root.Path "apps" -Directory
+                if (Test-Path $appsPath) {
+                    $appDirs = Get-ChildItem -Path $appsPath -Directory
+
+                    foreach ($appDir in $appDirs) {
+                        $appName = $appDir.Name
+                        $mainLoopPath = Join-Path $appDir.FullName "main_loop.ps1"
+
+                        if (Test-Path $mainLoopPath) {
+                            # Initialize app cache structure if not exists
+                            if (-not $Global:PSWebServer.Apps.ContainsKey($appName)) {
+                                $Global:PSWebServer.Apps[$appName] = [hashtable]::Synchronized(@{
+                                    ScriptBlocks = [hashtable]::Synchronized(@{
+                                        MainLoop = [hashtable]::Synchronized(@{
+                                            Code = $null
+                                            LastWriteTime = $null
+                                        })
+                                    })
+                                })
+                            }
+
+                            # Get current file modification time
+                            $currentWriteTime = (Get-Item $mainLoopPath).LastWriteTime
+                            if (!$Global:PSWebServer.Apps[$appName].contains('ScriptBlocks') ) {
+                                $Global:PSWebServer.Apps[$appName].ScriptBlock = [hashtable]::new{@{}}
+                            }
+                            if (!$Global:PSWebServer.Apps[$appName].ScriptBlocks.contains('MainLoop') ) {
+                                $Global:PSWebServer.Apps[$appName].ScriptBlock.Mainloop  = [hashtable]::new(
+                                    @{Code={};LastWriteTime=$null}
+                                )
+                            }
+
+                            # Check if we need to reload the scriptblock
+                            if ($Global:PSWebServer.Apps[$appName]['ScriptBlocks']['MainLoop']['LastWriteTime'] -ne $currentWriteTime) {
+                                # File changed or first load - create new scriptblock
+                                try {
+                                    $scriptContent = Get-Content -Path $mainLoopPath -Raw
+                                    $Global:PSWebServer.Apps[$appName]['ScriptBlocks']['MainLoop']['Code'] = [scriptblock]::Create($scriptContent)
+                                    $Global:PSWebServer.Apps[$appName]['ScriptBlocks']['MainLoop']['LastWriteTime'] = $currentWriteTime
+                                    Write-Verbose "[WebHost] Cached main_loop.ps1 scriptblock for app: $appName"
+                                }
+                                catch {
+                                    Write-PSWebHostLog -Severity 'Error' -Category 'AppMainLoop' -Message "Failed to cache main_loop.ps1 for $appName : $($_.Exception.Message)"
+                                }
+                            }
+
+                            # Execute cached scriptblock
+                            if ($Global:PSWebServer.Apps[$appName]['ScriptBlocks']['MainLoop']['Code']) {
+                                try {
+                                    & $Global:PSWebServer.Apps[$appName]['ScriptBlocks']['MainLoop']['Code']
+                                }
+                                catch {
+                                    Write-PSWebHostLog -Severity 'Error' -Category 'AppMainLoop' -Message "Error executing main_loop.ps1 for $appName : $($_.Exception.Message)"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch {
+                Write-PSWebHostLog -Severity 'Error' -Category 'JobExecution' -Message "Error processing job submissions: $($_.Exception.Message)`n$($_.InvocationInfo.Line)"
+            }
+            $lastJobProcessing = Get-Date
         }
 
         . Invoke-ModuleRefreshAsNeeded
@@ -617,7 +872,7 @@ end {
             }
 
             # Brief pause - workers handle requests independently
-            Start-Sleep -Milliseconds 100
+            Start-Sleep -Milliseconds 500
         } 
         else {
             try {
@@ -675,7 +930,7 @@ end {
 
     # Stop the logging job
     $global:StopLogging = $true
-    if (! $ShowVariables.ispresent -and $global:PSWebServer.LoggingJob) {
+    if (! $InitializeEnvironmentOnly.ispresent -and $global:PSWebServer.LoggingJob) {
         $global:PSWebServer.LoggingJob.AsyncWaitHandle.WaitOne(2000) | Out-Null # Wait up to 2s for it to stop
     }
     if ($loggingPowerShell) {

@@ -3,7 +3,7 @@
 # Databases > MySQL
 
 - Name: MySQL Manager
-  url: /apps/mysqlmanager/api/v1/ui/elements/mysql-manager
+  url: /apps/mysqlmanager/cards/mysql-manager
   hover_description: MySQL database administration and monitoring
   icon: database
   tags:

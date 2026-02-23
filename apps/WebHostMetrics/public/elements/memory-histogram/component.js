@@ -19,11 +19,11 @@ const MemoryHistogramComponent = ({ element, onError }) => {
             const script = document.createElement('script');
             script.src = '/public/lib/metrics-manager.js';
             script.onload = () => {
-                console.log('MetricsManager loaded');
+                window.logToServer('MetricsManager loaded', 'MemoryHistogram', 'Info');
                 setManager(new window.MetricsManager());
             };
             script.onerror = () => {
-                console.error('Failed to load MetricsManager');
+                window.logToServer('Failed to load MetricsManager', 'MemoryHistogram', 'Error');
                 onError({ message: 'Failed to load MetricsManager' });
             };
             document.head.appendChild(script);
@@ -48,7 +48,7 @@ const MemoryHistogramComponent = ({ element, onError }) => {
                     const script = document.createElement('script');
                     script.src = '/public/lib/chart.min.js';
                     script.onload = () => {
-                        console.log('Chart.js loaded');
+                        window.logToServer('Chart.js loaded', 'MemoryHistogram', 'Info');
                         resolve();
                     };
                     script.onerror = () => reject(new Error('Failed to load Chart.js'));
@@ -62,7 +62,7 @@ const MemoryHistogramComponent = ({ element, onError }) => {
                     const script = document.createElement('script');
                     script.src = '/public/lib/chartjs-adapter-date-fns.min.js';
                     script.onload = () => {
-                        console.log('Chart.js date adapter loaded');
+                        window.logToServer('Chart.js date adapter loaded', 'MemoryHistogram', 'Info');
                         window._chartDateAdapterLoaded = true;
                         resolve();
                     };
@@ -77,7 +77,7 @@ const MemoryHistogramComponent = ({ element, onError }) => {
                     const script = document.createElement('script');
                     script.src = '/public/lib/chart-data-adapter.js';
                     script.onload = () => {
-                        console.log('ChartDataAdapter loaded');
+                        window.logToServer('ChartDataAdapter loaded', 'MemoryHistogram', 'Info');
                         resolve();
                     };
                     script.onerror = () => reject(new Error('Failed to load ChartDataAdapter'));
@@ -87,7 +87,7 @@ const MemoryHistogramComponent = ({ element, onError }) => {
         };
 
         loadScripts().catch(err => {
-            console.error('Script loading error:', err);
+            window.logToServer(`Script loading error: ${err.message}`, 'MemoryHistogram', 'Error', { error: err.toString() });
             onError({ message: err.message });
         });
     }, []);
@@ -123,7 +123,7 @@ const MemoryHistogramComponent = ({ element, onError }) => {
                 granularity = '1m';
             }
 
-            console.log(`Loading memory history: ${start.toISOString()} to ${now.toISOString()}`);
+            window.logToServer(`Loading memory history: ${start.toISOString()} to ${now.toISOString()}`, 'MemoryHistogram', 'Info');
 
             // Load historical data
             await manager.loadHistorical({
@@ -159,7 +159,7 @@ const MemoryHistogramComponent = ({ element, onError }) => {
             setLoading(false);
 
         } catch (error) {
-            console.error('Error loading memory data:', error);
+            window.logToServer(`Error loading memory data: ${error.message}`, 'MemoryHistogram', 'Error', { error: error.toString() });
             onError({ message: error.message });
             setLoading(false);
         }
@@ -257,14 +257,14 @@ const MemoryHistogramComponent = ({ element, onError }) => {
                 timeWindow: timeWindowMs
             });
 
-            console.log('[MemoryHistogram] Chart created with incremental update adapter');
+            window.logToServer('Chart created with incremental update adapter', 'MemoryHistogram', 'Info');
         } else {
             // Chart exists - use adapter to replace data incrementally
             // Update time window based on current time range
             const timeWindowMs = parseTimeRange(timeRange);
             chartAdapterRef.current.setTimeWindow(timeWindowMs);
             chartAdapterRef.current.replaceData(chartData);
-            console.log('[MemoryHistogram] Chart updated incrementally');
+            window.logToServer('Chart updated incrementally', 'MemoryHistogram', 'Info');
         }
     };
 

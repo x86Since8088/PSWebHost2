@@ -27,7 +27,7 @@ $ErrorActionPreference = 'Stop'
 
 # Load WebHost environment (initializes SQLite and required modules)
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\')).Path
-. (Join-Path $ProjectRoot "WebHost.ps1") -ShowVariables 3>$null 4>$null | Out-Null
+. (Join-Path $ProjectRoot "WebHost.ps1") -InitializeEnvironmentOnly 3>$null 4>$null | Out-Null
 
 # Generate test user credentials
 $randomLetters = -join ((65..90) + (97..122) | Get-Random -Count 5 | ForEach-Object { [char]$_ })

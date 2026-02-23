@@ -1,15 +1,23 @@
 # WebHostSSHFileAccess
 
+## Status: PLACEHOLDER - Not Yet Implemented
+
+**Created**: 2026-01-22
+**Type**: Placeholder
+**Priority**: Medium (needed for remote server file management)
+**Category**: Storage > Remote Access
+
 ## Purpose
 
-Provides SSH/SFTP file access for PSWebHost applications.
+Provides SSH/SFTP file access for PSWebHost applications with credential and key management.
 
 This app is a **placeholder** for future implementation of SSH/SFTP functionality, enabling:
-- Accessing files on remote servers via SSH/SFTP
-- Managing SSH credentials and keys
-- Browsing remote file systems
-- Integration with FileExplorer for seamless remote access
+- Accessing files on remote servers via SSH/SFTP protocol
+- Managing SSH credentials and private keys with encryption
+- Browsing remote file systems securely
+- Integration with FileExplorer for seamless remote access via logical paths
 - Support for `.pswebhost/trash_bin` on remote SSH servers
+- Host key verification to prevent MITM attacks
 
 ## Integration with Trash Bin System
 
@@ -54,10 +62,31 @@ ssh|user@hostname:port|/home/user/documents/file.txt
 - `DELETE /api/v1/keys/{id}` - Remove key
 - `POST /api/v1/keys/generate` - Generate new SSH key pair
 
+## File Structure
+
+```
+WebHostSSHFileAccess/
+├── app.yaml                 # App manifest and configuration
+├── app_init.ps1             # Initialization script
+├── README.md                # This documentation
+├── data/                    # Data storage (git-ignored)
+│   ├── connections.json     # SSH connection configurations
+│   └── keys.json            # Encrypted SSH keys storage
+├── modules/                 # Future: SSH/SFTP wrapper modules
+├── routes/api/v1/           # Future: API endpoints
+│   ├── connections/         # Connection management
+│   ├── files/               # File operations (SFTP)
+│   ├── trash/               # Remote trash operations
+│   └── keys/                # SSH key management
+└── public/elements/         # Future: UI components
+```
+
 ## Configuration Format
 
+### connections.json
 ```json
 {
+  "version": "1.0.0",
   "connections": [
     {
       "id": "conn-guid",
@@ -65,13 +94,24 @@ ssh|user@hostname:port|/home/user/documents/file.txt
       "hostname": "prod.example.com",
       "port": 22,
       "username": "deploy",
-      "authMethod": "key",  // "key" or "password"
+      "authMethod": "key",
       "keyId": "key-guid",
       "encryptedPassword": null,
       "allowedUsers": ["user-id-1", "user-id-2"],
-      "allowedRoles": ["admin", "developer"]
+      "allowedRoles": ["admin", "developer"],
+      "hostKeyFingerprint": "SHA256:...",
+      "lastVerified": "2026-01-22T12:00:00Z",
+      "createdAt": "2026-01-22T12:00:00Z",
+      "createdBy": "user-id"
     }
-  ],
+  ]
+}
+```
+
+### keys.json
+```json
+{
+  "version": "1.0.0",
   "keys": [
     {
       "id": "key-guid",
@@ -79,8 +119,11 @@ ssh|user@hostname:port|/home/user/documents/file.txt
       "publicKey": "ssh-rsa AAAAB3...",
       "encryptedPrivateKey": "...",
       "fingerprint": "SHA256:...",
+      "algorithm": "RSA",
+      "keySize": 4096,
       "createdBy": "user-id",
-      "createdAt": "2026-01-22T12:00:00Z"
+      "createdAt": "2026-01-22T12:00:00Z",
+      "lastUsed": "2026-01-22T14:30:00Z"
     }
   ]
 }
@@ -95,23 +138,81 @@ ssh|user@hostname:port|/home/user/documents/file.txt
 - Support for SSH agent forwarding
 - Host key verification (prevent MITM attacks)
 
-## Implementation Status
+## Implementation Roadmap
 
-**Status**: Placeholder - Not Yet Implemented
+### Phase 1: Core SSH Infrastructure (4-6 hours)
+1. **SSH Library Integration**
+   - Evaluate and integrate SSH.NET library (Renci.SshNet)
+   - Alternative: PowerShell OpenSSH module
+   - Create wrapper module for SFTP operations
 
-**Next Steps**:
-1. Integrate SSH.NET library or use PowerShell SSH module
-2. Implement secure key storage and encryption
-3. Create SFTP wrapper for file operations
-4. Implement connection pooling and session management
-5. Add UI for connection and key management
-6. Integrate with FileExplorer for logical path resolution
+2. **Key Storage & Encryption**
+   - Implement AES-256-GCM encryption for private keys
+   - Create key import/export functions
+   - Add key generation functionality (RSA 4096, Ed25519)
+
+3. **Connection Management**
+   - Build connection configuration system
+   - Implement host key verification
+   - Create connection pool with timeout management
+   - Add connection testing endpoint
+
+### Phase 2: File Operations (3-4 hours)
+4. **SFTP Wrapper**
+   - Implement file list/browse operations
+   - Add file upload/download functions
+   - Create delete operation (move to trash)
+   - Handle permissions and metadata
+
+5. **Logical Path Integration**
+   - Parse ssh|hostname|/path format
+   - Integrate with FileExplorer path resolver
+   - Add validation and error handling
+
+### Phase 3: Trash Bin Support (2-3 hours)
+6. **Remote Trash Operations**
+   - Create `.pswebhost/trash_bin` structure on remote servers
+   - Implement metadata write-then-move pattern
+   - Add trash listing and restore functions
+   - Support cross-user trash access with roles
+
+### Phase 4: UI & Polish (2-3 hours)
+7. **Management UI**
+   - Connection management interface
+   - SSH key upload/generate interface
+   - Connection testing and diagnostics
+   - Audit log viewer
+
+8. **Security & Testing**
+   - Audit logging for all operations
+   - Role-based access control validation
+   - Integration testing with FileExplorer
+   - Security review and penetration testing
+
+**Total Estimated Effort**: 11-16 hours
+
+**Current Status**: Phase 0 - Placeholder Only
 
 ## Dependencies
 
-- SSH.NET library (Renci.SshNet) or PowerShell OpenSSH module
-- .NET cryptography for key encryption
-- FileExplorer integration
+### Required
+- .NET Framework 4.8 or .NET Core 3.1+
+- .NET cryptography libraries (AES-256-GCM)
+- PSWebHost_Support module
+
+### Planned External Libraries
+- **Option 1**: SSH.NET library (Renci.SshNet) - Recommended
+  - Version: 2020.0.0 or later
+  - License: MIT
+  - NuGet: Renci.SshNet
+- **Option 2**: PowerShell OpenSSH module
+  - Built-in on Windows 10/11 and Windows Server 2019+
+  - May have limited functionality
+
+### Integration Points
+- FileExplorer (path resolver)
+- Vault (optional credential storage)
+- Audit logging system
 
 ## Usage Example (Planned)
 
@@ -161,11 +262,13 @@ When deleting files via SSH:
 - **WebHostSMBClient**: Similar functionality for SMB/CIFS shares
 - **Vault**: May store SSH credentials and keys
 
----
+## Installation
 
-**Created**: 2026-01-22
-**Type**: Placeholder
-**Priority**: Medium (needed for remote server file management)
+This app is a placeholder and is currently disabled in app.yaml. Once implemented, it will be automatically loaded by PSWebHost.
+
+**Required Roles**: admin, filemanager
+
+---
 
 ## Integration Points
 
@@ -199,5 +302,71 @@ function Resolve-WebHostFileExplorerPath {
 
 ---
 
-**Documentation Complete**
-**Implementation Required**: Full SSH/SFTP client functionality
+## Testing Checklist
+
+Once implemented, test the following scenarios:
+
+### Connection Management
+- [ ] Add new SSH connection with password authentication
+- [ ] Add new SSH connection with key authentication
+- [ ] Test connection to valid server
+- [ ] Test connection to invalid server (proper error handling)
+- [ ] Verify host key fingerprint on first connection
+- [ ] Reject connection if host key changes (MITM protection)
+- [ ] List all configured connections
+- [ ] Delete connection
+- [ ] Per-user connection access control
+- [ ] Per-role connection access control
+
+### Key Management
+- [ ] Import existing SSH private key
+- [ ] Generate new RSA 4096 key pair
+- [ ] Generate new Ed25519 key pair
+- [ ] Export public key
+- [ ] Encrypt private keys at rest
+- [ ] Decrypt private keys for use
+- [ ] List all stored keys
+- [ ] Delete key (with confirmation)
+- [ ] Prevent deletion of keys in use
+
+### File Operations
+- [ ] List files on remote server via SFTP
+- [ ] Download file from remote server
+- [ ] Upload file to remote server
+- [ ] Delete file (moves to trash)
+- [ ] Handle large files (streaming)
+- [ ] Handle permissions errors gracefully
+- [ ] Respect FileExplorer logical path format
+
+### Trash Bin Operations
+- [ ] Create `.pswebhost/trash_bin` on remote server
+- [ ] Write metadata before moving file
+- [ ] Move file to remote trash
+- [ ] List trash items on remote server
+- [ ] Restore file from remote trash
+- [ ] Empty remote trash bin
+- [ ] Cross-user trash access with proper roles
+- [ ] Register remote trash location in FileExplorer
+
+### Security
+- [ ] Audit log for all SSH operations
+- [ ] Role-based access enforcement
+- [ ] Credential encryption verification
+- [ ] No credential exposure in API responses
+- [ ] Session timeout enforcement
+- [ ] Connection pool cleanup
+
+### Integration
+- [ ] FileExplorer can resolve ssh|hostname|path
+- [ ] FileExplorer can delete files to remote trash
+- [ ] FileExplorer can restore files from remote trash
+- [ ] Trash bin browser shows remote locations
+- [ ] Undo system works with SSH files
+
+---
+
+## Documentation Status
+
+**Documentation**: Complete (placeholder specification)
+**Implementation**: Required - Full SSH/SFTP client functionality
+**Last Updated**: 2026-02-23

@@ -126,23 +126,24 @@ function Invoke-ApiTest {
 function Test-CLIFunctionality {
     Write-Host "`n=== CLI Tests ===" -ForegroundColor Cyan
 
-    # Example: Test module import
-    Test-Assert -TestName "Module Import" `
-        -Condition (Get-Module -Name "PSWebSQLServerManager" -ErrorAction SilentlyContinue) `
-        -Message "Module should be loaded"
+    # Note: CLI tests are placeholders until modules are implemented
+    Write-Host "  [INFO] SQLServerManager CLI functionality not yet implemented" -ForegroundColor Yellow
 
-    # Example: Test function availability
-    Test-Assert -TestName "Function Exists" `
-        -Condition (Get-Command -Name "Get-SQLServerManager" -ErrorAction SilentlyContinue) `
-        -Message "Function should be available"
+    # Placeholder test for app structure
+    $appRoot = "C:\SC\PsWebHost\apps\SQLServerManager"
+    Test-Assert -TestName "App Directory Exists" `
+        -Condition (Test-Path $appRoot) `
+        -Message "App root directory should exist"
 
-    # Example: Test function output
-    $result = Get-SQLServerManager -Parameter "test"
-    Test-Assert -TestName "Function Returns Expected Output" `
-        -Condition ($result -eq "expected") `
-        -Message "Function should return expected value"
+    Test-Assert -TestName "App Manifest Exists" `
+        -Condition (Test-Path (Join-Path $appRoot "app.json")) `
+        -Message "app.json should exist"
 
-    # Add more CLI tests here...
+    Test-Assert -TestName "App Init Script Exists" `
+        -Condition (Test-Path (Join-Path $appRoot "app_init.ps1")) `
+        -Message "app_init.ps1 should exist"
+
+    # Add more CLI tests here as functionality is implemented...
 }
 
 #endregion
@@ -175,19 +176,19 @@ function Test-IntegrationFunctionality {
 
     # Test app status endpoint
     Invoke-ApiTest -TestName "App Status Endpoint" `
-        -Endpoint "/apps/$(sqlservermanager)/api/v1/status" `
+        -Endpoint "/apps/sqlservermanager/api/v1/status" `
         -ExpectedStatusCode 200
 
-    # Test UI element endpoint
-    Invoke-ApiTest -TestName "Home UI Element" `
-        -Endpoint "/apps/$(sqlservermanager)/api/v1/ui/elements/$(sqlservermanager)-home" `
+    # Test UI card endpoint
+    Invoke-ApiTest -TestName "SQL Server Manager Card" `
+        -Endpoint "/apps/sqlservermanager/cards/sqlserver-manager" `
         -ExpectedStatusCode 200
 
     # Add more integration tests here...
 
     # Example: Test data endpoint
     # Invoke-ApiTest -TestName "Data Endpoint" `
-    #     -Endpoint "/apps/$(sqlservermanager)/api/v1/data" `
+    #     -Endpoint "/apps/sqlservermanager/api/v1/data" `
     #     -Method 'POST' `
     #     -Body @{ query = "test" } `
     #     -ExpectedStatusCode 200

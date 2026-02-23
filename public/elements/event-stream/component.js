@@ -137,7 +137,7 @@ const EventStreamCard = ({ onError }) => {
 
         fetchDataRef.current = () => {
             // Fetch job status
-            window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/job-status')
+            window.psweb_fetchWithAuthHandling('/cards/job-status')
                 .then(res => res.json())
                 .then(data => {
                     if (isMounted) {
@@ -155,7 +155,7 @@ const EventStreamCard = ({ onError }) => {
             }
             params.append('count', maxEvents);
 
-            const url = `/api/v1/ui/elements/event-stream?${params.toString()}`;
+            const url = `/cards/event-stream?${params.toString()}`;
 
             window.psweb_fetchWithAuthHandling(url)
                 .then(res => {
@@ -163,7 +163,10 @@ const EventStreamCard = ({ onError }) => {
                         if (isMounted) {
                             onError({ message: "Failed to fetch event stream", status: res.status, statusText: res.statusText });
                         }
-                        throw new Error(`HTTP error! status: ${res.status}`);
+                        const error = new Error(`HTTP error! status: ${res.status}`);
+                        error.status = res.status;
+                        error.statusText = res.statusText;
+                        throw error;
                     }
                     return res.text();
                 })
@@ -524,4 +527,5 @@ const EventStreamCard = ({ onError }) => {
     );
 };
 
+window.cardComponents = window.cardComponents || {};
 window.cardComponents['event-stream'] = EventStreamCard;

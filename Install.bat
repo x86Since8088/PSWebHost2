@@ -11,7 +11,7 @@ echo ===========================================================================
 echo.
 
 REM Check if PowerShell 7+ is installed
-where pwsh >nul 2>nul
+where pwsh > nul 2> nul
 if %ERRORLEVEL% EQU 0 (
     echo [OK] PowerShell 7+ detected
     goto :RunSetup
@@ -23,7 +23,7 @@ echo PSWebHost requires PowerShell 7 or later to run.
 echo.
 
 REM Check if winget is available
-where winget >nul 2>nul
+where winget > nul 2> nul
 if %ERRORLEVEL% NEQ 0 (
     echo [!] Winget is not available on this system.
     echo.
@@ -63,7 +63,7 @@ echo.
 echo [OK] PowerShell 7 installed successfully!
 echo.
 echo Refreshing environment variables...
-timeout /t 2 /nobreak >nul
+timeout /t 2 /nobreak > nul
 
 REM Try to find pwsh in common installation locations
 set PWSH_PATH=
@@ -72,7 +72,7 @@ if exist "%ProgramFiles%\PowerShell\7\pwsh.exe" (
 ) else if exist "%ProgramFiles(x86)%\PowerShell\7\pwsh.exe" (
     set PWSH_PATH=%ProgramFiles(x86)%\PowerShell\7\pwsh.exe
 ) else (
-    where pwsh >nul 2>nul
+    where pwsh > nul 2> nul
     if !ERRORLEVEL! EQU 0 (
         for /f "delims=" %%i in ('where pwsh') do set PWSH_PATH=%%i
     )
@@ -97,9 +97,9 @@ echo.
 
 REM Check if we should use pwsh from PATH or specific location
 if defined PWSH_PATH (
-    "!PWSH_PATH!" -NoProfile -ExecutionPolicy Bypass -File "%~dp0WebHost.ps1" -ShowVariables
+    "!PWSH_PATH!" -NoProfile -ExecutionPolicy Bypass -File "%~dp0WebHost.ps1" -InitializeEnvironmentOnly
 ) else (
-    pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0WebHost.ps1" -ShowVariables
+    pwsh -NoProfile -ExecutionPolicy Bypass -File "%~dp0WebHost.ps1" -InitializeEnvironmentOnly
 )
 
 if %ERRORLEVEL% NEQ 0 (

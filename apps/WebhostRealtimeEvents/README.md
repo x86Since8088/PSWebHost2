@@ -51,7 +51,7 @@ Supports the new 12-column log format with:
 
 ## API Endpoints
 
-### GET /api/v1/events/logs
+### GET /apps/WebhostRealtimeEvents/api/v1/logs
 Main log retrieval endpoint with comprehensive filtering.
 
 **Query Parameters:**
@@ -72,7 +72,7 @@ Main log retrieval endpoint with comprehensive filtering.
 
 **Example:**
 ```
-GET /api/v1/events/logs?timeRange=30&severity=Error&sortBy=Date&sortOrder=desc
+GET /apps/WebhostRealtimeEvents/api/v1/logs?timeRange=30&severity=Error&sortBy=Date&sortOrder=desc
 ```
 
 **Response:**
@@ -92,7 +92,7 @@ GET /api/v1/events/logs?timeRange=30&severity=Error&sortBy=Date&sortOrder=desc
 }
 ```
 
-### GET /api/v1/events/status
+### GET /apps/WebhostRealtimeEvents/api/v1/status
 App status and capabilities endpoint.
 
 **Response:**
@@ -131,7 +131,7 @@ App status and capabilities endpoint.
 - Supports both 8-column (legacy) and 12-column (enhanced) formats
 
 ### Auto-Refresh
-- Polls `/api/v1/events/logs` every 5 seconds when enabled
+- Polls `/apps/WebhostRealtimeEvents/api/v1/logs` every 5 seconds when enabled
 - Automatically pauses on user interaction
 - Preserves selections across refreshes
 
@@ -160,7 +160,7 @@ App status and capabilities endpoint.
 
 ## Migration from Old Event Stream
 
-The previous `/api/v1/ui/elements/event-stream` endpoint provided basic event viewing from `$Global:LogHistory`. This app provides:
+The previous `/cards/event-stream` endpoint provided basic event viewing from `$Global:LogHistory`. This app provides:
 
 1. **File-based log reading** instead of memory buffer (more reliable, persistent)
 2. **Time range controls** instead of just "last N events"

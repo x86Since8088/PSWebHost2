@@ -107,7 +107,7 @@ catch {
 `apps/WebhostFileExplorer/menu.yaml`:
 ```yaml
 - Name: File Explorer
-  url: /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer
+  url: /apps/WebhostFileExplorer/cards/file-explorer
   hover_description: Browse and manage your personal file storage
   parent: Main Menu
   icon: folder-open
@@ -239,7 +239,7 @@ Review all menu items to ensure they return the correct content type for optimal
 
 **Examples to check:**
 - `/api/v1/ui/elements/world-map`
-- `/api/v1/ui/elements/system-log`
+- `/cards/system-log`
 - All `/apps/*/api/v1/ui/elements/*` endpoints
 
 #### 2. HTML Pages (Should return HTML)

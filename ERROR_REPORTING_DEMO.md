@@ -7,9 +7,9 @@ The `Get-PSWebHostErrorReport` function provides three levels of error detail ba
 3. **Remote Users** - Minimal error for security
 
 ## Example Scenario
-**Endpoint**: `/api/v1/ui/elements/system-log`
+**Endpoint**: `/cards/system-log`
 **Error**: Variable name collision (`$response` vs `$Response`)
-**Request**: `GET /api/v1/ui/elements/system-log?lines=100`
+**Request**: `GET /cards/system-log?lines=100`
 
 ---
 
@@ -24,8 +24,8 @@ The `Get-PSWebHostErrorReport` function provides three levels of error detail ba
   "roles": ["authenticated", "site_admin"],
   "request": {
     "Method": "GET",
-    "URL": "http://localhost:8080/api/v1/ui/elements/system-log?lines=100",
-    "RawUrl": "/api/v1/ui/elements/system-log?lines=100",
+    "URL": "http://localhost:8080/cards/system-log?lines=100",
+    "RawUrl": "/cards/system-log?lines=100",
     "QueryString": {
       "lines": "100"
     },
@@ -93,7 +93,7 @@ The `Get-PSWebHostErrorReport` function provides three levels of error detail ba
   },
   "request": {
     "method": "GET",
-    "url": "http://localhost:8080/api/v1/ui/elements/system-log?lines=100"
+    "url": "http://localhost:8080/cards/system-log?lines=100"
   },
   "guidance": "You are accessing from localhost. For detailed diagnostics including call stack and variable enumeration, please use an account with Admin or Debug role."
 }
@@ -177,11 +177,11 @@ All these endpoints now use `Get-PSWebHostErrorReport`:
 - `/api/v1/debug/client-log` - Client error logging
 
 ### UI Elements
-- `/api/v1/ui/elements/system-log` - System logs
-- `/api/v1/ui/elements/job-status` - Background jobs
+- `/cards/system-log` - System logs
+- `/cards/job-status` - Background jobs
 - `/api/v1/ui/elements/file-explorer` (GET & POST) - File operations
 - `/api/v1/ui/elements/server-heatmap` - System metrics
-- `/api/v1/ui/elements/event-stream` - Event log
+- `/cards/event-stream` - Event log
 
 ### Authentication
 - `/api/v1/authprovider/password` - Password login

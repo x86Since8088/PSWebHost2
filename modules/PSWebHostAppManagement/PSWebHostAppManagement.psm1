@@ -250,6 +250,9 @@ function Enable-PSWebHostApp {
         throw "$MyTag App '$AppName' not found at $appPath"
     }
 
+    # Backup configuration file if it has changed
+    Backup-ConfigurationFile -ConfigFilePath $appYamlPath
+
     # Read app.yaml
     $yamlContent = Get-Content -Path $appYamlPath -Raw
 
@@ -291,6 +294,9 @@ function Disable-PSWebHostApp {
     if (-not (Test-Path $appYamlPath)) {
         throw "$MyTag App '$AppName' not found at $appPath"
     }
+
+    # Backup configuration file if it has changed
+    Backup-ConfigurationFile -ConfigFilePath $appYamlPath
 
     # Read app.yaml
     $yamlContent = Get-Content -Path $appYamlPath -Raw
@@ -365,6 +371,9 @@ function Get-AppInfo {
     if (-not (Test-Path $appYamlPath)) {
         return $null
     }
+
+    # Backup configuration file if it has changed
+    Backup-ConfigurationFile -ConfigFilePath $appYamlPath
 
     # Parse YAML (basic parsing - could use PSYaml module for complex cases)
     $yamlContent = Get-Content -Path $appYamlPath -Raw
@@ -517,6 +526,9 @@ function Test-PSWebHostAppStructure {
     # Validate app.yaml
     $appYamlPath = Join-Path $appPath "app.yaml"
     if (Test-Path $appYamlPath) {
+        # Backup configuration file if it has changed
+        Backup-ConfigurationFile -ConfigFilePath $appYamlPath
+
         $yamlContent = Get-Content -Path $appYamlPath -Raw
 
         # Check required fields

@@ -272,7 +272,7 @@ BEGIN Block (Lines 11-129):
   │   ├─ Validate database schema (12 tables)
   │   └─ Register roles from config
   │
-  ├─ Line 30: -ShowVariables mode → Exit early (for testing)
+  ├─ Line 30: -InitializeEnvironmentOnly mode → Exit early (for testing)
   │
   ├─ Line 35: -ReloadOnScriptUpdate → Launch in auto-restart loop
   │

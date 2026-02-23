@@ -38,3 +38,11 @@ To add new features:
 
 ## Version History
 - **1.0.0** (2026-01-10) - Initial release
+
+## Code Refactoring Notice
+
+This app contains Linux-specific code that is planned for extraction to a shared cross-platform module (`PSCrossPlatformOSManagement.psm1`). This refactoring will eliminate code duplication with the LinuxAdmin app and improve maintainability.
+
+See `LINUX_CODE_EXTRACTION_PLAN.md` for details.
+
+Status: Pending coordination with LinuxAdmin agent.

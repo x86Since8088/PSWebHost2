@@ -3,7 +3,7 @@
 # Operating Systems > Windows
 
 - Name: Windows Services
-  url: /apps/windowsadmin/api/v1/ui/elements/service-control
+  url: /apps/windowsadmin/cards/service-control
   hover_description: Manage Windows services
   icon: settings
   tags:
@@ -12,7 +12,7 @@
     - services
 
 - Name: Task Scheduler
-  url: /apps/windowsadmin/api/v1/ui/elements/task-scheduler
+  url: /apps/windowsadmin/cards/task-scheduler
   hover_description: Manage Windows scheduled tasks
   icon: clock
   tags:

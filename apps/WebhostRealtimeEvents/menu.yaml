@@ -3,7 +3,7 @@
 
 - Name: Real-time Events
   parent: Main Menu
-  url: /apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events
+  url: /apps/WebhostRealtimeEvents/cards/realtime-events
   hover_description: Monitor PSWebHost events and logs in real-time with advanced filtering and sorting
   icon: activity
   roles:

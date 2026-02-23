@@ -25,12 +25,24 @@ public/elements/apps-manager/
 ```
 apps/WebHostAppManager/
 ├── app.yaml
+├── app_init.ps1
 ├── README.md
 ├── MIGRATION.md (this file)
-└── routes/api/v1/ui/elements/apps-manager/
-    ├── get.ps1
-    └── get.security.json
+├── routes/
+│   ├── cards/
+│   │   └── apps-manager/
+│   │       ├── get.ps1
+│   │       └── get.security.json
+│   └── api/v1/apps/
+│       └── list/
+│           ├── get.ps1
+│           └── get.security.json
+└── public/elements/apps-manager/ (in main public directory)
+    ├── component.js
+    └── style.css
 ```
+
+**Note:** The structure evolved during the card migration project (Feb 2026) to follow the modern card-based architecture.
 
 ### Changes Made
 
@@ -49,8 +61,15 @@ Created comprehensive app manifest:
 
 #### 3. Endpoint Files Migrated
 Copied files from old location to new app structure:
-- `get.ps1` - Main endpoint script (unchanged)
-- `get.security.json` - Security configuration (unchanged)
+- `get.ps1` - Main endpoint script
+- `get.security.json` - Security configuration
+
+**Later Updated (Feb 2026):**
+- Migrated to card-based architecture
+- Moved to `routes/cards/apps-manager/`
+- Changed from HTML response to JSON card metadata
+- Added separate API endpoint at `routes/api/v1/apps/list/`
+- Created React component at `public/elements/apps-manager/component.js`
 
 #### 4. Menu References Updated
 Updated `routes/api/v1/ui/elements/main-menu/main-menu.yaml`:
@@ -62,7 +81,7 @@ url: /api/v1/ui/elements/apps-manager
 
 **After:**
 ```yaml
-url: /apps/WebHostAppManager/api/v1/ui/elements/apps-manager
+url: /apps/WebHostAppManager/cards/apps-manager
 ```
 
 #### 5. Documentation Created
@@ -87,12 +106,17 @@ GET /api/v1/ui/elements/apps-manager
 
 ### New URL
 ```
-GET /apps/WebHostAppManager/api/v1/ui/elements/apps-manager
+GET /apps/WebHostAppManager/cards/apps-manager
 ```
 
 The app routing system will automatically map this to:
 ```
-apps/WebHostAppManager/routes/api/v1/ui/elements/apps-manager/get.ps1
+apps/WebHostAppManager/routes/cards/apps-manager/get.ps1
+```
+
+This endpoint returns JSON card metadata, which instructs the card framework to load:
+```
+public/elements/apps-manager/component.js
 ```
 
 ## Backward Compatibility
@@ -134,12 +158,19 @@ After migration, verify:
 
 ## Files Affected
 
-### Created
+### Created (Initial Migration - Jan 2026)
 - `apps/WebHostAppManager/app.yaml`
 - `apps/WebHostAppManager/README.md`
 - `apps/WebHostAppManager/MIGRATION.md`
-- `apps/WebHostAppManager/routes/api/v1/ui/elements/apps-manager/get.ps1`
-- `apps/WebHostAppManager/routes/api/v1/ui/elements/apps-manager/get.security.json`
+- Initial route files (later reorganized)
+
+### Updated (Card Migration - Feb 2026)
+- `apps/WebHostAppManager/routes/cards/apps-manager/get.ps1` - Card metadata endpoint
+- `apps/WebHostAppManager/routes/cards/apps-manager/get.security.json`
+- `apps/WebHostAppManager/routes/api/v1/apps/list/get.ps1` - API endpoint
+- `apps/WebHostAppManager/routes/api/v1/apps/list/get.security.json`
+- `public/elements/apps-manager/component.js` - React component
+- `public/elements/apps-manager/style.css` - Component styles
 
 ### Modified
 - `routes/api/v1/ui/elements/main-menu/main-menu.yaml` (line 137)
@@ -222,12 +253,29 @@ If issues arise:
 
 4. **Restart PSWebHost**
 
+## Subsequent Updates
+
+### Card Migration (February 2026)
+
+The app was further updated during the PSWebHost-wide card migration project:
+
+- **Architecture Change:** Converted from monolithic HTML endpoint to card-based architecture
+- **Route Restructure:** Moved from `/routes/api/v1/ui/elements/apps-manager/` to `/routes/cards/apps-manager/`
+- **Separation of Concerns:** Split into:
+  - Card metadata endpoint (returns JSON with component info)
+  - Separate API endpoint for data (`/api/v1/apps/list`)
+  - React component for UI rendering
+- **Modern UI:** Implemented React-based component with proper state management
+- **Improved Security:** Leverages card framework's auth handling
+
 ## Conclusion
 
-The migration successfully consolidates the apps-manager functionality into a proper app structure following PSWebHost conventions. This improves code organization, makes the component more maintainable, and aligns with the overall app architecture.
+The migration successfully consolidates the apps-manager functionality into a proper app structure following PSWebHost conventions. The subsequent card migration further improved the architecture by adopting modern React-based components and separating concerns. This improves code organization, makes the component more maintainable, and aligns with the overall app architecture.
 
 ---
 
-**Migration Performed By:** Claude Code (AI Assistant)
-**Date Completed:** 2026-01-17
+**Initial Migration Performed By:** Claude Code (AI Assistant)
+**Initial Migration Date:** 2026-01-17
+**Card Migration Date:** 2026-02-01 to 2026-02-03
+**Documentation Updated:** 2026-02-23
 **Status:** ✅ Production Ready

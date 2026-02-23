@@ -31,47 +31,47 @@ For each URL in main-menu.yaml:
 - **Endpoint:** `routes/api/v1/ui/elements/file-explorer/get.ps1` - EXISTS
 - **Component:** Needs verification
 
-### ✅ `/api/v1/ui/elements/system-log`
-- **Endpoint:** `routes/api/v1/ui/elements/system-log/get.ps1` - EXISTS
+### ✅ `/cards/system-log`
+- **Endpoint:** `routes/cards/system-log/get.ps1` - EXISTS
 - **Component:** Needs verification
 
-### ✅ `/api/v1/ui/elements/markdown-viewer?file=public/help/architecture.md`
-- **Endpoint:** `routes/api/v1/ui/elements/markdown-viewer/get.ps1` - EXISTS
+### ✅ `/cards/markdown-viewer?file=public/help/architecture.md`
+- **Endpoint:** `routes/cards/markdown-viewer/get.ps1` - EXISTS
 - **Component:** Needs verification
 
 ### ✅ `/api/v1/ui/elements/unit-test-runner`
 - **Endpoint:** `routes/api/v1/ui/elements/unit-test-runner/get.ps1` - EXISTS
 - **Component:** Needs verification
 
-### ✅ `/api/v1/ui/elements/job-status`
-- **Endpoint:** `routes/api/v1/ui/elements/job-status/get.ps1` - EXISTS
+### ✅ `/cards/job-status`
+- **Endpoint:** `routes/cards/job-status/get.ps1` - EXISTS
 - **Component:** Needs verification
 
-### ✅ `/api/v1/ui/elements/site-settings`
-- **Endpoint:** `routes/api/v1/ui/elements/site-settings/get.ps1` - EXISTS
+### ✅ `/cards/site-settings`
+- **Endpoint:** `routes/cards/site-settings/get.ps1` - EXISTS
 - **Component:** Needs verification
 
 ### ✅ `/api/v1/ui/elements/apps-manager`
 - **Endpoint:** `routes/api/v1/ui/elements/apps-manager/get.ps1` - EXISTS
 - **Component:** Needs verification
 
-### ✅ `/api/v1/ui/elements/admin/role-management`
-- **Endpoint:** `routes/api/v1/ui/elements/admin/role-management/get.ps1` - EXISTS
+### ✅ `/cards/admin/role-management`
+- **Endpoint:** `routes/cards/admin/role-management/get.ps1` - EXISTS
 - **Component:** `public/elements/admin/role-management/component.js` - EXISTS ✓
 
-### ✅ `/api/v1/ui/elements/admin/users-management`
-- **Endpoint:** `routes/api/v1/ui/elements/admin/users-management/get.ps1` - EXISTS
+### ✅ `/cards/admin/users-management`
+- **Endpoint:** `routes/cards/admin/users-management/get.ps1` - EXISTS
 - **Component:** `public/elements/admin/users-management/component.js` - EXISTS ✓
 
-### ✅ `/api/v1/ui/elements/nodes-manager`
-- **Endpoint:** `routes/api/v1/ui/elements/nodes-manager/get.ps1` - EXISTS
+### ✅ `/cards/nodes-manager`
+- **Endpoint:** `routes/cards/nodes-manager/get.ps1` - EXISTS
 - **Component:** Needs verification
 
 ---
 
 ## App-based UI Elements (`/apps/...`)
 
-### ✅ `/apps/WebHostTaskManagement/api/v1/ui/elements/task-manager`
+### ✅ `/apps/WebHostTaskManagement/cards/task-manager`
 - **Endpoint:** `apps/WebHostTaskManagement/routes/api/v1/ui/elements/task-manager/get.ps1` - EXISTS ✓
 - **Returns:** `scriptPath: '/apps/WebHostTaskManagement/public/elements/task-manager/component.js'`
 - **Component:** `apps/WebHostTaskManagement/public/elements/task-manager/component.js` - EXISTS ✓

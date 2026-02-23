@@ -18,7 +18,7 @@ The v2 URL layout system is fully implemented and ready for manual browser testi
 **Goal**: Make URLs completely independent of layout.json
 
 **Implementation**:
-- URLs store endpoint URLs (e.g., `/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer`)
+- URLs store endpoint URLs (e.g., `/apps/WebhostFileExplorer/cards/file-explorer`)
 - Component paths (scriptPath) are fetched dynamically from endpoints at runtime
 - No dependency on layout.json for URL-based layouts
 - Fully shareable URLs that work across different server instances
@@ -33,7 +33,7 @@ The v2 URL layout system is fully implemented and ready for manual browser testi
       "x": 0, "y": 14, "w": 12, "h": 14,
       "elementId": "file-explorer",
       "title": "File Explorer",
-      "endpoint": "/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer",
+      "endpoint": "/apps/WebhostFileExplorer/cards/file-explorer",
       "backgroundColor": "#1a1a1a"
     }
   ]
@@ -93,7 +93,7 @@ pwsh -File Test-URLLayoutV2.ps1
 ✓ v2 format encoding/decoding works correctly
   Version: 2
   Cards: 1
-  First card endpoint: /apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events
+  First card endpoint: /apps/WebhostRealtimeEvents/cards/realtime-events
   First card dimensions: w=12 h=30
 ```
 
@@ -119,7 +119,7 @@ When loading a v2 URL, you should see:
 ```
 [URL Layout] Loaded v2 layout from URL: {cardCount: 1}
 [URL Layout] Using self-contained URL layout (v2) {cardCount: 1}
-[URL Layout] Fetching metadata for realtime-events from: /apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events
+[URL Layout] Fetching metadata for realtime-events from: /apps/WebhostRealtimeEvents/cards/realtime-events
 [URL Layout] Got componentPath for realtime-events: /apps/WebhostRealtimeEvents/public/elements/realtime-events/component.js
 [URL Layout] Loading component for realtime-events from: /apps/WebhostRealtimeEvents/public/elements/realtime-events/component.js
 [URL Layout] ✓ Loaded component: realtime-events
@@ -159,7 +159,7 @@ When loading a v2 URL, you should see:
   - Open DevTools → Network tab
   - Load URL
   - Verify requests:
-    - ✓ GET /apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events
+    - ✓ GET /apps/WebhostRealtimeEvents/cards/realtime-events
     - ✓ GET /apps/WebhostRealtimeEvents/public/elements/realtime-events/component.js
     - ✗ NO GET /public/layout.json (should not be requested)
 

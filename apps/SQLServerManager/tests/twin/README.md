@@ -23,8 +23,8 @@ Microsoft SQL Server administration
 ```
 
 ### Browser Tests
-1. Start PSWebHost: pwsh WebHost.ps1
-2. Navigate to: http://localhost:8888/apps/unittests/api/v1/ui/elements/unit-test-runner
+1. Start PSWebHost: `pwsh WebHost.ps1`
+2. Navigate to: http://localhost:8888/apps/UnitTests/cards/unit-test-runner
 3. Select "SQLServerManager Browser Tests"
 4. Click "Run Tests"
 
@@ -54,17 +54,17 @@ Microsoft SQL Server administration
 ## Adding Tests
 
 ### PowerShell Test
-Edit $AppName.Tests.ps1:
+Edit SQLServerManager.Tests.ps1:
 ```powershell
 function Test-CLIFunctionality {
-    Test-Assert -TestName "Your New Test" 
-        -Condition (\ -eq \) 
+    Test-Assert -TestName "Your New Test"
+        -Condition ($result -eq $expected)
         -Message "Should do something"
 }
 ```
 
 ### Browser Test
-Edit rowser-tests.js:
+Edit browser-tests.js:
 ```javascript
 async testYourFeature() {
     const result = await this.apiCall('/endpoint');

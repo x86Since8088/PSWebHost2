@@ -110,7 +110,7 @@ This section maps **every step** of data flow for troubleshooting.
    │
    │ 3. Component renders, starts data fetch
    │
-   ├─→ GET /apps/WebHostMetrics/api/v1/ui/elements/server-heatmap
+   ├─→ GET /apps/WebHostMetrics/cards/server-heatmap
    │   │
    │   └─→ [Server] routes/api/v1/ui/elements/server-heatmap/get.ps1
    │       │
@@ -162,7 +162,7 @@ This section maps **every step** of data flow for troubleshooting.
 
 2. **Is the API responding?**
    ```
-   Browser Network Tab → Check /apps/WebHostMetrics/api/v1/ui/elements/server-heatmap
+   Browser Network Tab → Check /apps/WebHostMetrics/cards/server-heatmap
    Status: 200? 401? 500?
    ```
 

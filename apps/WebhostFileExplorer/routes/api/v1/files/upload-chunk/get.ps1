@@ -137,14 +137,15 @@ if ($Context.Request.IsWebSocketRequest) {
                         $currentChunkNumber = [int]$metadata.chunkNumber
                         $currentBytesRemaining = [long]$metadata.bytesRemaining
 
-                        # Log once per 15 seconds (time-based throttle)
+                        # Log once per 60 seconds (time-based throttle) or on first chunk
                         $now = Get-Date
                         $timeSinceLastLog = ($now - $uploadInfo.LastLogTime).TotalSeconds
-                        if ($timeSinceLastLog -ge 15 -or $currentChunkNumber -eq 0) {
-                            Write-PSWebHostLog -Severity 'Info' -Category 'FileExplorer' -Message "Chunk metadata received: $currentChunkNumber/$($uploadInfo.TotalChunks) ($([math]::Round(($currentChunkNumber / $uploadInfo.TotalChunks) * 100))%)" -Data @{
+                        if ($timeSinceLastLog -ge 60 -or $currentChunkNumber -eq 0) {
+                            Write-PSWebHostLog -Severity 'Info' -Category 'FileExplorer' -Message "WebSocket chunk metadata received: $currentChunkNumber/$($uploadInfo.TotalChunks) ($([math]::Round(($currentChunkNumber / $uploadInfo.TotalChunks) * 100))%)" -Data @{
                                 Guid = $guid
                                 ChunkNumber = $currentChunkNumber
                                 BytesRemaining = $currentBytesRemaining
+                                Method = 'WebSocket'
                             }
                             $uploadInfo.LastLogTime = $now
                         }
@@ -180,14 +181,15 @@ if ($Context.Request.IsWebSocketRequest) {
                     $chunkData = $messageBuffer.ToArray()
                     $chunkSize = $chunkData.Length
 
-                    # Log once per 15 seconds (time-based throttle) - shares same timer as metadata
+                    # Log once per 60 seconds (time-based throttle) or on first chunk - shares same timer as metadata
                     $now = Get-Date
                     $timeSinceLastLog = ($now - $uploadInfo.LastLogTime).TotalSeconds
-                    if ($timeSinceLastLog -ge 15 -or $currentChunkNumber -eq 0) {
-                        Write-PSWebHostLog -Severity 'Info' -Category 'FileExplorer' -Message "Binary chunk received: $currentChunkNumber/$($uploadInfo.TotalChunks) ($('{0:N0}' -f $chunkSize) bytes, $([math]::Round(($currentChunkNumber / $uploadInfo.TotalChunks) * 100))%)" -Data @{
+                    if ($timeSinceLastLog -ge 60 -or $currentChunkNumber -eq 0) {
+                        Write-PSWebHostLog -Severity 'Info' -Category 'FileExplorer' -Message "WebSocket binary chunk received: $currentChunkNumber/$($uploadInfo.TotalChunks) ($('{0:N0}' -f $chunkSize) bytes, $([math]::Round(($currentChunkNumber / $uploadInfo.TotalChunks) * 100))%)" -Data @{
                             Guid = $guid
                             ChunkNumber = $currentChunkNumber
                             ChunkSize = $chunkSize
+                            Method = 'WebSocket'
                         }
                         $uploadInfo.LastLogTime = $now
                     }
@@ -222,9 +224,12 @@ if ($Context.Request.IsWebSocketRequest) {
                                 $writeTask = $fileStream.WriteAsync($chunkData, 0, $chunkData.Length)
                                 $writeTask.GetAwaiter().GetResult()  # Wait for async write to complete
 
-                                # Flush asynchronously
-                                $flushTask = $fileStream.FlushAsync()
-                                $flushTask.GetAwaiter().GetResult()
+                                # Flush every 10 chunks or on final chunk (reduces disk I/O overhead)
+                                $shouldFlush = (($uploadInfo.ReceivedChunks + 1) % 10 -eq 0) -or (($uploadInfo.ReceivedChunks + 1) -eq $uploadInfo.TotalChunks)
+                                if ($shouldFlush) {
+                                    $flushTask = $fileStream.FlushAsync()
+                                    $flushTask.GetAwaiter().GetResult()
+                                }
                             }
                             finally {
                                 $fileStream.Close()
@@ -234,6 +239,48 @@ if ($Context.Request.IsWebSocketRequest) {
                             $uploadInfo.ChunkBitmap[$currentChunkNumber] = $true
                             $uploadInfo.ReceivedChunks++
                             $uploadInfo.ReceivedBytes += $chunkSize
+
+                            # Update database (persisted for resume capability)
+                            try {
+                                $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/pswebhost.db"
+                                $chunkBitmapJson = $uploadInfo.ChunkBitmap | ConvertTo-Json -Compress
+                                $lastActivityTime = [int]([DateTimeOffset]::Now).ToUnixTimeSeconds()
+
+                                $updateQuery = @"
+UPDATE Upload_Sessions
+SET ChunkBitmap = @ChunkBitmap,
+    ReceivedBytes = @ReceivedBytes,
+    LastActivityTime = @LastActivityTime,
+    UploadMethod = 'websocket'
+WHERE UploadGuid = @Guid
+"@
+
+                                $updateParams = @{
+                                    Guid = $guid
+                                    ChunkBitmap = $chunkBitmapJson
+                                    ReceivedBytes = $uploadInfo.ReceivedBytes
+                                    LastActivityTime = $lastActivityTime
+                                }
+
+                                Invoke-SqliteQuery -DataSource $dbFile -Query $updateQuery -SqlParameters $updateParams
+                            }
+                            catch {
+                                # Log warning but don't fail the upload
+                                Write-PSWebHostLog -Severity 'Warning' -Category 'FileExplorer' -Message "Failed to update upload session in database: $($_.Exception.Message)" -Data @{
+                                    Guid = $guid
+                                    ChunkNumber = $currentChunkNumber
+                                }
+                            }
+
+                            # Update FileTransfers metrics
+                            $finalFilePath = Join-Path $uploadInfo.TargetPath $uploadInfo.FileName
+                            if ($Global:PSWebServer.FileTransfers -and
+                                $Global:PSWebServer.FileTransfers[$userID] -and
+                                $Global:PSWebServer.FileTransfers[$userID][$finalFilePath]) {
+                                $Global:PSWebServer.FileTransfers[$userID][$finalFilePath].Metrics.BytesTransferred = $uploadInfo.ReceivedBytes
+                                $Global:PSWebServer.FileTransfers[$userID][$finalFilePath].Metrics.ChunksReceived = $uploadInfo.ReceivedChunks
+                                $Global:PSWebServer.FileTransfers[$userID][$finalFilePath].Metrics.LastUpdateTime = Get-Date
+                            }
 
                         } finally {
                             [System.Threading.Monitor]::Exit($lockObj)
@@ -289,14 +336,49 @@ if ($Context.Request.IsWebSocketRequest) {
                         # Get final file info
                         $finalFileInfo = Get-Item $finalFilePath
 
+                        # Calculate completion stats
+                        $duration = ((Get-Date) - $uploadInfo.CreatedAt).TotalSeconds
+                        $speedMBps = if ($duration -gt 0) {
+                            [math]::Round(($uploadInfo.FileSize / 1024 / 1024) / $duration, 2)
+                        } else {
+                            0
+                        }
+
                         Write-PSWebHostLog -Severity 'Info' -Category 'FileExplorer' -Message "WebSocket upload completed: $($uploadInfo.FileName)" -Data @{
                             UserID = $userID
                             Guid = $guid
                             FinalPath = $finalFilePath
                             Size = $finalFileInfo.Length
                             Chunks = $uploadInfo.TotalChunks
-                            Duration = ((Get-Date) - $uploadInfo.CreatedAt).TotalSeconds
+                            Duration = $duration
                             Method = 'WebSocket'
+                        }
+
+                        # Finalize FileTransfers metadata
+                        if ($Global:PSWebServer.FileTransfers -and
+                            $Global:PSWebServer.FileTransfers[$userID] -and
+                            $Global:PSWebServer.FileTransfers[$userID][$finalFilePath]) {
+                            $Global:PSWebServer.FileTransfers[$userID][$finalFilePath].Metrics.Status = 'completed'
+                            $Global:PSWebServer.FileTransfers[$userID][$finalFilePath].Metrics.BytesTransferred = $uploadInfo.FileSize
+                            $Global:PSWebServer.FileTransfers[$userID][$finalFilePath].Metrics.ChunksReceived = $uploadInfo.TotalChunks
+                            $Global:PSWebServer.FileTransfers[$userID][$finalFilePath].Summary.Completed = Get-Date
+                            $Global:PSWebServer.FileTransfers[$userID][$finalFilePath].Summary.Duration = $duration
+                            $Global:PSWebServer.FileTransfers[$userID][$finalFilePath].Summary.AverageSpeed = $speedMBps
+                            $Global:PSWebServer.FileTransfers[$userID][$finalFilePath].Summary.Success = $true
+                        }
+
+                        # Remove completed upload session from database (no longer needed for resume)
+                        try {
+                            $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/pswebhost.db"
+                            $deleteQuery = "DELETE FROM Upload_Sessions WHERE UploadGuid = @Guid"
+                            Invoke-SqliteQuery -DataSource $dbFile -Query $deleteQuery -SqlParameters @{ Guid = $guid }
+
+                            Write-PSWebHostLog -Severity 'Debug' -Category 'FileExplorer' -Message "Upload session removed from database (completed): $guid"
+                        }
+                        catch {
+                            Write-PSWebHostLog -Severity 'Warning' -Category 'FileExplorer' -Message "Failed to delete completed upload session from database: $($_.Exception.Message)" -Data @{
+                                Guid = $guid
+                            }
                         }
 
                         # Send completion message

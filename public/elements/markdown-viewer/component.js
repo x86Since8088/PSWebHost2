@@ -54,11 +54,14 @@ const MarkdownViewerComponent = ({ url, element, onError }) => {
             try {
                 setLoading(true);
                 const response = await window.psweb_fetchWithAuthHandling(
-                    `/api/v1/ui/elements/markdown-viewer?file=${encodeURIComponent(file)}`
+                    `/cards/markdown-viewer?file=${encodeURIComponent(file)}`
                 );
 
                 if (!response.ok) {
-                    throw new Error(`Failed to load file: ${response.status} ${response.statusText}`);
+                    const error = new Error(`Failed to load file: ${response.status} ${response.statusText}`);
+                    error.status = response.status;
+                    error.statusText = response.statusText;
+                    throw error;
                 }
 
                 const data = await response.json();
@@ -260,7 +263,7 @@ const MarkdownViewerComponent = ({ url, element, onError }) => {
 
         try {
             const response = await window.psweb_fetchWithAuthHandling(
-                `/api/v1/ui/elements/markdown-viewer?file=${encodeURIComponent(filePath)}`,
+                `/cards/markdown-viewer?file=${encodeURIComponent(filePath)}`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -269,7 +272,10 @@ const MarkdownViewerComponent = ({ url, element, onError }) => {
             );
 
             if (!response.ok) {
-                throw new Error(`Failed to save: ${response.status} ${response.statusText}`);
+                const error = new Error(`Failed to save: ${response.status} ${response.statusText}`);
+                error.status = response.status;
+                error.statusText = response.statusText;
+                throw error;
             }
 
             setContent(newContent);

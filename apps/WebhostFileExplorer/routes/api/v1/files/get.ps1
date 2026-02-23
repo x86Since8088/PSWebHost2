@@ -8,16 +8,29 @@ param (
     [hashtable]$Query = @{}
 )
 
-# Dot-source File Explorer helper functions
-try {
-    $helperPath = Join-Path $PSScriptRoot "..\..\..\..\modules\FileExplorerHelper.ps1"
+<#
+.SYNOPSIS
+    Get folder contents (list files and subfolders)
 
-    if (-not (Test-Path $helperPath)) {
-        throw "Helper file not found: $helperPath"
-    }
+.EXAMPLE
+    # List personal storage root
+    .\get.ps1 -Test -Query @{ path = 'User:me' }
 
-    # Always dot-source (each script scope needs its own copy)
-    . $helperPath
+.EXAMPLE
+    # List subfolder
+    .\get.ps1 -Test -Query @{ path = 'User:me/Documents' }
+
+.EXAMPLE
+    # List site public folder (requires site_admin role)
+    .\get.ps1 -Test -Roles @('authenticated','site_admin') -Query @{ path = 'Site:public' }
+
+.EXAMPLE
+    # List bucket contents
+    .\get.ps1 -Test -Query @{ path = 'Bucket:abc-123' }
+#>
+
+# Import File Explorer helper module functions
+try {Import-TrackedModule "FileExplorerHelper"
 }
 catch {
     if ($Test) {
@@ -28,7 +41,7 @@ catch {
         Write-Host "`n=== End Error ===" -ForegroundColor Red
         return
     }
-    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Failed to load FileExplorerHelper.ps1: $($_.Exception.Message)"
+    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Failed to import FileExplorerHelper module: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
     context_response -Response $Response -StatusCode 500 -String $Report.body -ContentType $Report.contentType
     return
@@ -45,9 +58,18 @@ if ($Test) {
         UserID = 'test-user-123'
         SessionID = 'test-session'
     }
-    Write-Host "`n=== File Explorer Test Mode ===" -ForegroundColor Cyan
+    Write-Host "`n=== Files GET Test Mode ===" -ForegroundColor Cyan
     Write-Host "UserID: $($sessiondata.UserID)" -ForegroundColor Yellow
     Write-Host "Roles: $($Roles -join ', ')" -ForegroundColor Yellow
+
+    if ($Query.Count -eq 0) {
+        Write-Host "`n=== Usage Examples ===" -ForegroundColor Yellow
+        Write-Host ".\get.ps1 -Test -Query @{ path = 'User:me' }" -ForegroundColor Gray
+        Write-Host ".\get.ps1 -Test -Query @{ path = 'User:me/Documents' }" -ForegroundColor Gray
+        Write-Host ".\get.ps1 -Test -Roles @('authenticated','site_admin') -Query @{ path = 'Site:public' }" -ForegroundColor Gray
+        Write-Host ".\get.ps1 -Test -Query @{ path = 'Bucket:abc-123' }" -ForegroundColor Gray
+        return
+    }
 }
 
 # Validate session
@@ -66,8 +88,26 @@ if ($Test -and $Query.Count -gt 0) {
 }
 if (-not $logicalPath) { $logicalPath = 'User:me' }  # Default to personal storage
 
-if ($Test) {
-    Write-Host "Logical Path: $logicalPath" -ForegroundColor Yellow
+# Parse path format: local|localhost|User:me/Documents
+# The frontend sends paths in this format after initial load
+if ($logicalPath -match '^([^|]+)\|([^|]+)\|(.+)$') {
+    $node = $matches[1]        # "local"
+    $nodeName = $matches[2]    # "localhost"
+    $parsedLogicalPath = $matches[3]  # "User:me/Documents"
+
+    if ($Test) {
+        Write-Host "Parsed Path Components:" -ForegroundColor Cyan
+        Write-Host "  Node: $node" -ForegroundColor Yellow
+        Write-Host "  NodeName: $nodeName" -ForegroundColor Yellow
+        Write-Host "  Original: $logicalPath" -ForegroundColor Yellow
+        Write-Host "  Parsed Logical Path: $parsedLogicalPath" -ForegroundColor Yellow
+    }
+
+    # Use the parsed logical path
+    $logicalPath = $parsedLogicalPath
+}
+elseif ($Test) {
+    Write-Host "Logical Path: $logicalPath (no parsing needed)" -ForegroundColor Yellow
 }
 
 try {

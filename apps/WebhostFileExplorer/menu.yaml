@@ -3,7 +3,7 @@
 
 - Name: File Explorer
   parent: Main Menu
-  url: /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer
+  url: /apps/WebhostFileExplorer/cards/file-explorer
   hover_description: User file management and exploration interface with folder creation, file upload, and tree view
   icon: folder
   roles:

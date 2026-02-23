@@ -33,10 +33,13 @@ const HelpViewerComponent = ({ url, element, onError }) => {
         const fetchHelp = async () => {
             try {
                 setLoading(true);
-                const response = await window.psweb_fetchWithAuthHandling(`/api/v1/ui/elements/help-viewer?file=${encodeURIComponent(filePath)}`);
+                const response = await window.psweb_fetchWithAuthHandling(`/cards/help-viewer?file=${encodeURIComponent(filePath)}`);
 
                 if (!response.ok) {
-                    throw new Error(`Failed to load help file: ${response.status} ${response.statusText}`);
+                    const error = new Error(`Failed to load help file: ${response.status} ${response.statusText}`);
+                    error.status = response.status;
+                    error.statusText = response.statusText;
+                    throw error;
                 }
 
                 const data = await response.json();

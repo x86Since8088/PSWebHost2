@@ -175,19 +175,19 @@ function Test-IntegrationFunctionality {
 
     # Test app status endpoint
     Invoke-ApiTest -TestName "App Status Endpoint" `
-        -Endpoint "/apps/$(wslmanager)/api/v1/status" `
+        -Endpoint "/apps/wslmanager/api/v1/status" `
         -ExpectedStatusCode 200
 
     # Test UI element endpoint
     Invoke-ApiTest -TestName "Home UI Element" `
-        -Endpoint "/apps/$(wslmanager)/api/v1/ui/elements/$(wslmanager)-home" `
+        -Endpoint "/apps/wslmanager/api/v1/ui/elements/wslmanager-home" `
         -ExpectedStatusCode 200
 
     # Add more integration tests here...
 
     # Example: Test data endpoint
     # Invoke-ApiTest -TestName "Data Endpoint" `
-    #     -Endpoint "/apps/$(wslmanager)/api/v1/data" `
+    #     -Endpoint "/apps/wslmanager/api/v1/data" `
     #     -Method 'POST' `
     #     -Body @{ query = "test" } `
     #     -ExpectedStatusCode 200

@@ -73,7 +73,7 @@ const vaultBrowserTests = {
 
     // Test: Component Loading
     async testComponentLoading() {
-        const testElement = document.createElement('vault-home');
+        const testElement = document.createElement('vault-manager');
         document.body.appendChild(testElement);
 
         // Wait for component to initialize
@@ -82,13 +82,13 @@ const vaultBrowserTests = {
         const initialized = testElement.shadowRoot || testElement.innerHTML;
 
         if (!initialized) {
-            throw new Error('Component did not initialize');
+            throw new Error('vault-manager component did not initialize');
         }
 
         // Cleanup
         testElement.remove();
 
-        return 'Component loaded successfully';
+        return 'vault-manager component loaded successfully';
     },
 
     // Test: API Endpoint Availability
@@ -101,16 +101,20 @@ const vaultBrowserTests = {
 
         const data = await response.json();
 
-        if (!data.app || !data.version) {
+        if (!data.status || !data.appVersion) {
             throw new Error('Status endpoint missing required fields');
         }
 
-        return `API endpoint responding correctly (v${data.version})`;
+        if (data.status !== 'healthy' && data.status !== 'error') {
+            throw new Error('Invalid status value');
+        }
+
+        return `Vault API responding correctly (v${data.appVersion}, ${data.totalCredentials || 0} credentials)`;
     },
 
     // Test: UI Element Rendering
     async testUIElementRendering() {
-        const response = await fetch('/apps/vault/api/v1/ui/elements/vault-home');
+        const response = await fetch('/apps/vault/api/v1/ui/elements/vault-manager');
 
         if (!response.ok) {
             throw new Error(`UI endpoint returned ${response.status}`);
@@ -118,77 +122,65 @@ const vaultBrowserTests = {
 
         const html = await response.text();
 
-        if (!html.includes('<vault-home')) {
-            throw new Error('UI endpoint does not contain expected component');
+        if (!html.includes('<vault-manager') && !html.includes('vault')) {
+            throw new Error('UI endpoint does not contain expected vault component');
         }
 
-        return 'UI element renders correctly';
+        return 'Vault UI element renders correctly';
     },
 
-    // Test: Data Operations (CRUD)
-    async testDataOperations() {
-        // Example: Create
-        const createData = { name: 'Test Item', value: 42 };
-        const created = await this.apiCall('/apps/vault/api/v1/data', {
-            method: 'POST',
-            body: createData
-        });
+    // Test: Credentials List
+    async testCredentialsList() {
+        const result = await this.apiCall('/apps/vault/api/v1/credentials');
 
-        if (!created.id) {
-            throw new Error('Create operation failed');
+        if (!result.success) {
+            throw new Error('Failed to list credentials');
         }
 
-        // Example: Read
-        const read = await this.apiCall(`/apps/vault/api/v1/data/${created.id}`);
-
-        if (read.name !== createData.name) {
-            throw new Error('Read operation returned incorrect data');
+        if (!Array.isArray(result.credentials)) {
+            throw new Error('Credentials should be an array');
         }
 
-        // Example: Update
-        const updateData = { ...createData, value: 84 };
-        const updated = await this.apiCall(`/apps/vault/api/v1/data/${created.id}`, {
-            method: 'PUT',
-            body: updateData
-        });
-
-        if (updated.value !== 84) {
-            throw new Error('Update operation failed');
+        if (typeof result.total !== 'number') {
+            throw new Error('Total count should be a number');
         }
 
-        // Example: Delete
-        await this.apiCall(`/apps/vault/api/v1/data/${created.id}`, {
-            method: 'DELETE'
-        });
+        return `Credentials list working (${result.total} total)`;
+    },
 
-        // Verify deletion
-        try {
-            await this.apiCall(`/apps/vault/api/v1/data/${created.id}`);
-            throw new Error('Delete operation failed - item still exists');
-        } catch (err) {
-            // Expected to fail (404)
-            if (!err.message.includes('404')) {
-                throw err;
-            }
+    // Test: Credentials Filtering
+    async testCredentialsFiltering() {
+        // Test scope filter
+        const scopeResult = await this.apiCall('/apps/vault/api/v1/credentials?scope=global');
+
+        if (!scopeResult.success) {
+            throw new Error('Failed to filter by scope');
         }
 
-        return 'CRUD operations completed successfully';
+        // Test type filter
+        const typeResult = await this.apiCall('/apps/vault/api/v1/credentials?credentialType=Password');
+
+        if (!typeResult.success) {
+            throw new Error('Failed to filter by credential type');
+        }
+
+        return 'Credential filtering works correctly';
     },
 
     // Test: Event Handling
     async testEventHandling() {
-        const testElement = document.createElement('vault-home');
+        const testElement = document.createElement('vault-manager');
         document.body.appendChild(testElement);
 
         let eventFired = false;
 
-        testElement.addEventListener('custom-event', () => {
+        testElement.addEventListener('credential-selected', () => {
             eventFired = true;
         });
 
         // Trigger event
-        testElement.dispatchEvent(new CustomEvent('custom-event', {
-            detail: { test: true }
+        testElement.dispatchEvent(new CustomEvent('credential-selected', {
+            detail: { name: 'test-credential', type: 'Password' }
         }));
 
         if (!eventFired) {
@@ -198,7 +190,7 @@ const vaultBrowserTests = {
         // Cleanup
         testElement.remove();
 
-        return 'Event handling works correctly';
+        return 'Vault event handling works correctly';
     },
 
     // Test: Local Storage

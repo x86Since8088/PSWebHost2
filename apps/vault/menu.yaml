@@ -2,7 +2,7 @@
 # Secure credential storage for PSWebHost nodes and services
 
 - Name: Credential Manager
-  url: /apps/vault/api/v1/ui/elements/vault-manager
+  url: /apps/vault/cards/vault-manager
   hover_description: Manage stored credentials securely
   icon: key
   tags:

@@ -8,30 +8,42 @@ param (
     [hashtable]$Query = @{}
 )
 
-# Dot-source File Explorer helper functions
-try {
-    $helperPath = Join-Path $PSScriptRoot "..\..\..\..\modules\FileExplorerHelper.ps1"
+<#
+.SYNOPSIS
+    Get file version information (PE headers, document properties, EXIF data, etc.)
 
-    if (-not (Test-Path $helperPath)) {
-        throw "Helper file not found: $helperPath"
+.EXAMPLE
+    # Get version info for an executable
+    .\get.ps1 -Test -Query @{ path = 'local|localhost|User:me/app.exe' }
+
+.EXAMPLE
+    # Get EXIF data from an image
+    .\get.ps1 -Test -Query @{ path = 'local|localhost|User:me/photo.jpg' }
+
+.EXAMPLE
+    # Get document properties
+    .\get.ps1 -Test -Query @{ path = 'local|localhost|User:me/document.docx' }
+#>
+
+# Import File Explorer helper module functions
+if (!(Get-Module FileExplorerHelper)) {
+    try {
+        Import-TrackedModule "FileExplorerHelper"
     }
-
-    # Always dot-source (each script scope needs its own copy)
-    . $helperPath
-}
-catch {
-    if ($Test) {
-        Write-Host "`n=== File Explorer Helper Load Error ===" -ForegroundColor Red
-        Write-Host "Exception: $($_.Exception.Message)" -ForegroundColor Yellow
-        Write-Host "Stack Trace:" -ForegroundColor Gray
-        Write-Host $_.ScriptStackTrace -ForegroundColor Gray
-        Write-Host "`n=== End Error ===" -ForegroundColor Red
+    catch {
+        if ($Test) {
+            Write-Host "`n=== File Explorer Helper Load Error ===" -ForegroundColor Red
+            Write-Host "Exception: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "Stack Trace:" -ForegroundColor Gray
+            Write-Host $_.ScriptStackTrace -ForegroundColor Gray
+            Write-Host "`n=== End Error ===" -ForegroundColor Red
+            return
+        }
+        Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Failed to import FileExplorerHelper module: $($_.Exception.Message)"
+        $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
+        context_response -Response $Response -StatusCode 500 -String $Report.body -ContentType $Report.contentType
         return
     }
-    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Failed to load FileExplorerHelper.ps1: $($_.Exception.Message)"
-    $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
-    context_response -Response $Response -StatusCode 500 -String $Report.body -ContentType $Report.contentType
-    return
 }
 
 # Handle test mode
@@ -48,6 +60,14 @@ if ($Test) {
     Write-Host "`n=== VersionInfo GET Test Mode ===" -ForegroundColor Cyan
     Write-Host "UserID: $($sessiondata.UserID)" -ForegroundColor Yellow
     Write-Host "Roles: $($Roles -join ', ')" -ForegroundColor Yellow
+
+    if ($Query.Count -eq 0) {
+        Write-Host "`n=== Usage Examples ===" -ForegroundColor Yellow
+        Write-Host ".\get.ps1 -Test -Query @{ path = 'local|localhost|User:me/notepad.exe' }" -ForegroundColor Gray
+        Write-Host ".\get.ps1 -Test -Query @{ path = 'local|localhost|User:me/photo.jpg' }" -ForegroundColor Gray
+        Write-Host ".\get.ps1 -Test -Query @{ path = 'local|localhost|User:me/document.docx' }" -ForegroundColor Gray
+        return
+    }
 }
 
 # Validate session

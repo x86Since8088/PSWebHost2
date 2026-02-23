@@ -88,6 +88,121 @@ const CacheManager = {
 // Make cache manager globally available
 window.CacheManager = CacheManager;
 
+// Global logging - batch and forward to server every 15 seconds
+window._logQueue = [];
+window._logQueueTimer = null;
+
+// Card DOM reporting for QA and validation
+window.reportCardDom = (cardPath, domInfo) => {
+    const report = {
+        cardPath: cardPath,
+        location: window.location.href,
+        timestamp: new Date().toISOString(),
+        ...domInfo
+    };
+
+    window.logToServer(
+        `Card DOM reported: ${cardPath}`,
+        'CardDomReport',
+        'Info',
+        report
+    );
+
+    console.log('[CardDomReport]', cardPath, report);
+    return report;
+};
+
+window.logToServer = (message, category = 'ClientLog', level = 'Info', data = null) => {
+    // Get caller information from stack trace
+    let callerInfo = 'unknown';
+    try {
+        const stack = new Error().stack;
+        const stackLines = stack.split('\n');
+        // Line 0: "Error"
+        // Line 1: "at logToServer"
+        // Line 2: actual caller
+        if (stackLines.length > 2) {
+            const callerLine = stackLines[2].trim();
+            // Extract function and file from: "at functionName (file.js:line:col)"
+            const match = callerLine.match(/at\s+(?:(.+?)\s+\()?(.+?):(\d+):(\d+)/);
+            if (match) {
+                const funcName = match[1] || 'anonymous';
+                const filePath = match[2];
+                const fileName = filePath.split('/').pop().split('\\').pop();
+                const lineNum = match[3];
+                callerInfo = `${funcName}@${fileName}:${lineNum}`;
+            }
+        }
+    } catch (e) {
+        // Ignore errors in caller detection
+    }
+
+    // Log to console immediately with caller info
+    const consoleMessage = `[${category}][${callerInfo}] ${message}`;
+    console.log(consoleMessage);
+
+    // Add to queue with timestamp
+    const logEntry = {
+        timestamp: new Date().toISOString(),
+        message: typeof message === 'string' ? message : JSON.stringify(message),
+        level: level,
+        category: category,
+        caller: callerInfo,
+        data: data
+    };
+    window._logQueue.push(logEntry);
+
+    // Schedule batch send if not already scheduled
+    if (!window._logQueueTimer) {
+        window._logQueueTimer = setTimeout(() => {
+            window._flushLogQueue();
+        }, 15000); // 15 seconds
+    }
+};
+
+// Flush log queue to server
+window._flushLogQueue = () => {
+    if (window._logQueue.length === 0) {
+        window._logQueueTimer = null;
+        return;
+    }
+
+    const logsToSend = [...window._logQueue];
+    window._logQueue = [];
+    window._logQueueTimer = null;
+
+    console.log(`[LogQueue] Flushing ${logsToSend.length} log entries to server`);
+
+    // Send batch to server
+    try {
+        fetch('/api/v1/debug/client-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                batch: true,
+                count: logsToSend.length,
+                logs: logsToSend
+            })
+        }).catch(() => {}); // Silently ignore server logging errors
+    } catch (e) {
+        // Ignore any errors in logging
+    }
+};
+
+// Flush logs before page unload
+window.addEventListener('beforeunload', () => {
+    if (window._logQueue.length > 0) {
+        // Use sendBeacon for synchronous send on unload
+        const blob = new Blob([JSON.stringify({
+            batch: true,
+            count: window._logQueue.length,
+            logs: window._logQueue
+        })], { type: 'application/json' });
+        navigator.sendBeacon('/api/v1/debug/client-log', blob);
+        window._logQueue = [];
+    }
+});
+
 // Expose helpful cache management functions
 window.clearAllCache = () => {
     CacheManager.clear();
@@ -150,11 +265,36 @@ const RequestThrottleManager = {
      * @param {number} status - HTTP status code
      */
     recordFailure(url, status) {
+        // Only log if this is a NEW throttle (not already throttled)
+        const alreadyThrottled = this.throttledRequests.has(url);
+
+        const now = Date.now();
+        const expiryTime = new Date(now + this.throttleDuration);
+
         this.throttledRequests.set(url, {
-            timestamp: Date.now(),
-            status
+            timestamp: now,
+            status,
+            logged: !alreadyThrottled  // Track if we've logged this throttle
         });
-        console.warn(`[RequestThrottle] Throttling ${url} for ${this.throttleDuration/1000}s due to ${status} error`);
+
+        // Only log once per throttle period
+        if (!alreadyThrottled) {
+            const expiryTimeStr = expiryTime.toLocaleTimeString();
+            console.warn(`[RequestThrottle] Throttling ${url} for ${this.throttleDuration/1000}s due to ${status} error. Expires at ${expiryTimeStr}`);
+
+            // Log to server once with expiry time
+            window.logToServer(
+                `Request throttled: ${url} (status ${status}) - expires at ${expiryTimeStr}`,
+                'RequestThrottle',
+                'Warning',
+                {
+                    url: url,
+                    status: status,
+                    throttleDurationSeconds: this.throttleDuration / 1000,
+                    expiryTime: expiryTime.toISOString()
+                }
+            );
+        }
     },
 
     /**
@@ -177,7 +317,7 @@ window.psweb_fetchWithAuthHandling = async function(url, options) {
     // Check if request is throttled
     const throttleInfo = RequestThrottleManager.isThrottled(url);
     if (throttleInfo) {
-        console.warn(`[RequestThrottle] ${throttleInfo.message}`);
+        // Silent - throttle already logged once when first applied in recordFailure()
         // Return a fake response object that looks like a 429 Too Many Requests
         return new Response(JSON.stringify({
             status: 'fail',
@@ -226,68 +366,9 @@ window.psweb_fetchWithAuthHandling = async function(url, options) {
     return response;
 };
 
-// --- Global Helper for Client-Side Logging ---
-window.logToServer = async function(level, category, message, data) {
-    try {
-        await fetch('/api/v1/debug/client-log', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                level: level,
-                category: category,
-                message: message,
-                data: data,
-                url: window.location.href,
-                timestamp: new Date().toISOString()
-            })
-        });
-    } catch (err) {
-        console.error('Failed to log to server:', err);
-    }
-}
-
-// Log client errors automatically
-window.addEventListener('error', (event) => {
-    window.logToServer('Error', 'GlobalError', event.message, {
-        filename: event.filename,
-        lineno: event.lineno,
-        colno: event.colno,
-        error: event.error ? event.error.stack : null
-    });
-});
-
-// Log unhandled promise rejections
-window.addEventListener('unhandledrejection', (event) => {
-    window.logToServer('Error', 'UnhandledPromise', event.reason.toString(), {
-        reason: event.reason,
-        promise: event.promise
-    });
-});
-
-// Intercept console.error and console.warn for server-side logging
-(function() {
-    const originalError = console.error;
-    const originalWarn = console.warn;
-
-    console.error = function(...args) {
-        originalError.apply(console, args);
-        // Forward to server (avoid logging the forward itself to prevent loops)
-        try {
-            window.logToServer('Error', 'ConsoleError', args.join(' '), { args: args });
-        } catch (e) {
-            // Silently fail to avoid infinite loops
-        }
-    };
-
-    console.warn = function(...args) {
-        originalWarn.apply(console, args);
-        try {
-            window.logToServer('Warning', 'ConsoleWarn', args.join(' '), { args: args });
-        } catch (e) {
-            // Silently fail to avoid infinite loops
-        }
-    };
-})();
+// NOTE: The batching logger window.logToServer is defined earlier in this file (around line 95)
+// with signature: window.logToServer(message, category, level, data)
+// Do not redefine it here!
 
 // --- Global Error Modal Handler ---
 window.showErrorModal = function(errorData) {
@@ -678,7 +759,62 @@ window.cardComponents = {};
 
 // --- IFrame Component ---
 const IFrameComponent = ({ element }) => {
-    return <iframe src={element.url} style={{ width: '100%', height: '100%', border: 'none' }} />;
+    const iframeRef = React.useRef(null);
+
+    React.useEffect(() => {
+        if (!iframeRef.current) return;
+
+        const iframe = iframeRef.current;
+
+        // Wait for iframe to load, then inject loader script if in debug mode
+        const onLoad = async () => {
+            try {
+                // Check if user has debug role before injecting loader
+                let shouldInjectLoader = false;
+                try {
+                    const response = await window.psweb_fetchWithAuthHandling('/api/v1/auth/sessionid');
+                    const sessionData = await response.json();
+                    shouldInjectLoader = sessionData?.Roles?.includes('debug') || false;
+                } catch (err) {
+                    console.warn('[IFrameComponent] Could not fetch session for role check:', err.message);
+                    shouldInjectLoader = false;  // Don't inject if session fetch fails
+                }
+
+                if (shouldInjectLoader && iframe.contentWindow && iframe.contentDocument) {
+                    console.log('[IFrameComponent] Injecting loader script into iframe:', element.url);
+
+                    // Create script element in iframe
+                    const script = iframe.contentDocument.createElement('script');
+                    script.src = '/apps/WebHostDebugExtensions/public/iframe-loader.js';
+                    script.async = true;
+
+                    // Add to iframe head
+                    iframe.contentDocument.head.appendChild(script);
+
+                    console.log('[IFrameComponent] Loader script injected');
+                } else if (!shouldInjectLoader) {
+                    console.log('[IFrameComponent] Skipping loader injection (user does not have debug role)');
+                } else if (!iframe.contentWindow) {
+                    console.warn('[IFrameComponent] Cannot access iframe content (cross-origin or blocked)');
+                }
+            } catch (error) {
+                // Silently fail for cross-origin iframes
+                console.debug('[IFrameComponent] Could not inject loader:', error.message);
+            }
+        };
+
+        iframe.addEventListener('load', onLoad);
+
+        return () => {
+            iframe.removeEventListener('load', onLoad);
+        };
+    }, [element.url]);
+
+    return React.createElement('iframe', {
+        ref: iframeRef,
+        src: element.url,
+        style: { width: '100%', height: '100%', border: 'none' }
+    });
 };
 window.cardComponents['iframe-card'] = IFrameComponent;
 
@@ -857,8 +993,10 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
                 } else if (attempts >= maxAttempts) {
                     clearInterval(checkInterval);
                     // Log timeout to server for diagnostics
-                    window.logToServer('Warning', 'ComponentTimeout',
+                    window.logToServer(
                         `Component ${elementId} failed to load after ${maxAttempts * 50}ms`,
+                        'ComponentTimeout',
+                        'Warning',
                         { componentName: elementId, attempts: attempts });
                 }
             }, 50);
@@ -887,8 +1025,15 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
                 status: error.status,
                 statusText: error.statusText
             });
+
+            // Don't log client-side throttled requests (429) - already logged once in recordFailure()
+            if (error.status === 429) {
+                // Silent - no need to log every retry attempt
+                return;
+            }
+
             // Log to server
-            window.logToServer('Error', elementId || 'Card', error.message || 'Component error', {
+            window.logToServer(error.message || 'Component error', elementId || 'Card', 'Error', {
                 elementId: elementId,
                 status: error.status,
                 statusText: error.statusText,
@@ -1277,7 +1422,7 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
     // Helper to open help for this card
     const openHelp = () => {
         const helpFile = element.helpFile || `public/help/${elementId}.md`;
-        window.openCard(`/api/v1/ui/elements/help-viewer?file=${encodeURIComponent(helpFile)}`, `Help: ${helpFile}`);
+        window.openCard(`/cards/help-viewer?file=${encodeURIComponent(helpFile)}`, `Help: ${helpFile}`);
     };
 
     // Get background color from element properties (from card settings)
@@ -1520,6 +1665,186 @@ const App = () => {
     const gridRef = useRef(null);
     const GridLayout = window.ReactGridLayout;
 
+    // Expose data to window scope for card detection
+    useEffect(() => {
+        window.appData = data;
+    }, [data]);
+
+    // === URL Layout Management ===
+    // Enables shareable/bookmarkable layouts via ?layout=<compressed-json>
+
+    const compressLayout = (layoutData) => {
+        try {
+            const json = JSON.stringify(layoutData);
+            // Use LZ-based compression with base64 encoding for URL safety
+            return btoa(encodeURIComponent(json).replace(/%([0-9A-F]{2})/g, (match, p1) => {
+                return String.fromCharCode('0x' + p1);
+            }));
+        } catch (e) {
+            console.error('Failed to compress layout:', e);
+            return null;
+        }
+    };
+
+    const decompressLayout = (compressed) => {
+        try {
+            const decoded = decodeURIComponent(atob(compressed).split('').map(c => {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(decoded);
+        } catch (e) {
+            console.error('Failed to decompress layout:', e);
+            return null;
+        }
+    };
+
+    const serializeLayoutToURL = (gridLayout, openCardIds, elements) => {
+        console.log('[URL Layout] serializeLayoutToURL called with:', {
+            gridLayoutCount: gridLayout.length,
+            openCardIdsCount: openCardIds.length,
+            openCardIds: openCardIds,
+            elementCount: Object.keys(elements).length
+        });
+
+        // Deduplicate gridLayout by card ID (keep last occurrence)
+        const seenIds = new Set();
+        const uniqueGridLayout = [];
+        for (let i = gridLayout.length - 1; i >= 0; i--) {
+            if (!seenIds.has(gridLayout[i].i)) {
+                seenIds.add(gridLayout[i].i);
+                uniqueGridLayout.unshift(gridLayout[i]);
+            } else {
+                console.warn(`[URL Layout] Skipping duplicate card in gridLayout: ${gridLayout[i].i}`);
+            }
+        }
+
+        // Build simplified card data with endpoint URLs
+        const cardsData = uniqueGridLayout
+            .filter(item => openCardIds.includes(item.i))
+            .map(item => {
+                const element = elements[item.i];
+
+                if (!element) {
+                    console.warn(`[URL Layout] Element not found for card: ${item.i}`);
+                    return null;
+                }
+
+                // Base card data
+                const cardData = {
+                    id: item.i,
+                    x: item.x,
+                    y: item.y,
+                    w: item.w,
+                    h: item.h,
+                    // Extract elementId from card ID (remove timestamp suffix)
+                    // e.g., "server-heatmap-1234567890" -> "server-heatmap"
+                    elementId: element.Element_Id || element.id || item.i.replace(/-\d{13}$/, ''),
+                    title: element.Title || 'Untitled'
+                };
+
+                // Add endpoint URL if available (for both static and dynamic cards)
+                if (element.url) {
+                    cardData.endpoint = element.url;
+                }
+
+                // Add backgroundColor if set
+                if (element.backgroundColor) {
+                    cardData.backgroundColor = element.backgroundColor;
+                }
+
+                return cardData;
+            })
+            .filter(Boolean); // Remove nulls
+
+        console.log(`[URL Layout] Serialized ${cardsData.length} cards to URL`);
+
+        const layoutData = {
+            version: 2,
+            cards: cardsData
+        };
+
+        return compressLayout(layoutData);
+    };
+
+    const updateURLWithLayout = useCallback((newGridLayout, openCardIds, elements) => {
+        if (!newGridLayout || newGridLayout.length === 0) return;
+        if (!elements) {
+            console.warn('[URL Layout] Cannot update URL: elements not provided');
+            return;
+        }
+
+        console.log('[URL Layout] Updating URL with:', {
+            gridLayoutCount: newGridLayout.length,
+            openCardIds: openCardIds,
+            elementKeys: Object.keys(elements)
+        });
+
+        try {
+            const compressed = serializeLayoutToURL(newGridLayout, openCardIds, elements);
+            if (compressed) {
+                const url = new URL(window.location);
+                url.searchParams.set('layout', compressed);
+                window.history.replaceState({}, '', url);
+                console.log('[URL Layout] Updated URL with self-contained layout (v2)');
+            }
+        } catch (e) {
+            console.warn('[URL Layout] Failed to update URL with layout:', e);
+        }
+    }, []);
+
+    const parseLayoutFromURL = () => {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const layoutParam = params.get('layout');
+
+            if (!layoutParam) return null;
+
+            const layoutData = decompressLayout(layoutParam);
+
+            if (!layoutData || !layoutData.version) {
+                console.warn('[URL Layout] Invalid layout data in URL');
+                window.logToServer('Invalid layout data in URL', 'URLLayout', 'Warning');
+                return null;
+            }
+
+            // Handle v2 format (self-contained with endpoint URLs)
+            if (layoutData.version === 2 && layoutData.cards) {
+                console.log('[URL Layout] Detected v2 format (self-contained)');
+
+                // Validate all cards have required fields
+                const validCards = layoutData.cards.every(card =>
+                    card.id && card.elementId && typeof card.x === 'number' &&
+                    typeof card.y === 'number' && typeof card.w === 'number' &&
+                    typeof card.h === 'number'
+                );
+
+                if (!validCards) {
+                    console.warn('[URL Layout] Invalid card data in v2 layout');
+                    return null;
+                }
+
+                console.log('[URL Layout] Loaded v2 layout from URL:', {
+                    cardCount: layoutData.cards.length
+                });
+
+                window.logToServer('Layout loaded from URL (v2)', 'URLLayout', 'Info', {
+                    cardCount: layoutData.cards.length
+                });
+
+                return layoutData;
+            }
+
+            // Unknown version
+            console.warn('[URL Layout] Unknown layout format version:', layoutData.version);
+            return null;
+
+        } catch (e) {
+            console.error('[URL Layout] Failed to parse layout from URL:', e);
+            window.logToServer('Failed to parse layout from URL: ' + e.message, 'URLLayout', 'Error');
+            return null;
+        }
+    };
+
     const findNextFreePosition = (layout, item) => {
         const { w, h } = item;
         const cols = 12;
@@ -1560,10 +1885,273 @@ const App = () => {
         return { x: 0, y: maxY };
     }
 
-    const loadLayout = () => {
+    const loadLayout = async () => {
+        // Check if layout is provided via URL first
+        const urlLayout = parseLayoutFromURL();
+
+        // If we have a self-contained v2 URL layout, load it directly
+        if (urlLayout && urlLayout.version === 2 && urlLayout.cards) {
+            // Deduplicate cards by ID (keep first occurrence)
+            const seenIds = new Set();
+            const uniqueCards = [];
+            for (const card of urlLayout.cards) {
+                if (!seenIds.has(card.id)) {
+                    seenIds.add(card.id);
+                    uniqueCards.push(card);
+                } else {
+                    console.warn(`[URL Layout] Skipping duplicate card in URL: ${card.id}`);
+                }
+            }
+            urlLayout.cards = uniqueCards;
+
+            console.log('[URL Layout] Using self-contained URL layout (v2)', {
+                cardCount: urlLayout.cards.length,
+                duplicatesRemoved: seenIds.size < urlLayout.cards.length
+            });
+
+            try {
+                // Step 1: Fetch metadata for all cards with endpoints
+                const metadataPromises = urlLayout.cards.map(async card => {
+                    // Derive endpoint if not provided
+                    if (!card.endpoint) {
+                        // Try card.id first (often contains correct element name like "server-heatmap")
+                        // Then fall back to elementId (may be corrupted in old layouts)
+                        const elementName = card.id || card.elementId;
+                        if (elementName) {
+                            card.endpoint = `/cards/${elementName}`;
+                            console.log(`[URL Layout] Derived endpoint for ${card.id}: ${card.endpoint} (from ${card.id ? 'id' : 'elementId'})`);
+                        }
+                    }
+
+                    if (!card.endpoint) {
+                        console.warn(`[URL Layout] Card ${card.id} has no endpoint, id, or elementId - skipping`);
+                        return { ...card, skipLoad: true };
+                    }
+
+                    try {
+                        console.log(`[URL Layout] Fetching metadata for ${card.elementId} from: ${card.endpoint}`);
+                        let res = await window.psweb_fetchWithAuthHandling(card.endpoint);
+
+                        // If 404, try to find the correct endpoint by searching the menu
+                        if (res.status === 404) {
+                            console.log(`[URL Layout] Got 404, searching menu for correct endpoint...`);
+                            try {
+                                const menuRes = await window.psweb_fetchWithAuthHandling('/cards/main-menu');
+                                if (menuRes.ok) {
+                                    const menuData = await menuRes.json();
+
+                                    // Recursively search menu for matching URL
+                                    const findUrlInMenu = (items, elementName) => {
+                                        for (const item of items) {
+                                            if (item.url && item.url.includes(`/elements/${elementName}`)) {
+                                                return item.url;
+                                            }
+                                            if (item.children) {
+                                                const found = findUrlInMenu(item.children, elementName);
+                                                if (found) return found;
+                                            }
+                                        }
+                                        return null;
+                                    };
+
+                                    const elementName = card.id || card.elementId;
+                                    const correctUrl = findUrlInMenu(menuData, elementName);
+
+                                    if (correctUrl) {
+                                        console.log(`[URL Layout] Found correct endpoint in menu: ${correctUrl}`);
+                                        card.endpoint = correctUrl;
+                                        res = await window.psweb_fetchWithAuthHandling(correctUrl);
+                                    }
+                                }
+                            } catch (menuErr) {
+                                console.warn(`[URL Layout] Failed to search menu:`, menuErr);
+                            }
+                        }
+
+                        if (!res.ok) {
+                            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                        }
+                        const metadata = await res.json();
+
+                        // Extract scriptPath or componentPath from response
+                        const componentPath = metadata.scriptPath || metadata.componentPath;
+                        if (!componentPath) {
+                            throw new Error('No scriptPath/componentPath in endpoint response');
+                        }
+
+                        console.log(`[URL Layout] Got componentPath for ${card.elementId}: ${componentPath}`);
+
+                        return {
+                            ...card,
+                            componentPath: componentPath,
+                            metadata: metadata
+                        };
+                    } catch (err) {
+                        console.error(`[URL Layout] Failed to fetch metadata for ${card.elementId}:`, err);
+                        return {
+                            ...card,
+                            loadError: err.message
+                        };
+                    }
+                });
+
+                const cardsWithMetadata = await Promise.all(metadataPromises);
+
+                // Step 2: Load all component scripts
+                const componentPromises = cardsWithMetadata
+                    .filter(card => card.componentPath && !card.loadError && !card.skipLoad)
+                    .map(async card => {
+                        try {
+                            console.log(`[URL Layout] Loading component for ${card.elementId} from: ${card.componentPath}`);
+                            const res = await fetch(card.componentPath);
+                            if (!res.ok) {
+                                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                            }
+                            const text = await res.text();
+                            if (text) {
+                                const transformed = Babel.transform(text, { presets: ['react'] }).code;
+                                (new Function(transformed))();
+                                console.log(`[URL Layout] ✓ Loaded component: ${card.elementId}`);
+                            }
+                        } catch (err) {
+                            console.error(`[URL Layout] Failed to load component for ${card.elementId}:`, err);
+                            card.loadError = err.message;
+                        }
+                    });
+
+                // Load required UI components
+                const uiComponents = [
+                    '/public/elements/profile/component.js',
+                    '/public/elements/main-menu/component.js',
+                    '/public/elements/footer-info/component.js'
+                ];
+
+                const uiPromises = uiComponents.map(path =>
+                    fetch(path)
+                        .then(res => res.text())
+                        .then(text => {
+                            if (text) {
+                                (new Function(Babel.transform(text, { presets: ['react'] }).code))();
+                                console.log(`[URL Layout] ✓ Loaded UI component: ${path}`);
+                            }
+                        })
+                        .catch(err => console.error(`[URL Layout] Failed to load ${path}:`, err))
+                );
+
+                await Promise.all([...componentPromises, ...uiPromises]);
+
+                // Step 3: Build data structure from URL layout
+                const elements = {};
+                cardsWithMetadata.forEach(card => {
+                    elements[card.id] = {
+                        id: card.id,
+                        Element_Id: card.elementId,
+                        Title: card.title,
+                        url: card.endpoint,
+                        componentPath: card.componentPath,
+                        backgroundColor: card.backgroundColor,
+                        loadError: card.loadError || null,
+                        loadType: 'component'
+                    };
+                });
+
+                // Build minimal layout structure
+                const layout = {
+                    title: {
+                        left: ['title'],
+                        content: [],
+                        right: ['user-card']
+                    },
+                    leftPane: {
+                        top: ['main-menu'],
+                        bottom: []
+                    },
+                    mainPane: {
+                        content: cardsWithMetadata.map(c => c.id)
+                    },
+                    rightPane: {
+                        content: []
+                    },
+                    footer: {
+                        left: [],
+                        center: ['footer-info'],
+                        right: []
+                    }
+                };
+
+                // Add static UI elements (title, user-card, main-menu, footer-info)
+                elements['title'] = {
+                    icon: '/public/icon/Tank1_48x48.png',
+                    Title: 'PSWeb Server',
+                    'display-close-icon': false
+                };
+                elements['user-card'] = {
+                    Type: 'User',
+                    Title: 'User Management'
+                };
+                elements['main-menu'] = {
+                    Type: 'Menu',
+                    Title: 'Main Menu',
+                    componentPath: '/public/elements/main-menu/component.js'
+                };
+                elements['footer-info'] = {
+                    Type: 'footer',
+                    Title: '',
+                    Content: '© 2024 PSWebHost',
+                    componentPath: '/public/elements/footer-info/component.js'
+                };
+
+                // Step 1: Add cards with temporary small sizes to allow rendering
+                const tempGridLayout = cardsWithMetadata.map((card, index) => ({
+                    i: card.id,
+                    x: 0,
+                    y: index * 2,  // Stack vertically with small spacing
+                    w: 2,
+                    h: 2
+                }));
+
+                console.log('[URL Layout] Setting temporary grid layout for rendering');
+                setGridLayout(tempGridLayout);
+                setData({
+                    elements,
+                    layout,
+                    componentsReady: true,
+                    gridLayout: []
+                });
+
+                // Step 2: After cards render, apply actual dimensions from URL
+                setTimeout(() => {
+                    const actualGridLayout = cardsWithMetadata.map(card => ({
+                        i: card.id,
+                        x: card.x,
+                        y: card.y,
+                        w: card.w,
+                        h: card.h
+                    }));
+
+                    console.log('[URL Layout] Applying actual card dimensions from URL:', actualGridLayout);
+                    setGridLayout(actualGridLayout);
+                    console.log('[URL Layout] ✓ Self-contained layout loaded successfully');
+                }, 150);
+
+                return; // Exit early - don't load layout.json
+
+            } catch (err) {
+                console.error('[URL Layout] Failed to load self-contained layout:', err);
+                console.log('[URL Layout] Falling back to layout.json');
+                // Fall through to normal layout.json loading
+            }
+        }
+
+        // Normal flow: load from layout.json
         fetch('/public/layout.json')
             .then(response => response.json())
             .then(async initialData => {
+                // If URL layout exists, use it to override the default layout
+                if (urlLayout) {
+                    console.log('[URL Layout] Applying layout from URL');
+                    initialData.layout.mainPane.content = urlLayout.cards || [];
+                }
                 const allCardIds = Object.values(initialData.layout).flatMap(pane => Object.values(pane)).flat();
                 const uniqueCardIds = [...new Set(allCardIds)];
                 const defaultLayout = initialData.gridLayout.find(item => item.i === 'default') || { w: 12, h: 14 };
@@ -1639,7 +2227,17 @@ const App = () => {
                             };
                         });
 
-                        const mainPaneLayout = await Promise.all(mainPaneLayoutPromises);
+                        let mainPaneLayout = await Promise.all(mainPaneLayoutPromises);
+
+                        // If URL layout exists, override positions/sizes from URL
+                        if (urlLayout && urlLayout.grid) {
+                            mainPaneLayout = mainPaneLayout.map(item => {
+                                const urlItem = urlLayout.grid.find(u => u.i === item.i);
+                                return urlItem ? { ...item, ...urlItem } : item;
+                            });
+                            console.log('[URL Layout] Applied grid positions from URL');
+                        }
+
                         setGridLayout(mainPaneLayout);
 
                         // Update data with backgroundColor applied to elements
@@ -1772,7 +2370,7 @@ const App = () => {
                 try {
                     // Use provided endpoint URL or construct standard endpoint
                     if (!endpointUrl) {
-                        endpointUrl = `/api/v1/ui/elements/${elementId}`;
+                        endpointUrl = `/cards/${elementId}`;
                     }
 
                     console.log(`Fetching component metadata from: ${endpointUrl}`);
@@ -1794,8 +2392,10 @@ const App = () => {
                             console.log(`✓ HTML content loaded, title: ${htmlTitle || 'none'}`);
 
                             // Log content type observation to server
-                            window.logToServer('Info', 'ContentType',
+                            window.logToServer(
                                 `Endpoint ${endpointUrl} returned HTML`,
+                                'ContentType',
+                                'Info',
                                 { elementId: elementId, contentType: contentType, hasTitle: !!htmlTitle }
                             );
 
@@ -1822,8 +2422,10 @@ const App = () => {
                             console.log(`✓ Using scriptPath from endpoint: ${componentPath}`);
 
                             // Log content type observation to server
-                            window.logToServer('Info', 'ContentType',
+                            window.logToServer(
                                 `Endpoint ${endpointUrl} returned JSON with scriptPath`,
+                                'ContentType',
+                                'Info',
                                 { elementId: elementId, contentType: contentType, scriptPath: componentPath }
                             );
                         }
@@ -1845,8 +2447,10 @@ const App = () => {
                         };
 
                         console.error(`❌ Endpoint ${endpointUrl} returned status ${metadataRes.status}:`, errorBody);
-                        window.logToServer('Error', 'ComponentLoad',
+                        window.logToServer(
                             `Endpoint ${endpointUrl} returned ${metadataRes.status}`,
+                            'ComponentLoad',
+                            'Error',
                             { elementId: elementId, status: metadataRes.status, statusText: metadataRes.statusText, body: errorBody }
                         );
 
@@ -1863,8 +2467,10 @@ const App = () => {
                     };
 
                     console.error(`❌ Network error fetching metadata for ${elementId}:`, err);
-                    window.logToServer('Error', 'ComponentLoad',
+                    window.logToServer(
                         `Network error fetching ${endpointUrl}: ${err.message}`,
+                        'ComponentLoad',
+                        'Error',
                         { elementId: elementId, error: err.toString() }
                     );
 
@@ -1883,10 +2489,10 @@ const App = () => {
                 } else {
                     const errorMsg = `No component path found for ${elementId}. Component paths must be explicitly specified via:
   1. componentPath in layout.json, OR
-  2. scriptPath in /api/v1/ui/elements/${elementId} endpoint response, OR
+  2. scriptPath in /cards/${elementId} endpoint response, OR
   3. Direct URL to .js or .html file`;
                     console.error(`❌ ${errorMsg}`);
-                    window.logToServer('Error', 'ComponentLoad', errorMsg, { elementId: elementId });
+                    window.logToServer(errorMsg, 'ComponentLoad', 'Error', { elementId: elementId });
 
                     // Return error info
                     resolve({
@@ -1925,8 +2531,10 @@ const App = () => {
                             console.log(`✓ HTML file loaded: ${componentPath}, title: ${extractedTitle || 'none'}`);
 
                             // Log content type observation
-                            window.logToServer('Info', 'ContentType',
+                            window.logToServer(
                                 `Direct HTML file loaded: ${componentPath}`,
+                                'ContentType',
+                                'Info',
                                 { elementId: elementId, contentType: fileContentType, hasTitle: !!extractedTitle }
                             );
 
@@ -1954,12 +2562,14 @@ const App = () => {
                         console.log(`✓ Component ${elementId} loaded and registered`);
                     } else {
                         console.warn(`⚠ Component ${elementId} loaded but not registered in window.cardComponents`);
-                        window.logToServer('Warning', 'ComponentLoad', `Component ${elementId} loaded but not registered`, { elementId: elementId, componentPath: componentPath });
+                        window.logToServer(`Component ${elementId} loaded but not registered`, 'ComponentLoad', 'Warning', { elementId: elementId, componentPath: componentPath });
                     }
 
                     // Log content type observation for JS files
-                    window.logToServer('Info', 'ContentType',
+                    window.logToServer(
                         `JavaScript component loaded: ${componentPath}`,
+                        'ContentType',
+                        'Info',
                         { elementId: elementId, contentType: 'application/javascript' }
                     );
 
@@ -1967,7 +2577,7 @@ const App = () => {
                 })
                 .catch(err => {
                     console.error(`❌ Failed to load ${elementId} component from ${componentPath}:`, err);
-                    window.logToServer('Error', 'ComponentLoad', `Failed to load ${elementId} from ${componentPath}: ${err.message}`, { elementId: elementId, componentPath: componentPath, error: err.toString() });
+                    window.logToServer(`Failed to load ${elementId} from ${componentPath}: ${err.message}`, 'ComponentLoad', 'Error', { elementId: elementId, componentPath: componentPath, error: err.toString() });
 
                     // Return error info
                     resolve({
@@ -1983,10 +2593,86 @@ const App = () => {
         });
     };
 
+    /**
+     * Find all cards with matching Element_Id
+     * @param {string} elementId - The Element_Id to search for (e.g., "file-explorer")
+     * @returns {Array} Array of card IDs that match the Element_Id
+     */
+    window.findCardsByElementId = (elementId) => {
+        if (!window.appData || !window.appData.elements) return [];
+
+        return Object.keys(window.appData.elements)
+            .filter(cardId => {
+                const element = window.appData.elements[cardId];
+                return element && element.Element_Id === elementId;
+            });
+    };
+
+    /**
+     * Scroll a card into viewport without bringing to front
+     * @param {string} cardId - The card ID to scroll to
+     */
+    window.scrollToCard = (cardId) => {
+        // Find the card element in the grid
+        const cardElement = document.querySelector(`[data-grid="${cardId}"]`);
+
+        if (!cardElement) {
+            console.warn(`[scrollToCard] Card element not found: ${cardId}`);
+            // Add visual feedback when card not found
+            if (window.showToast) {
+                window.showToast('Card not visible in grid', 'warning');
+            }
+            return false;
+        }
+
+        // Get the main grid container
+        const gridContainer = cardElement.closest('.main-pane');
+
+        if (!gridContainer) {
+            console.warn(`[scrollToCard] Grid container not found`);
+            if (window.showToast) {
+                window.showToast('Grid container not found', 'warning');
+            }
+            return false;
+        }
+
+        // Calculate scroll position to center the card
+        const cardRect = cardElement.getBoundingClientRect();
+        const containerRect = gridContainer.getBoundingClientRect();
+
+        const scrollTop = gridContainer.scrollTop +
+                         (cardRect.top - containerRect.top) -
+                         (containerRect.height / 2) +
+                         (cardRect.height / 2);
+
+        const scrollLeft = gridContainer.scrollLeft +
+                          (cardRect.left - containerRect.left) -
+                          (containerRect.width / 2) +
+                          (cardRect.width / 2);
+
+        // Smooth scroll to position
+        gridContainer.scrollTo({
+            top: Math.max(0, scrollTop),
+            left: Math.max(0, scrollLeft),
+            behavior: 'smooth'
+        });
+
+        // Add a visual pulse to highlight the card
+        cardElement.style.outline = '3px solid #0078d4';
+        cardElement.style.outlineOffset = '2px';
+        setTimeout(() => {
+            cardElement.style.outline = '';
+            cardElement.style.outlineOffset = '';
+        }, 1500);
+
+        console.log(`[scrollToCard] Scrolled to card: ${cardId}`);
+        return true;
+    };
+
     window.openCard = async (url, title) => {
         // Extract element ID from URL if it's an API endpoint
-        // e.g., /api/v1/ui/elements/system-log -> system-log
-        // e.g., /api/v1/ui/elements/admin/users-management -> admin/users-management
+        // e.g., /cards/system-log -> system-log
+        // e.g., /cards/admin/users-management -> admin/users-management
         let elementId = 'iframe-card';
         let elementUrl = url;
 
@@ -1994,6 +2680,18 @@ const App = () => {
         if (elementMatch) {
             elementId = elementMatch[1];
             elementUrl = url; // Keep the full URL for fetching
+        }
+
+        // Check if a card with this elementId is already open
+        if (elementId !== 'iframe-card' && window.findCardsByElementId) {
+            const existingCards = window.findCardsByElementId(elementId);
+            if (existingCards.length > 0) {
+                console.log(`[openCard] Card with elementId '${elementId}' is already open (${existingCards[0]}), scrolling to it instead`);
+                if (window.scrollToCard) {
+                    window.scrollToCard(existingCards[0]);
+                }
+                return;
+            }
         }
 
         // Load the component script if needed
@@ -2034,11 +2732,19 @@ const App = () => {
             loadType: loadResult.type || 'component'
         };
 
-        // Add the card to data first
+        // Add the card to data first and capture the updated values for URL update
+        let updatedElements = null;
+        let updatedOpenCards = null;
+
         setData(prevData => {
             const newElements = { ...prevData.elements, [cardId]: newElement };
             const newLayout = JSON.parse(JSON.stringify(prevData.layout));
             newLayout.mainPane.content.push(cardId);
+
+            // Capture the updated values for URL update
+            updatedElements = newElements;
+            updatedOpenCards = newLayout.mainPane.content;
+
             return { ...prevData, elements: newElements, layout: newLayout };
         });
 
@@ -2064,11 +2770,144 @@ const App = () => {
                         : item
                 );
                 console.log('[openCard] Updated gridLayout with saved settings:', updatedLayout);
+
+                // Update URL with new layout after card is opened
+                setTimeout(() => {
+                    if (updatedOpenCards && updatedElements) {
+                        console.log('[openCard] Updating URL with cards:', updatedOpenCards);
+                        updateURLWithLayout(updatedLayout, updatedOpenCards, updatedElements);
+                        window.logToServer('Card opened and layout URL updated', 'URLLayout', 'Info', { cardId });
+                    }
+                }, 50);
+
                 return updatedLayout;
             });
         }, 100);
     };
-    
+
+    window.openCardCopy = async (url, title) => {
+        // Extract element ID from URL if it's an API endpoint
+        let elementId = 'iframe-card';
+        let elementUrl = url;
+
+        const elementMatch = url.match(/\/api\/v1\/ui\/elements\/(.+?)(?:[?]|$)/);
+        if (elementMatch) {
+            elementId = elementMatch[1];
+            elementUrl = url;
+        }
+
+        // Find all existing cards with this elementId to determine copy number
+        let copyNumber = 2;
+        if (elementId !== 'iframe-card') {
+            // Look through all open cards to find existing copies
+            const existingCardIds = Object.keys(data.elements).filter(cardId => {
+                const element = data.elements[cardId];
+                return element.Element_Id === elementId || cardId.startsWith(elementId);
+            });
+
+            // Find the highest copy number
+            const copyNumbers = existingCardIds
+                .map(cardId => {
+                    const match = cardId.match(/-copy-(\d+)$/);
+                    return match ? parseInt(match[1]) : 1; // Original card is implicitly copy-1
+                })
+                .filter(num => !isNaN(num));
+
+            if (copyNumbers.length > 0) {
+                copyNumber = Math.max(...copyNumbers) + 1;
+            }
+        }
+
+        // Create unique card ID with copy suffix
+        const cardId = `${elementId}-copy-${copyNumber}`;
+        console.log(`[openCardCopy] Creating copy #${copyNumber} of '${elementId}' with ID: ${cardId}`);
+
+        // Load the component script if needed
+        let loadResult = { success: true };
+        if (elementId !== 'iframe-card') {
+            loadResult = await loadComponentScript(elementId, null, elementUrl);
+        }
+
+        // Fetch card settings from database
+        const endpointGuid = elementUrl || elementId;
+        const cardSettings = await fetchCardSettings(endpointGuid);
+
+        console.log('[openCardCopy] Fetched card settings:', { endpointGuid, cardSettings });
+
+        // Determine final title with copy indicator
+        let finalTitle = title;
+        if (loadResult.success && loadResult.type === 'html') {
+            const htmlTitlePart = loadResult.htmlTitle || title || elementUrl.split('/').pop() || 'Content';
+            finalTitle = `HTML - ${htmlTitlePart} (Copy ${copyNumber})`;
+        } else {
+            finalTitle = `${title} (Copy ${copyNumber})`;
+        }
+
+        const newElement = {
+            Title: finalTitle,
+            Element_Id: elementId,
+            url: elementUrl,
+            id: cardId,
+            backgroundColor: cardSettings?.backgroundColor,
+            loadError: loadResult.success ? null : loadResult.error,
+            htmlContent: loadResult.htmlContent || null,
+            htmlTitle: loadResult.htmlTitle || null,
+            contentType: loadResult.contentType || null,
+            loadType: loadResult.type || 'component'
+        };
+
+        // Add the card to data
+        let updatedElements = null;
+        let updatedOpenCards = null;
+
+        setData(prevData => {
+            const newElements = { ...prevData.elements, [cardId]: newElement };
+            const newLayout = JSON.parse(JSON.stringify(prevData.layout));
+            newLayout.mainPane.content.push(cardId);
+
+            updatedElements = newElements;
+            updatedOpenCards = newLayout.mainPane.content;
+
+            return { ...prevData, elements: newElements, layout: newLayout };
+        });
+
+        // Add card with temporary small size first
+        const tempPosition = findNextFreePosition(gridLayout, { w: 2, h: 2 });
+        const tempLayoutItem = { w: 2, h: 2, i: cardId, ...tempPosition };
+
+        console.log('[openCardCopy] Adding temporary layout item:', tempLayoutItem);
+
+        setGridLayout(prevGridLayout => [...prevGridLayout, tempLayoutItem]);
+
+        // Apply final settings
+        setTimeout(() => {
+            console.log('[openCardCopy] Applying saved card settings:', cardSettings);
+            const position = findNextFreePosition(gridLayout, cardSettings);
+
+            console.log('[openCardCopy] Final position found:', position);
+
+            setGridLayout(prevGridLayout => {
+                const updatedLayout = prevGridLayout.map(item =>
+                    item.i === cardId
+                        ? { ...cardSettings, i: cardId, x: position.x, y: position.y }
+                        : item
+                );
+                console.log('[openCardCopy] Updated gridLayout with saved settings:', updatedLayout);
+
+                // Update URL with new layout
+                setTimeout(() => {
+                    if (updatedOpenCards && updatedElements) {
+                        console.log('[openCardCopy] Updating URL with cards:', updatedOpenCards);
+                        updateURLWithLayout(updatedLayout, updatedOpenCards, updatedElements);
+                        window.logToServer(`Card copy #${copyNumber} opened and layout URL updated`, 'URLLayout', 'Info', { cardId });
+                    }
+                }, 50);
+
+                return updatedLayout;
+            });
+        }, 100);
+    };
+
     const openSettingsModal = (cardId) => {
         setSettingsModal({ isOpen: true, cardId: cardId });
     };
@@ -2130,7 +2969,7 @@ const App = () => {
                     console.log('Card settings saved and cache invalidated');
                 } else {
                     console.error('Failed to save card settings');
-                    window.logToServer('Error', 'CardSettings', 'Failed to save card settings', {
+                    window.logToServer('Failed to save card settings', 'CardSettings', 'Error', {
                         cardId: newCardLayout.i,
                         status: response.status
                     });
@@ -2138,7 +2977,7 @@ const App = () => {
             }
         } catch (err) {
             console.error('Error saving card settings:', err);
-            window.logToServer('Error', 'CardSettings', 'Error saving card settings', {
+            window.logToServer('Error saving card settings', 'CardSettings', 'Error', {
                 cardId: newCardLayout.i,
                 error: err.toString()
             });
@@ -2233,8 +3072,34 @@ const App = () => {
                 newLayout[pane][section] = newLayout[pane][section].filter(id => id !== cardIdToRemove);
             }
         }
-        setData(prevData => ({ ...prevData, layout: newLayout }));
+
+        // FIX: Also remove from elements to update CardStatusIndicator
+        setData(prevData => {
+            const newElements = { ...prevData.elements };
+            delete newElements[cardIdToRemove];
+            return {
+                ...prevData,
+                layout: newLayout,
+                elements: newElements
+            };
+        });
+
+        // Update grid layout to remove the card
+        setGridLayout(prevGridLayout => {
+            const updatedLayout = prevGridLayout.filter(item => item.i !== cardIdToRemove);
+
+            // Update URL after card is removed
+            if (newLayout.mainPane?.content) {
+                updateURLWithLayout(updatedLayout, newLayout.mainPane.content, data.elements);
+                window.logToServer('Card removed and layout URL updated', 'URLLayout', 'Info', { cardId: cardIdToRemove });
+            }
+
+            return updatedLayout;
+        });
     };
+
+    // Expose removeCard to window scope for menu integration
+    window.removeCard = removeCard;
 
     const handleLayoutChange = (layout) => {
         console.log('[handleLayoutChange] Called with', layout.length, 'items');
@@ -2244,6 +3109,11 @@ const App = () => {
             console.log('[handleLayoutChange] Last item in layout:', lastItem);
         }
         setGridLayout(layout);
+
+        // Update URL with new layout
+        if (data.layout?.mainPane?.content) {
+            updateURLWithLayout(layout, data.layout.mainPane.content, data.elements);
+        }
     };
 
     const handleResize = (layout, oldItem, newItem, placeholder, e, element) => {
@@ -2306,6 +3176,11 @@ const App = () => {
                 // Invalidate cache for this card
                 CacheManager.invalidate(`card_settings_${endpointGuid}`);
                 console.log('✓ Card settings saved after drag/resize, cache invalidated');
+
+                // Update URL with new layout
+                if (data.layout?.mainPane?.content) {
+                    updateURLWithLayout(layout, data.layout.mainPane.content, data.elements);
+                }
             } else {
                 const errorText = await response.text();
                 console.error('Failed to save card settings after drag/resize:', {

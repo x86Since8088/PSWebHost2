@@ -168,18 +168,21 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
 }
 
 .pane-file-list {
-    flex: 1;
-    min-height: 0;
+    flex: 1 1 auto;
+    min-height: 100px;
     display: flex;
     flex-direction: column;
+    overflow: auto;
 }
 
 .pane-version-info {
-    height: 200px;
+    flex: 0 0 auto;
     min-height: 100px;
+    max-height: 80%;
     border-top: 1px solid #ddd;
     background: #fafafa;
     overflow: auto;
@@ -206,6 +209,30 @@
     height: 1px;
     background: #ddd;
     cursor: row-resize;
+}
+
+.splitter-horizontal-draggable {
+    height: 5px;
+    background: linear-gradient(to bottom,
+        transparent 0%, transparent 40%,
+        #ddd 40%, #ddd 60%,
+        transparent 60%, transparent 100%);
+    cursor: row-resize;
+    user-select: none;
+    position: relative;
+    z-index: 10;
+    transition: background 0.2s;
+}
+
+.splitter-horizontal-draggable:hover {
+    background: linear-gradient(to bottom,
+        transparent 0%, transparent 35%,
+        #0078d4 35%, #0078d4 65%,
+        transparent 65%, transparent 100%);
+}
+
+.splitter-horizontal-draggable:active {
+    background: #0078d4;
 }
 
 /* ============================================================================
@@ -292,6 +319,7 @@
     flex-direction: column;
     height: 100%;
     background: #fff;
+    overflow-x: auto;  /* Enable horizontal scroll when columns exceed width */
 }
 
 .file-list-header {
@@ -301,6 +329,7 @@
     padding: 8px 12px;
     font-weight: 600;
     font-size: 12px;
+    min-width: fit-content;  /* Prevent wrapping */
 }
 
 .file-list-header-cell {
@@ -319,6 +348,7 @@
     cursor: pointer;
     border-bottom: 1px solid #f0f0f0;
     transition: background 0.15s;
+    min-width: fit-content;  /* Prevent wrapping */
 }
 
 .file-list-row:hover {
@@ -350,6 +380,23 @@
     text-align: center;
     color: #999;
     font-style: italic;
+}
+
+/* Column resize handle */
+.column-resize-handle {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    z-index: 10;
+    transition: background 0.2s;
+}
+
+.column-resize-handle:hover {
+    background: #0078d4;
 }
 
 /* ============================================================================

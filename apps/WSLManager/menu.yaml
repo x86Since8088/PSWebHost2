@@ -3,7 +3,7 @@
 # Containers > WSL
 
 - Name: WSL Manager
-  url: /apps/wslmanager/api/v1/ui/elements/wsl-manager
+  url: /apps/wslmanager/cards/wsl-manager
   hover_description: Manage Windows Subsystem for Linux distributions
   icon: terminal
   tags:

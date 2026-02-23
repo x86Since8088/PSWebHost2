@@ -75,7 +75,7 @@
 #### 1. System Utility Scripts (26 files)
 **Pattern:**
 ```powershell
-. (Join-Path $ProjectRoot "WebHost.ps1") -ShowVariables 3>$null 4>$null | Out-Null
+. (Join-Path $ProjectRoot "WebHost.ps1") -InitializeEnvironmentOnly 3>$null 4>$null | Out-Null
 ```
 
 **Why Acceptable:**

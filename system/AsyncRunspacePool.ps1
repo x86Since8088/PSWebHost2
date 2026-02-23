@@ -28,6 +28,14 @@ if ($null -eq $global:AsyncRunspacePool) {
     })
 }
 
+# Initialize global runspace tracking in PSWebServer
+if ($null -eq $global:PSWebServer) {
+    $global:PSWebServer = [hashtable]::Synchronized(@{})
+}
+if ($null -eq $global:PSWebServer.Runspaces) {
+    $global:PSWebServer.Runspaces = [hashtable]::Synchronized(@{})
+}
+
 function Initialize-AsyncRunspacePool {
     <#
     .SYNOPSIS
@@ -174,6 +182,7 @@ function New-AsyncRunspace {
             $global:PSHostUIQueue = $PSHostUIQueue
             $global:PSWebPerfQueue = $PSWebPerfQueue
             $global:AsyncRunspacePool = $AsyncRunspacePool
+            . "$($global:PSWebServer.Project_Root.Path)/system/init.ps1" -ForRunspace
         }
 
         $setupPs = [powershell]::Create()
@@ -255,53 +264,89 @@ function Start-AsyncWorker {
             . $functionsScript
         }
 
-        # Update stats
+        # Initialize runspace info tracking
+        $rsId = $Host.Runspace.InstanceId
+        $rsStartTime = Get-Date
+        $rsRequestCount = 0
+        $rsMaxRequests = 100
+
+        # Validate runspace ID
+        if ($null -eq $rsId -or $rsId -eq [guid]::Empty) {
+            if ($null -ne $PSWebHostLogQueue) {
+                $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tWarning`tAsyncWorker`t$rsTag Runspace InstanceId is null or empty, cannot track runspace info`t`t`t"
+                $PSWebHostLogQueue.Enqueue($logEntry)
+            }
+        }
+        else {
+            # Report runspace startup
+            Set-WebHostRunSpaceInfo -RunspaceId $rsId `
+                                    -Name "AsyncWorker-$RunspaceIndex" `
+                                    -PoolName "AsyncRunspacePool" `
+                                    -Purpose "HTTP Request Handler" `
+                                    -State "Starting" `
+                                    -RequestCount 0 `
+                                    -TimeStarted $rsStartTime
+        }
+
+        # Update old stats for backward compatibility
         $AsyncRunspacePool.Stats[$RunspaceIndex].State = 'Running'
 
         # Log startup
         if ($null -ne $PSWebHostLogQueue) {
-            $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tVerbose`tAsyncWorker`t$rsTag Worker started`t`t`t"
+            $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tVerbose`tAsyncWorker`t$rsTag Worker started (max $rsMaxRequests requests)`t`t`t"
             $PSWebHostLogQueue.Enqueue($logEntry)
         }
 
         $listener = $AsyncRunspacePool.ListenerInstance
 
         # Main worker loop
-        while (-not $AsyncRunspacePool.StopRequested) {
+        while (-not $AsyncRunspacePool.StopRequested -and $rsRequestCount -lt $rsMaxRequests) {
             try {
                 $AsyncRunspacePool.Stats[$RunspaceIndex].State = 'Waiting'
 
-                # Get context asynchronously with a timeout so we can check StopRequested
-                $contextTask = $listener.GetContextAsync()
-
-                # Wait up to 500ms for a request, then loop to check StopRequested
-                while (-not $contextTask.IsCompleted -and -not $AsyncRunspacePool.StopRequested) {
-                    Start-Sleep -Milliseconds 100
+                # Update runspace info
+                if ($null -ne $rsId -and $rsId -ne [guid]::Empty) {
+                    Set-WebHostRunSpaceInfo -RunspaceId $rsId -State "Waiting" -RequestCount $rsRequestCount
                 }
 
-                if ($AsyncRunspacePool.StopRequested) {
-                    break
+                # Refresh modules if needed (hot reload)
+                if (Get-Command Invoke-ModuleRefreshAsNeeded -ErrorAction SilentlyContinue) {
+                    Invoke-ModuleRefreshAsNeeded
                 }
 
-                if ($contextTask.IsFaulted) {
-                    $AsyncRunspacePool.Stats[$RunspaceIndex].Errors++
-                    if ($null -ne $PSWebHostLogQueue) {
-                        $errMsg = $contextTask.Exception.InnerException.Message
-                        $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tWarning`tAsyncWorker`t$rsTag GetContextAsync failed: $errMsg`t`t`t"
-                        $PSWebHostLogQueue.Enqueue($logEntry)
-                    }
-                    continue
-                }
+                # Get context synchronously (blocking)
+                # This is the standard pattern for multi-threaded servers
+                # HttpListener internally queues requests and wakes one thread at a time
+                # Much simpler and more reliable than async with manual wait loops
+                $context = $listener.GetContext()
 
                 # Got a context - process it
-                $context = $contextTask.Result
+                $rsRequestCount++
                 $AsyncRunspacePool.Stats[$RunspaceIndex].State = 'Processing'
                 $AsyncRunspacePool.Stats[$RunspaceIndex].RequestCount++
                 $AsyncRunspacePool.Stats[$RunspaceIndex].LastRequest = Get-Date
 
                 $requestUrl = $context.Request.RawUrl
+                $sessionId = $null
+                try {
+                    # Extract session ID if present
+                    $cookieHeader = $context.Request.Headers['Cookie']
+                    if ($cookieHeader -and $cookieHeader -match 'PHPSESSID=([^;]+)') {
+                        $sessionId = $matches[1]
+                    }
+                } catch {}
+
+                # Update runspace info with request details
+                if ($null -ne $rsId -and $rsId -ne [guid]::Empty) {
+                    Set-WebHostRunSpaceInfo -RunspaceId $rsId `
+                                            -State "Processing" `
+                                            -RequestCount $rsRequestCount `
+                                            -LastRequest $requestUrl `
+                                            -LastSessionID $sessionId
+                }
+
                 if ($null -ne $PSWebHostLogQueue) {
-                    $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tVerbose`tAsyncWorker`t$rsTag Processing: $requestUrl`t`t`t"
+                    $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tVerbose`tAsyncWorker`t$rsTag Processing: $requestUrl (Request $rsRequestCount/$rsMaxRequests)`t`t`t"
                     $PSWebHostLogQueue.Enqueue($logEntry)
                 }
 
@@ -339,7 +384,30 @@ function Start-AsyncWorker {
                     } catch { }
                 }
 
+            } catch [System.Net.HttpListenerException] {
+                # HttpListener was stopped or aborted
+                # Error codes: 995 = ERROR_OPERATION_ABORTED, 1229 = ERROR_CONNECTION_INVALID
+                if ($_.Exception.ErrorCode -in @(995, 1229) -or $AsyncRunspacePool.StopRequested) {
+                    # Expected - listener stopped, exit gracefully
+                    if ($null -ne $PSWebHostLogQueue) {
+                        $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tInfo`tAsyncWorker`t$rsTag Listener stopped (Error: $($_.Exception.ErrorCode))`t`t`t"
+                        $PSWebHostLogQueue.Enqueue($logEntry)
+                    }
+                    break
+                }
+                else {
+                    # Unexpected HttpListener error
+                    $AsyncRunspacePool.Stats[$RunspaceIndex].Errors++
+                    if ($null -ne $PSWebHostLogQueue) {
+                        $errMsg = $_.Exception.Message
+                        $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tError`tAsyncWorker`t$rsTag HttpListener error: $errMsg (Code: $($_.Exception.ErrorCode))`t`t`t"
+                        $PSWebHostLogQueue.Enqueue($logEntry)
+                    }
+                    # Brief pause before retry
+                    Start-Sleep -Milliseconds 500
+                }
             } catch {
+                # Other errors (not HttpListenerException)
                 $AsyncRunspacePool.Stats[$RunspaceIndex].Errors++
                 if ($null -ne $PSWebHostLogQueue) {
                     $errMsg = $_.Exception.Message
@@ -351,10 +419,31 @@ function Start-AsyncWorker {
             }
         }
 
-        # Worker is exiting
+        # Worker is exiting - determine reason
+        $exitReason = if ($rsRequestCount -ge $rsMaxRequests) {
+            "Max requests reached ($rsRequestCount/$rsMaxRequests)"
+        } elseif ($AsyncRunspacePool.StopRequested) {
+            "Stop requested"
+        } else {
+            "Unknown reason"
+        }
+
         $AsyncRunspacePool.Stats[$RunspaceIndex].State = 'Stopped'
+
+        # Update runspace info with stopped state
+        if ($null -ne $rsId -and $rsId -ne [guid]::Empty) {
+            Set-WebHostRunSpaceInfo -RunspaceId $rsId `
+                                    -State "Terminated" `
+                                    -RequestCount $rsRequestCount `
+                                    -AdditionalData @{
+                                        ExitReason = $exitReason
+                                        Uptime = (Get-Date) - $rsStartTime
+                                    }
+        }
+
         if ($null -ne $PSWebHostLogQueue) {
-            $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tVerbose`tAsyncWorker`t$rsTag Worker stopped`t`t`t"
+            $uptimeSeconds = ((Get-Date) - $rsStartTime).TotalSeconds
+            $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tInfo`tAsyncWorker`t$rsTag Worker terminated: $exitReason (Uptime: $([math]::Round($uptimeSeconds))s, Requests: $rsRequestCount)`t`t`t"
             $PSWebHostLogQueue.Enqueue($logEntry)
         }
     }
@@ -664,7 +753,7 @@ function Update-AsyncWorkerStatus {
             Write-Warning "$rsTag Error: $($err.Exception.Message)"
         }
 
-        # Check if worker has unexpectedly completed (crashed)
+        # Check if worker has completed (crashed, terminated, or max requests reached)
         if ($worker.AsyncHandle.IsCompleted) {
             try {
                 $ps.EndInvoke($worker.AsyncHandle)
@@ -672,9 +761,20 @@ function Update-AsyncWorkerStatus {
                 Write-Warning "$MyTag Worker $rsIndex crashed: $($_.Exception.Message)"
             }
 
-            # Worker has stopped - restart it
-            Write-Warning "$MyTag Worker $rsIndex has stopped, restarting..."
+            # Determine termination reason from runspace info
             $rsInfo = $worker.RunspaceInfo
+            $runspaceId = $rsInfo.Runspace.InstanceId
+            $terminationReason = "Unknown"
+
+            if ($global:PSWebServer.Runspaces -and $global:PSWebServer.Runspaces.ContainsKey($runspaceId)) {
+                $rsData = $global:PSWebServer.Runspaces[$runspaceId]
+                if ($rsData.AdditionalData -and $rsData.AdditionalData.ExitReason) {
+                    $terminationReason = $rsData.AdditionalData.ExitReason
+                }
+            }
+
+            # Worker has stopped - restart it
+            Write-Verbose "$MyTag Worker $rsIndex has stopped ($terminationReason), restarting..."
 
             # Check runspace health
             if ($rsInfo.Runspace.RunspaceStateInfo.State -ne 'Opened') {
@@ -694,6 +794,7 @@ function Update-AsyncWorkerStatus {
             if ($rsInfo) {
                 try { $ps.Dispose() } catch {}
                 Start-AsyncWorker -RunspaceInfo $rsInfo
+                Write-Host "$MyTag Worker $rsIndex restarted (reason: $terminationReason)"
             }
         }
     }

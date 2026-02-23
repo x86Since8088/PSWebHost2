@@ -24,16 +24,16 @@ File: `routes/api/v1/ui/elements/main-menu/main-menu.yaml`
 | `/api/v1/ui/elements/server-heatmap` | ✅ | `public/elements/server-heatmap/component.js` | ✅ | ✅ OK |
 | `/api/v1/ui/elements/realtime-events` | ✅ | `public/elements/realtime-events/component.js` | ✅ | ✅ OK |
 | `/api/v1/ui/elements/file-explorer` | ✅ | `public/elements/file-explorer/component.js` | ✅ | ✅ OK |
-| `/api/v1/ui/elements/system-log` | ✅ | `public/elements/system-log/component.js` | ✅ | ✅ OK |
-| `/api/v1/ui/elements/markdown-viewer` | ✅ | `public/elements/markdown-viewer/component.js` | ✅ | ✅ OK |
+| `/cards/system-log` | ✅ | `public/elements/system-log/component.js` | ✅ | ✅ OK |
+| `/cards/markdown-viewer` | ✅ | `public/elements/markdown-viewer/component.js` | ✅ | ✅ OK |
 | `/api/v1/ui/elements/unit-test-runner` | ✅ | `public/elements/unit-test-runner/component.js` | ✅ | ✅ OK |
-| `/api/v1/ui/elements/job-status` | ✅ | ❌ Returns job data JSON, not a component | ❌ | ⚠️ **NOT A UI COMPONENT** |
-| `/api/v1/ui/elements/site-settings` | ✅ | `public/elements/site-settings/component.js` | ✅ | ✅ OK |
+| `/cards/job-status` | ✅ | ❌ Returns job data JSON, not a component | ❌ | ⚠️ **NOT A UI COMPONENT** |
+| `/cards/site-settings` | ✅ | `public/elements/site-settings/component.js` | ✅ | ✅ OK |
 | `/api/v1/ui/elements/apps-manager` | ✅ | Needs verification | ❓ | ⏳ TODO |
-| `/api/v1/ui/elements/admin/role-management` | ✅ | `public/elements/admin/role-management/component.js` | ✅ | ✅ OK |
-| `/api/v1/ui/elements/admin/users-management` | ✅ | `public/elements/admin/users-management/component.js` | ✅ | ✅ OK |
-| `/api/v1/ui/elements/nodes-manager` | ✅ | Needs verification | ❓ | ⏳ TODO |
-| `/apps/WebHostTaskManagement/api/v1/ui/elements/task-manager` | ✅ | `apps/WebHostTaskManagement/public/elements/task-manager/component.js` | ✅ | ✅ OK |
+| `/cards/admin/role-management` | ✅ | `public/elements/admin/role-management/component.js` | ✅ | ✅ OK |
+| `/cards/admin/users-management` | ✅ | `public/elements/admin/users-management/component.js` | ✅ | ✅ OK |
+| `/cards/nodes-manager` | ✅ | Needs verification | ❓ | ⏳ TODO |
+| `/apps/WebHostTaskManagement/cards/task-manager` | ✅ | `apps/WebHostTaskManagement/public/elements/task-manager/component.js` | ✅ | ✅ OK |
 
 ---
 
@@ -42,7 +42,7 @@ File: `routes/api/v1/ui/elements/main-menu/main-menu.yaml`
 ### ❌ ISSUE 1: job-status is not a UI component
 
 **Problem:**
-- URL `/api/v1/ui/elements/job-status` is in the main menu
+- URL `/cards/job-status` is in the main menu
 - Endpoint returns raw job data (JSON array), not a component layout
 - No component.js file exists
 - This should be a data API, not a UI element

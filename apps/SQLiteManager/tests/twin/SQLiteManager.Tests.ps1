@@ -126,23 +126,30 @@ function Invoke-ApiTest {
 function Test-CLIFunctionality {
     Write-Host "`n=== CLI Tests ===" -ForegroundColor Cyan
 
-    # Example: Test module import
-    Test-Assert -TestName "Module Import" `
-        -Condition (Get-Module -Name "PSWebSQLiteManager" -ErrorAction SilentlyContinue) `
-        -Message "Module should be loaded"
+    # Test database file existence
+    $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data/pswebhost.db"
+    Test-Assert -TestName "Database File Exists" `
+        -Condition (Test-Path $dbFile) `
+        -Message "Database file should exist at $dbFile"
 
-    # Example: Test function availability
-    Test-Assert -TestName "Function Exists" `
-        -Condition (Get-Command -Name "Get-SQLiteManager" -ErrorAction SilentlyContinue) `
-        -Message "Function should be available"
+    # Test Get-PSWebSQLiteData function availability
+    Test-Assert -TestName "Get-PSWebSQLiteData Function Exists" `
+        -Condition (Get-Command -Name "Get-PSWebSQLiteData" -ErrorAction SilentlyContinue) `
+        -Message "Get-PSWebSQLiteData function should be available"
 
-    # Example: Test function output
-    $result = Get-SQLiteManager -Parameter "test"
-    Test-Assert -TestName "Function Returns Expected Output" `
-        -Condition ($result -eq "expected") `
-        -Message "Function should return expected value"
-
-    # Add more CLI tests here...
+    # Test basic query execution
+    if (Test-Path $dbFile) {
+        try {
+            $result = Get-PSWebSQLiteData -File $dbFile -Query "SELECT name FROM sqlite_master WHERE type='table' LIMIT 1" -ErrorAction Stop
+            Test-Assert -TestName "Basic Query Execution" `
+                -Condition ($null -ne $result) `
+                -Message "Query should return results"
+        } catch {
+            Test-Assert -TestName "Basic Query Execution" `
+                -Condition $false `
+                -Message "Query execution failed: $($_.Exception.Message)"
+        }
+    }
 }
 
 #endregion
@@ -175,22 +182,32 @@ function Test-IntegrationFunctionality {
 
     # Test app status endpoint
     Invoke-ApiTest -TestName "App Status Endpoint" `
-        -Endpoint "/apps/$(sqlitemanager)/api/v1/status" `
+        -Endpoint "/apps/sqlitemanager/api/v1/status" `
         -ExpectedStatusCode 200
 
-    # Test UI element endpoint
-    Invoke-ApiTest -TestName "Home UI Element" `
-        -Endpoint "/apps/$(sqlitemanager)/api/v1/ui/elements/$(sqlitemanager)-home" `
+    # Test sqlite-manager card endpoint
+    Invoke-ApiTest -TestName "SQLite Manager Card Endpoint" `
+        -Endpoint "/apps/sqlitemanager/cards/sqlite-manager" `
         -ExpectedStatusCode 200
 
-    # Add more integration tests here...
+    # Test sqlite-query-editor card endpoint
+    Invoke-ApiTest -TestName "SQLite Query Editor Card Endpoint" `
+        -Endpoint "/apps/sqlitemanager/cards/sqlite-query-editor" `
+        -ExpectedStatusCode 200
 
-    # Example: Test data endpoint
-    # Invoke-ApiTest -TestName "Data Endpoint" `
-    #     -Endpoint "/apps/$(sqlitemanager)/api/v1/data" `
-    #     -Method 'POST' `
-    #     -Body @{ query = "test" } `
-    #     -ExpectedStatusCode 200
+    # Test query endpoint with valid query
+    Invoke-ApiTest -TestName "Query Endpoint - SELECT" `
+        -Endpoint "/apps/sqlitemanager/api/v1/sqlite/query" `
+        -Method 'POST' `
+        -Body @{ query = "SELECT name FROM sqlite_master WHERE type='table' LIMIT 1" } `
+        -ExpectedStatusCode 200
+
+    # Test query endpoint with invalid query (should return 400)
+    Invoke-ApiTest -TestName "Query Endpoint - Empty Query" `
+        -Endpoint "/apps/sqlitemanager/api/v1/sqlite/query" `
+        -Method 'POST' `
+        -Body @{ query = "" } `
+        -ExpectedStatusCode 400
 }
 
 #endregion

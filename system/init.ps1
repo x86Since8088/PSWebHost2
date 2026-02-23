@@ -1,14 +1,145 @@
 param (
     [switch]$Loadvariables,
-    [switch]$Force
+    [switch]$Force,
+    [switch]$ForRunspace
 )
+
+# ============================================================================
+# Things that need to be initialized in runspaces and jobs.
+# ============================================================================
+
+
+# Define project root
+if ($null -eq $ProjectRoot) {
+    $ProjectRoot = Split-Path (Split-Path -Parent $MyInvocation.MyCommand.Definition)
+}
+# Use synchronized hashtable for thread-safe access from async runspaces
+if ($Global:PSWebServer -isnot [hashtable]) {
+    $Global:PSWebServer = [hashtable]::Synchronized(@{})
+    $Global:PSWebServer.Project_Root = [hashtable]::Synchronized(@{ Path = $ProjectRoot })
+}
+if ($Global:PSWebServerModules -isnot [hashtable]) {
+    $Global:PSWebServerModules = [hashtable]::Synchronized(@{})
+}
+
+
+function Import-TrackedModule {
+    [cmdletbinding()]
+    param (
+        [string]$Path
+    )
+    begin {
+        $myid = '[Import-TrackedModule]'
+        Write-Verbose "$myid Path: $Path"
+        $moduleName = $Path
+        if ($moduleName -match '\.psd1|\.psm1'){
+            $moduleName = Split-Path $moduleName
+            # Get rid of version number folders.
+        }
+        if ($moduleName -match '(\\/)[\d\.]+') {
+            $moduleName = Split-Path $moduleName
+        }
+        $moduleName = Split-Path -Leaf $moduleName
+        Write-Verbose "$myid moduleName: $moduleName"
+        $LoadedModule = Get-Module -Name $moduleName
+        if ($LoadedModule) {return}
+        $moduleInfo = Import-Module $Path -Force -DisableNameChecking -PassThru -ErrorAction Continue 3>$null
+
+        if (-not $moduleInfo) {
+            Write-Verbose "$myid Failed to load module from: $Path (module may be empty or invalid)" -Verbose
+            return
+        }
+
+        $fileInfo = Get-Item -Path $Path -ErrorAction SilentlyContinue
+        if (-not $fileInfo) {
+            Write-Verbose "$myid Could not get file info for: $Path" -Verbose
+            return
+        }
+
+        $Global:PSWebServerModules[$moduleInfo.Name] = @{
+            Path = $Path
+            LastWriteTime = $fileInfo.LastWriteTime
+            Loaded = (Get-Date)
+        }
+        Write-Verbose "$myid Tracked module $($moduleInfo.Name) from $Path" -Verbose
+    }
+}
+
+function Invoke-ModuleRefreshAsNeeded {
+    [cmdletbinding()]
+    param()
+    begin {
+        $myid = '[Invoke-ModuleRefreshAsNeeded]'
+        if ($null -eq $global:ModuleRefreshAsNeeded) {
+            $global:ModuleRefreshAsNeeded = (Get-Date).AddSeconds(30)
+            return
+        }
+        elseif ($global:ModuleRefreshAsNeeded -lt (get-date)) {
+            return
+        }
+        $global:ModuleRefreshAsNeeded = (Get-Date).AddSeconds(30)
+        foreach ($entry in $Global:PSWebServerModules.GetEnumerator()) {
+
+            $moduleName = $entry.Name
+            $moduleData = $entry.Value
+            $fileInfo = Get-ChildItem -Path $moduleData.Path -Recurse -ErrorAction SilentlyContinue | Where-Object{!$_.psiscontainer}
+            $NewestFile = $fileInfo | Sort-Object -Descending LastWriteTime | Select-Object -First 1
+            if ($null -eq $NewestFile) {
+                Write-Verbose "$myid No files found in '$($moduleData.Path)'."
+            }
+            elseif ($NewestFile.LastWriteTime -gt $moduleData.Loaded) {
+                Write-Verbose "$myid Module '$moduleName' has changed. Reloading..."
+                try {
+                    $fileInfo
+                    Remove-Module -Name $moduleName -Force
+                    if (-not $?) {
+                        Write-Warning "$myid Remove-Module reported failure for module '$moduleName' - continuing."
+                    }
+                    $reloadedModuleInfo = Import-Module -Name $moduleData.Path -Force -PassThru -ErrorAction Continue -DisableNameChecking 2>&1
+                    $newFileInfo = Get-Item -Path $moduleData.Path
+                    $Global:PSWebServerModules[$moduleName].LastWriteTime = $newFileInfo.LastWriteTime
+                    $Global:PSWebServerModules[$moduleName].Loaded = (Get-Date)
+                    Write-Verbose "$myid Module '$moduleName' reloaded successfully."
+                } catch {
+                    Write-Error "$myid Failed to reload module '$moduleName': $_"
+                }
+            }
+        }
+    }
+}
+
+# Add modules folder to PSModulePath
+$modulesFolderPath = Join-Path $Global:PSWebServer.Project_Root.Path "modules"
+$ModulePathEnv = $env:PSModulePath -split ';' -match '\w'
+if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
+    $Env:PSModulePath = "$modulesFolderPath;$($Env:PSModulePath)"
+    Write-Verbose "Added '$modulesFolderPath' to PSModulePath." -Verbose
+}
+
+# Source core functions using full paths and track them
+Import-TrackedModule -Path (Join-Path $modulesFolderPath "Sanitization")
+Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Support")
+Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Database")
+Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Authentication")
+Import-TrackedModule -Path (Join-Path $modulesFolderPath "smtp")
+
+$AppsPath = Join-Path $Global:PSWebServer.Project_Root.Path 'apps'
+Get-ChildItem $AppsPath -Directory | 
+    Get-ChildItem -Filter modules | 
+    Where-Object{$_.FullName -notin ($PathEnv)} | 
+    ForEach-Object{$ModulePathEnv+=$_.FullName;Get-ChildItem $_.FullName -Directory}|
+    ForEach-Object{Import-TrackedModule $_.FullName -ErrorAction continue}
+$Env:PSModulePath = $ModulePathEnv -join ';'
+
+if ($ForRunspace.IsPresent) {return}
 
 # ============================================================================
 # Duplicate Loading Prevention
 # ============================================================================
 if ($PSWebHostDotSourceLoaded -and $global:PSWebHostGlobalLoaded -and -not $Force.IsPresent) {
-    return Write-Host ".\init has already been loaded and -Force is not being used. Skipping."
+    return
 }
+
 
 # ============================================================================
 # PowerShell Version Check - Require PowerShell 7 or later
@@ -65,44 +196,6 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
     exit 1
 }
 
-# Define project root
-if ($null -eq $ProjectRoot) {
-    $ProjectRoot = Split-Path (Split-Path -Parent $MyInvocation.MyCommand.Definition)
-}
-# Use synchronized hashtable for thread-safe access from async runspaces
-$Global:PSWebServer = [hashtable]::Synchronized(@{})
-$Global:PSWebServer.Project_Root = [hashtable]::Synchronized(@{ Path = $ProjectRoot })
-
-# Add modules folder to PSModulePath
-$modulesFolderPath = Join-Path $Global:PSWebServer.Project_Root.Path "modules"
-if (-not ($Env:PSModulePath -split ';' -contains $modulesFolderPath)) {
-    $Env:PSModulePath = "$modulesFolderPath;$($Env:PSModulePath)"
-    Write-Verbose "Added '$modulesFolderPath' to PSModulePath." -Verbose
-}
-
-$Global:PSWebServer.Modules = [hashtable]::Synchronized(@{})
-
-function Import-TrackedModule {
-    param (
-        [string]$Path
-    )
-    $moduleInfo = Import-Module $Path -Force -DisableNameChecking -PassThru 3>$null
-    $fileInfo = Get-Item -Path $Path
-    $Global:PSWebServer.Modules[$moduleInfo.Name] = @{
-        Path = $Path
-        LastWriteTime = $fileInfo.LastWriteTime
-        Loaded = (Get-Date)
-    }
-    Write-Verbose "Tracked module $($moduleInfo.Name) from $Path" -Verbose
-}
-
-# Source core functions using full paths and track them
-Import-TrackedModule -Path (Join-Path $modulesFolderPath "Sanitization/Sanitization.psm1")
-Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Support/PSWebHost_Support.psd1")
-Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Database/PSWebHost_Database.psd1")
-Import-TrackedModule -Path (Join-Path $modulesFolderPath "PSWebHost_Authentication/PSWebHost_Authentication.psd1")
-Import-TrackedModule -Path (Join-Path $modulesFolderPath "smtp/smtp.psd1")
-
 # Validate installation, dependencies, and database schema
 & (Join-Path $PSScriptRoot 'validateInstall.ps1')
 
@@ -136,6 +229,7 @@ if (-not (Test-Path $Configfile)) {
         MimeTypes = @{
             ".css" = "text/css"
             ".js" = "application/javascript"
+            ".mjs" = "application/javascript"
             ".html" = "text/html"
             ".png" = "image/png"
             ".jpg" = "image/jpeg"

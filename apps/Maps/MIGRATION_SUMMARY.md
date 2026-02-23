@@ -28,7 +28,7 @@ apps/Maps/
 ### 2. Updated Component Paths
 Updated `component.js` to use new app paths:
 - Map definition: `/public/elements/world-map/map-definition.json` → `/apps/Maps/public/elements/world-map/map-definition.json`
-- API endpoint: `/api/v1/ui/elements/world-map` → `/apps/Maps/api/v1/ui/elements/world-map`
+- API endpoint: `/api/v1/ui/elements/world-map` → `/apps/Maps/cards/world-map`
 - Image path: `/public/elements/world-map/world-map.png` → `/apps/Maps/public/elements/world-map/world-map.png`
 
 ### 3. Updated External References
@@ -37,10 +37,10 @@ Updated `component.js` to use new app paths:
 - Changed `componentPath` from `/public/elements/world-map/component.js` to `/apps/Maps/public/elements/world-map/component.js`
 
 **File: `routes/api/v1/ui/elements/main-menu/main-menu.yaml`**
-- Changed world-map menu URL from `/api/v1/ui/elements/world-map` to `/apps/Maps/api/v1/ui/elements/world-map`
+- Changed world-map menu URL from `/api/v1/ui/elements/world-map` to `/apps/Maps/cards/world-map`
 
 **File: `tests/Test-AllEndpoints.ps1`**
-- Updated test endpoint path to `/apps/Maps/api/v1/ui/elements/world-map`
+- Updated test endpoint path to `/apps/Maps/cards/world-map`
 
 **File: `tests/twin/routes/spa/card_settings/get.Tests.ps1`**
 - Updated test comment to reference new path
@@ -74,7 +74,7 @@ After migration, verify:
 2. Clicking "World Map" loads the component
 3. Map image loads correctly
 4. Location pins display with correct coordinates
-5. API endpoint returns pin data at `/apps/Maps/api/v1/ui/elements/world-map`
+5. API endpoint returns pin data at `/apps/Maps/cards/world-map`
 
 ## Backward Compatibility
 ⚠️ **Breaking Change**: Old paths (`/api/v1/ui/elements/world-map`, `/public/elements/world-map/`) are no longer valid. All clients must use new paths.

@@ -73,7 +73,7 @@ try {
 
         # Get cron jobs for current user
         try {
-            $cronOutput = & crontab -l 2>/dev/null
+            $cronOutput = & crontab -l 2> /dev/null
             if ($LASTEXITCODE -eq 0 -and $cronOutput) {
                 $lines = $cronOutput -split "`n" | Where-Object { $_ -and $_ -notmatch '^#' }
                 foreach ($line in $lines) {

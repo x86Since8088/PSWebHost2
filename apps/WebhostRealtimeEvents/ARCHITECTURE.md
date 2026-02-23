@@ -15,17 +15,17 @@
 ### API Endpoints (Backend)
 
 **App Configuration**: `apps/WebhostRealtimeEvents/app.yaml`
-- `routePrefix: /api/v1/events` - All app routes are prefixed with this
+- `routePrefix: /apps/WebhostRealtimeEvents` - All app routes are prefixed with this
 
 **App Routes**: `apps/WebhostRealtimeEvents/routes/`
-- `logs/get.ps1` → `/api/v1/events/logs` (Main log retrieval)
-- `status/get.ps1` → `/api/v1/events/status` (App status)
+- `api/v1/logs/get.ps1` → `/apps/WebhostRealtimeEvents/api/v1/logs` (Main log retrieval)
+- `api/v1/status/get.ps1` → `/apps/WebhostRealtimeEvents/api/v1/status` (App status)
 
 **Route Mapping**:
 ```
 routePrefix + route file path = final URL
-/api/v1/events + /logs = /api/v1/events/logs
-/api/v1/events + /status = /api/v1/events/status
+/apps/WebhostRealtimeEvents + /api/v1/logs = /apps/WebhostRealtimeEvents/api/v1/logs
+/apps/WebhostRealtimeEvents + /api/v1/status = /apps/WebhostRealtimeEvents/api/v1/status
 ```
 
 **UI Wrapper**: `routes/api/v1/ui/elements/realtime-events/get.ps1`
@@ -57,7 +57,7 @@ The URL format `/api/v1/ui/elements/{elementId}` tells the system:
 
 ## API Request Flow
 
-1. Component makes request to `/api/v1/events/logs?timeRange=15`
+1. Component makes request to `/apps/WebhostRealtimeEvents/api/v1/logs?timeRange=15`
 2. PSWebHost routes to `apps/WebhostRealtimeEvents/routes/api/v1/logs/get.ps1`
 3. Script calls `Read-PSWebHostLog` to query log file
 4. Filters, sorts, and formats data
@@ -71,7 +71,7 @@ User Action
     ↓
 React Component (public/elements/realtime-events/component.js)
     ↓
-HTTP GET /api/v1/events/logs
+HTTP GET /apps/WebhostRealtimeEvents/api/v1/logs
     ↓
 Route Handler (apps/WebhostRealtimeEvents/routes/api/v1/logs/get.ps1)
     ↓
@@ -197,7 +197,7 @@ Location: `apps/WebhostRealtimeEvents/tests/twin/`
 ### Browser Console Testing
 ```javascript
 // Test API directly
-fetch('/api/v1/events/logs?timeRange=30&severity=Error')
+fetch('/apps/WebhostRealtimeEvents/api/v1/logs?timeRange=30&severity=Error')
   .then(r => r.json())
   .then(d => console.log(d));
 
@@ -232,7 +232,7 @@ const component = document.querySelector('.realtime-events-container');
 1. Is `Read-PSWebHostLog` available? (PSWebHost_Support module)
 2. Check `Logs/PSWebHost.log` for error details
 3. Verify log file permissions
-4. Test endpoint directly: `curl http://localhost:8080/api/v1/events/logs`
+4. Test endpoint directly: `curl http://localhost:8080/apps/WebhostRealtimeEvents/api/v1/logs`
 
 ### Sorting Not Working
 **Symptom**: Clicking headers doesn't sort

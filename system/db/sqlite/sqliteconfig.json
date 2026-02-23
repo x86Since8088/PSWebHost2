@@ -6,7 +6,9 @@
         { "name": "ID", "type": "TEXT", "constraint": "PRIMARY KEY" },
         { "name": "UserID", "type": "TEXT", "constraint": "UNIQUE NOT NULL" },
         { "name": "Email", "type": "TEXT", "constraint": "UNIQUE NOT NULL" },
-        { "name": "PasswordHash", "type": "TEXT", "constraint": "NOT NULL" }
+        { "name": "PasswordHash", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Owner", "type": "TEXT", "constraint": "" },
+        { "name": "OwnerType", "type": "TEXT", "constraint": "DEFAULT 'User'" }
       ]
     },
     {
@@ -190,7 +192,9 @@
         { "name": "ExpiresAt", "type": "TEXT", "constraint": "" },
         { "name": "LastUsed", "type": "TEXT", "constraint": "" },
         { "name": "Enabled", "type": "INTEGER", "constraint": "DEFAULT 1" },
-        { "name": "Description", "type": "TEXT", "constraint": "" }
+        { "name": "Description", "type": "TEXT", "constraint": "" },
+        { "name": "Owner", "type": "TEXT", "constraint": "DEFAULT 'system'" },
+        { "name": "OwnerType", "type": "TEXT", "constraint": "DEFAULT 'User'" }
       ],
       "foreign_keys": [
         {
@@ -252,6 +256,119 @@
         {
           "column": "BucketID",
           "references": "Shared_Buckets(BucketID)",
+          "on_delete": "CASCADE"
+        }
+      ]
+    },
+    {
+      "name": "Upload_Sessions",
+      "columns": [
+        { "name": "UploadGuid", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "UserID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "FileName", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "FileSize", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "TargetPath", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "ChunkSize", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "TotalChunks", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "ChunkBitmap", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "ReceivedBytes", "type": "INTEGER", "constraint": "NOT NULL DEFAULT 0" },
+        { "name": "UploadMethod", "type": "TEXT", "constraint": "NOT NULL CHECK(UploadMethod IN ('websocket', 'putChunks'))" },
+        { "name": "TempFilePath", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "StartTime", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "LastActivityTime", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "Status", "type": "TEXT", "constraint": "NOT NULL DEFAULT 'active' CHECK(Status IN ('active', 'paused', 'completed', 'failed'))" }
+      ],
+      "foreign_keys": [
+        {
+          "column": "UserID",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        }
+      ]
+    },
+    {
+      "name": "File_Shares",
+      "columns": [
+        { "name": "ShareID", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "FilePath", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "OwnerUserID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "CreatedTime", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "ExpiresTime", "type": "INTEGER", "constraint": "" },
+        { "name": "IsActive", "type": "INTEGER", "constraint": "DEFAULT 1" },
+        { "name": "ShareToken", "type": "TEXT", "constraint": "UNIQUE" }
+      ],
+      "foreign_keys": [
+        {
+          "column": "OwnerUserID",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        }
+      ]
+    },
+    {
+      "name": "File_Share_Roles",
+      "columns": [
+        { "name": "ShareID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "RoleType", "type": "TEXT", "constraint": "NOT NULL CHECK(RoleType IN ('owner', 'editor', 'access'))" },
+        { "name": "UserID", "type": "TEXT", "constraint": "" },
+        { "name": "GroupID", "type": "TEXT", "constraint": "" }
+      ],
+      "primary_key": ["ShareID", "RoleType", "UserID", "GroupID"],
+      "check_constraints": [
+        "(UserID IS NOT NULL AND GroupID IS NULL) OR (UserID IS NULL AND GroupID IS NOT NULL)"
+      ],
+      "foreign_keys": [
+        {
+          "column": "ShareID",
+          "references": "File_Shares(ShareID)",
+          "on_delete": "CASCADE"
+        },
+        {
+          "column": "UserID",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        },
+        {
+          "column": "GroupID",
+          "references": "User_Groups(GroupID)",
+          "on_delete": "CASCADE"
+        }
+      ]
+    },
+    {
+      "name": "Storage_Paths",
+      "columns": [
+        { "name": "PathID", "type": "TEXT", "constraint": "PRIMARY KEY" },
+        { "name": "LogicalPath", "type": "TEXT", "constraint": "UNIQUE NOT NULL" },
+        { "name": "PhysicalPath", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Name", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "Description", "type": "TEXT", "constraint": "" },
+        { "name": "OwnerUserID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "CreatedTime", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "UpdatedTime", "type": "INTEGER", "constraint": "NOT NULL" },
+        { "name": "IsActive", "type": "INTEGER", "constraint": "DEFAULT 1" }
+      ],
+      "foreign_keys": [
+        {
+          "column": "OwnerUserID",
+          "references": "Users(UserID)",
+          "on_delete": "CASCADE"
+        }
+      ]
+    },
+    {
+      "name": "Storage_Path_Permissions",
+      "columns": [
+        { "name": "PathID", "type": "TEXT", "constraint": "NOT NULL" },
+        { "name": "PermissionType", "type": "TEXT", "constraint": "NOT NULL CHECK(PermissionType IN ('owner', 'read', 'write'))" },
+        { "name": "PrincipalType", "type": "TEXT", "constraint": "NOT NULL CHECK(PrincipalType IN ('role', 'group', 'user'))" },
+        { "name": "PrincipalID", "type": "TEXT", "constraint": "NOT NULL" }
+      ],
+      "primary_key": ["PathID", "PermissionType", "PrincipalType", "PrincipalID"],
+      "foreign_keys": [
+        {
+          "column": "PathID",
+          "references": "Storage_Paths(PathID)",
           "on_delete": "CASCADE"
         }
       ]

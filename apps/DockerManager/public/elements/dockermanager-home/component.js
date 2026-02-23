@@ -16,7 +16,7 @@ class DockerManagerHome extends React.Component {
     async loadStatus() {
         try {
             const response = await window.psweb_fetchWithAuthHandling('/apps/dockermanager/api/v1/status');
-            if (!response.ok) throw new Error(HTTP ${response.status}: ${response.statusText});
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             const data = await response.json();
             this.setState({ status: data, loading: false });
         } catch (error) {
@@ -45,11 +45,10 @@ class DockerManagerHome extends React.Component {
         return React.createElement('div', { className: 'dockermanager-home' },
             React.createElement('h2', null, 'Docker Manager'),
             React.createElement('div', { className: 'status-card' },
-                React.createElement('p', null, Category: ${status.category}),
-                React.createElement('p', null, `SubCategory: ``),
-
-                React.createElement('p', null, Status: ${status.status}),
-                React.createElement('p', null, Version: ${status.version})
+                React.createElement('p', null, `Category: ${status.category || 'Unknown'}`),
+                React.createElement('p', null, `SubCategory: ${status.subCategory || 'Unknown'}`),
+                React.createElement('p', null, `Status: ${status.status || 'Unknown'}`),
+                React.createElement('p', null, `Version: ${status.version || 'Unknown'}`)
             )
         );
     }

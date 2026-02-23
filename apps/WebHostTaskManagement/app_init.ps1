@@ -1,7 +1,17 @@
 #Requires -Version 7
 
-# WebHostTaskManagement App Initialization Script
-# This script runs during PSWebHost startup when the WebHostTaskManagement app is loaded
+<#
+.SYNOPSIS
+    WebHostTaskManagement App Initialization Script
+
+.DESCRIPTION
+    Initializes the task management system with granular error handling.
+    Each step has its own try-catch for better fault isolation.
+
+.NOTES
+    This script runs during PSWebHost startup when WebHostTaskManagement app is loaded.
+    Uses Write-PSWebHostLog for centralized logging.
+#>
 
 param(
     [hashtable]$PSWebServer,
@@ -9,21 +19,67 @@ param(
 )
 
 $MyTag = '[WebHostTaskManagement:Init]'
+$Category = 'AppInit'
 
-Write-Host "$MyTag Initializing task management system..." -ForegroundColor Cyan
+Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "========== Initializing Task Management System =========="
 
+# ============================================================================
+# Step 1: Import App Module (Optional)
+# ============================================================================
 try {
-    # 1. Import app module
-    $modulePath = Join-Path $AppRoot "modules\PSWebHost_TaskManagement\PSWebHost_TaskManagement.psm1"
-    if (Test-Path $modulePath) {
-        Import-Module $modulePath -Force
-        Write-Verbose "$MyTag Loaded PSWebHost_TaskManagement module" -Verbose
+    $manifestPath = Join-Path $AppRoot "modules\PSWebHost_TaskManagement\PSWebHost_TaskManagement.psd1"
+
+    # Check if module manifest exists
+    if (Test-Path $manifestPath) {
+        # Use Import-TrackedModule for hot reload support
+        Import-TrackedModule -Path $manifestPath
+        Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "Loaded PSWebHost_TaskManagement module with hot reload from: $manifestPath"
+    } else {
+        Write-PSWebHostLog -Severity 'Verbose' -Category $Category -Message "PSWebHost_TaskManagement module not found (not needed)"
+    }
+} catch {
+    # Non-critical - continue without this module
+    Write-PSWebHostLog -Severity 'Warning' -Category $Category -Message "Could not load PSWebHost_TaskManagement module (continuing anyway): $($_.Exception.Message)"
+}
+
+# ============================================================================
+# Step 2: Verify PSWebHost_Jobs Module (New System)
+# ============================================================================
+try {
+    if (-not (Get-Module PSWebHost_Jobs -ErrorAction SilentlyContinue)) {
+        Write-PSWebHostLog -Severity 'Warning' -Category $Category -Message "PSWebHost_Jobs module not loaded - job catalog features will be limited"
+    } else {
+        $jobsModule = Get-Module PSWebHost_Jobs
+        Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "PSWebHost_Jobs module available (v$($jobsModule.Version))"
+    }
+} catch {
+    Write-PSWebHostLog -Severity 'Error' -Category $Category -Message "Error checking PSWebHost_Jobs module: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# Step 3: Initialize App Namespace
+# ============================================================================
+try {
+    # Determine data root with fallback to default location
+    $dataRoot = if ($PSWebServer['DataPath']) {
+        $PSWebServer['DataPath']
+    } elseif ($PSWebServer['DataRoot']) {
+        $PSWebServer['DataRoot']
+    } else {
+        # Fallback: use default location relative to project root
+        $projectRoot = if ($PSWebServer['Project_Root'].Path) {
+            $PSWebServer['Project_Root'].Path
+        } else {
+            Split-Path $AppRoot -Parent | Split-Path -Parent
+        }
+        Join-Path $projectRoot "PsWebHost_Data"
     }
 
-    # 2. Initialize app namespace
+    Write-PSWebHostLog -Severity 'Verbose' -Category $Category -Message "Using data root: $dataRoot"
+
     $PSWebServer['WebHostTaskManagement'] = [hashtable]::Synchronized(@{
         AppRoot = $AppRoot
-        DataPath = Join-Path $PSWebServer['DataRoot'] "apps\WebHostTaskManagement"
+        DataPath = Join-Path $dataRoot "apps\WebHostTaskManagement"
         Initialized = Get-Date
 
         # Task management settings
@@ -42,29 +98,74 @@ try {
         })
 
         # Task database path
-        TaskDatabasePath = Join-Path $PSWebServer['DataRoot'] "tasks.db"
+        TaskDatabasePath = Join-Path $dataRoot "tasks.db"
     })
 
-    # 3. Ensure data directories exist
-    $DataPath = Join-Path $PSWebServer['DataRoot'] "apps\WebHostTaskManagement"
-    if (-not (Test-Path $DataPath)) {
-        New-Item -Path $DataPath -ItemType Directory -Force | Out-Null
-        Write-Verbose "$MyTag Created data directory: $DataPath" -Verbose
+    Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "Initialized app namespace"
+} catch {
+    Write-PSWebHostLog -Severity 'Error' -Category $Category -Message "Failed to initialize app namespace: $($_.Exception.Message)" -Data @{
+        Error = $_.Exception.ToString()
+    }
+    # Continue even if this fails - might be able to recover
+}
+
+# ============================================================================
+# Step 4: Create Data Directories
+# ============================================================================
+try {
+    $dataPath = $PSWebServer['WebHostTaskManagement'].DataPath
+
+    if (-not (Test-Path $dataPath)) {
+        New-Item -Path $dataPath -ItemType Directory -Force | Out-Null
+        Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "Created data directory: $dataPath"
+    } else {
+        Write-PSWebHostLog -Severity 'Verbose' -Category $Category -Message "Data directory exists: $dataPath"
     }
 
     # Create subdirectories
-    @('exports', 'backups', 'logs') | ForEach-Object {
-        $subDir = Join-Path $DataPath $_
-        if (-not (Test-Path $subDir)) {
-            New-Item -Path $subDir -ItemType Directory -Force | Out-Null
+    $subDirs = @('exports', 'backups', 'logs')
+    foreach ($subDir in $subDirs) {
+        $subDirPath = Join-Path $dataPath $subDir
+        if (-not (Test-Path $subDirPath)) {
+            New-Item -Path $subDirPath -ItemType Directory -Force | Out-Null
+            Write-PSWebHostLog -Severity 'Verbose' -Category $Category -Message "Created subdirectory: $subDir"
         }
     }
 
-    # 4. Initialize runtime task configuration storage
-    $runtimeConfigPath = Join-Path $PSWebServer['DataRoot'] "config\tasks.json"
+    Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "Data directories verified"
+} catch {
+    Write-PSWebHostLog -Severity 'Error' -Category $Category -Message "Failed to create data directories: $($_.Exception.Message)" -Data @{
+        DataPath = $dataPath
+        Error = $_.Exception.ToString()
+    }
+}
+
+# ============================================================================
+# Step 5: Initialize Runtime Task Configuration
+# ============================================================================
+try {
+    # Use the dataRoot from the namespace if available
+    $dataRoot = if ($PSWebServer['WebHostTaskManagement'].DataPath) {
+        Split-Path $PSWebServer['WebHostTaskManagement'].DataPath -Parent
+    } elseif ($PSWebServer['DataPath']) {
+        $PSWebServer['DataPath']
+    } elseif ($PSWebServer['DataRoot']) {
+        $PSWebServer['DataRoot']
+    } else {
+        $projectRoot = if ($PSWebServer['Project_Root'].Path) {
+            $PSWebServer['Project_Root'].Path
+        } else {
+            Split-Path $AppRoot -Parent | Split-Path -Parent
+        }
+        Join-Path $projectRoot "PsWebHost_Data"
+    }
+
+    $runtimeConfigPath = Join-Path $dataRoot "config\tasks.json"
     $configDir = Split-Path $runtimeConfigPath -Parent
+
     if (-not (Test-Path $configDir)) {
         New-Item -Path $configDir -ItemType Directory -Force | Out-Null
+        Write-PSWebHostLog -Severity 'Verbose' -Category $Category -Message "Created config directory: $configDir"
     }
 
     if (-not (Test-Path $runtimeConfigPath)) {
@@ -74,30 +175,44 @@ try {
             lastModified = (Get-Date).ToString("yyyy-MM-ddTHH:mm:ssZ")
             tasks = @()
         }
-        $initialConfig | ConvertTo-Json -Depth 10 | Set-Content -Path $runtimeConfigPath
-        Write-Verbose "$MyTag Created runtime task configuration: $runtimeConfigPath" -Verbose
+        $initialConfig | ConvertTo-Json -Depth 10 | Set-Content -Path $runtimeConfigPath -ErrorAction Stop
+        Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "Created runtime task configuration: $runtimeConfigPath"
+    } else {
+        Write-PSWebHostLog -Severity 'Verbose' -Category $Category -Message "Runtime task configuration exists: $runtimeConfigPath"
     }
+} catch {
+    Write-PSWebHostLog -Severity 'Error' -Category $Category -Message "Failed to initialize runtime task configuration: $($_.Exception.Message)" -Data @{
+        ConfigPath = $runtimeConfigPath
+        Error = $_.Exception.ToString()
+    }
+}
 
-    # 5. Initialize task execution history database with multi-node support
+# ============================================================================
+# Step 6: Initialize Task Database
+# ============================================================================
+try {
     $taskDbPath = $PSWebServer['WebHostTaskManagement'].TaskDatabasePath
+
     if (-not (Test-Path $taskDbPath)) {
+        Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "Creating task database schema..."
+
         # Create comprehensive task database schema with multi-node support
         $createSchema = @"
 -- ============================================================================
 -- Nodes Table - Registry of WebHost nodes in the cluster
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS Nodes (
-    NodeID TEXT PRIMARY KEY,           -- Unique identifier for this node
-    NodeName TEXT NOT NULL,             -- Human-readable node name
-    NodeGroup TEXT,                     -- Logical group (e.g., 'production', 'staging')
-    NodeRole TEXT,                      -- Role (e.g., 'worker', 'coordinator', 'api')
-    Hostname TEXT,                      -- Network hostname
-    IPAddress TEXT,                     -- IP address
-    Port INTEGER,                       -- HTTP listener port
-    Status TEXT DEFAULT 'Active',       -- Active, Inactive, Offline
-    Version TEXT,                       -- PSWebHost version
-    Capabilities TEXT,                  -- JSON array of capabilities
-    LastHeartbeat TEXT,                 -- Last heartbeat timestamp
+    NodeID TEXT PRIMARY KEY,
+    NodeName TEXT NOT NULL,
+    NodeGroup TEXT,
+    NodeRole TEXT,
+    Hostname TEXT,
+    IPAddress TEXT,
+    Port INTEGER,
+    Status TEXT DEFAULT 'Active',
+    Version TEXT,
+    Capabilities TEXT,
+    LastHeartbeat TEXT,
     CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
     ModifiedAt TEXT DEFAULT CURRENT_TIMESTAMP
 );
@@ -111,37 +226,25 @@ CREATE INDEX IF NOT EXISTS idx_node_role ON Nodes(NodeRole);
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS Tasks (
     TaskID INTEGER PRIMARY KEY AUTOINCREMENT,
-    TaskName TEXT NOT NULL,             -- Unique task name
-    AppName TEXT,                       -- App that owns this task
-    Source TEXT DEFAULT 'custom',       -- global, app, custom
-    ScriptPath TEXT NOT NULL,           -- Path to task script
-    Description TEXT,                   -- Human-readable description
-
-    -- Scheduling
-    Schedule TEXT,                      -- Cron expression
-    Enabled INTEGER DEFAULT 1,          -- 1=enabled, 0=disabled
-
-    -- Node Assignment (multi-node support)
-    AssignedNodeID TEXT,                -- Specific node to run on (NULL = any)
-    AssignedNodeGroup TEXT,             -- Node group to run on (NULL = any)
-    AssignedNodeRole TEXT,              -- Node role required (NULL = any)
-
-    -- Execution Control
-    MaxRuntime INTEGER,                 -- Max runtime in seconds (NULL = no limit)
-    MaxFailures INTEGER,                -- Max consecutive failures before disable
-    KillOnTimeout INTEGER DEFAULT 1,    -- Force kill if max runtime exceeded
-
-    -- Configuration
-    Environment TEXT,                   -- JSON object of environment variables
-    Configuration TEXT,                 -- JSON object of task-specific config
-
-    -- Metadata
-    CreatedBy TEXT,                     -- User who created task
+    TaskName TEXT NOT NULL,
+    AppName TEXT,
+    Source TEXT DEFAULT 'custom',
+    ScriptPath TEXT NOT NULL,
+    Description TEXT,
+    Schedule TEXT,
+    Enabled INTEGER DEFAULT 1,
+    AssignedNodeID TEXT,
+    AssignedNodeGroup TEXT,
+    AssignedNodeRole TEXT,
+    MaxRuntime INTEGER,
+    MaxFailures INTEGER,
+    KillOnTimeout INTEGER DEFAULT 1,
+    Environment TEXT,
+    Configuration TEXT,
+    CreatedBy TEXT,
     CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
     ModifiedAt TEXT DEFAULT CURRENT_TIMESTAMP,
-    DeletedAt TEXT,                     -- Soft delete timestamp
-
-    -- Constraints
+    DeletedAt TEXT,
     UNIQUE(TaskName, AppName)
 );
 
@@ -160,24 +263,15 @@ CREATE TABLE IF NOT EXISTS Task_Schedule (
     ScheduleID INTEGER PRIMARY KEY AUTOINCREMENT,
     TaskID INTEGER NOT NULL,
     TaskName TEXT NOT NULL,
-
-    -- Scheduling
-    NextRun TEXT,                       -- ISO 8601 timestamp of next scheduled run
-    LastRun TEXT,                       -- ISO 8601 timestamp of last run
-
-    -- Claiming (for distributed execution)
-    ClaimedBy TEXT,                     -- NodeID that claimed this task
-    ClaimedAt TEXT,                     -- When the claim was made
-    ClaimExpiry TEXT,                   -- When the claim expires
-
-    -- Status
-    Status TEXT DEFAULT 'Pending',      -- Pending, Running, Completed, Failed
-    CurrentJobID INTEGER,               -- Current job ID (if running)
-
-    -- Metadata
+    NextRun TEXT,
+    LastRun TEXT,
+    ClaimedBy TEXT,
+    ClaimedAt TEXT,
+    ClaimExpiry TEXT,
+    Status TEXT DEFAULT 'Pending',
+    CurrentJobID INTEGER,
     CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
     ModifiedAt TEXT DEFAULT CURRENT_TIMESTAMP,
-
     FOREIGN KEY (TaskID) REFERENCES Tasks(TaskID)
 );
 
@@ -187,33 +281,24 @@ CREATE INDEX IF NOT EXISTS idx_schedule_status ON Task_Schedule(Status);
 CREATE INDEX IF NOT EXISTS idx_schedule_task ON Task_Schedule(TaskID);
 
 -- ============================================================================
--- Task_History Table - Task execution history (renamed from TaskExecutions)
+-- Task_History Table - Task execution history
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS Task_History (
     HistoryID INTEGER PRIMARY KEY AUTOINCREMENT,
-    TaskID INTEGER,                     -- Reference to Tasks table (NULL for legacy)
+    TaskID INTEGER,
     TaskName TEXT NOT NULL,
     AppName TEXT,
-
-    -- Execution Details
-    ExecutedBy TEXT NOT NULL,           -- NodeID that executed the task
+    ExecutedBy TEXT NOT NULL,
     StartTime TEXT NOT NULL,
     EndTime TEXT,
-    Duration INTEGER,                   -- Duration in seconds
-    Status TEXT NOT NULL,               -- Running, Success, Failed, Terminated
+    Duration INTEGER,
+    Status TEXT NOT NULL,
     ExitCode INTEGER,
-
-    -- Output and Errors
-    Output TEXT,                        -- Task output (compressed JSON)
-    ErrorMessage TEXT,                  -- Error message if failed
-
-    -- Trigger Information
-    TriggeredBy TEXT,                   -- Scheduled, Manual, API
-    TriggeredByUser TEXT,               -- User ID if manually triggered
-
-    -- Metadata
+    Output TEXT,
+    ErrorMessage TEXT,
+    TriggeredBy TEXT,
+    TriggeredByUser TEXT,
     CreatedAt TEXT DEFAULT CURRENT_TIMESTAMP,
-
     FOREIGN KEY (TaskID) REFERENCES Tasks(TaskID)
 );
 
@@ -228,18 +313,14 @@ CREATE INDEX IF NOT EXISTS idx_history_task_id ON Task_History(TaskID);
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS Data_Change (
     ChangeID INTEGER PRIMARY KEY AUTOINCREMENT,
-    TableName TEXT NOT NULL,            -- Table that changed
-    RecordID TEXT NOT NULL,             -- Primary key of changed record
-    Action TEXT NOT NULL,               -- INSERT, UPDATE, DELETE
-
-    -- Change Data (compressed JSON)
-    OldData TEXT,                       -- Previous state (gzip compressed)
-    NewData TEXT,                       -- New state (gzip compressed)
-
-    -- Metadata
-    ChangedBy TEXT,                     -- NodeID that made the change
+    TableName TEXT NOT NULL,
+    RecordID TEXT NOT NULL,
+    Action TEXT NOT NULL,
+    OldData TEXT,
+    NewData TEXT,
+    ChangedBy TEXT,
     ChangedAt TEXT DEFAULT CURRENT_TIMESTAMP,
-    SyncedNodes TEXT                    -- JSON array of NodeIDs that synced
+    SyncedNodes TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_change_table ON Data_Change(TableName);
@@ -288,12 +369,21 @@ CREATE INDEX IF NOT EXISTS idx_config_app_name ON TaskConfigurations(AppName);
 
         try {
             Invoke-PSWebSQLiteNonQuery -File $taskDbPath -Query $createSchema
-            Write-Verbose "$MyTag Created multi-node task database: $taskDbPath" -Verbose
+            Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "Created multi-node task database: $taskDbPath"
 
             # Register this node in the Nodes table
-            $currentNodeID = $PSWebServer['Config'].WebServer.NodeID ?? (New-Guid).ToString()
+            $currentNodeID = if ($PSWebServer['Config'].WebServer.NodeID) {
+                $PSWebServer['Config'].WebServer.NodeID
+            } else {
+                (New-Guid).ToString()
+            }
+
             $hostname = [System.Net.Dns]::GetHostName()
-            $port = $PSWebServer['Config'].WebServer.Port ?? 8080
+            $port = if ($PSWebServer['Config'].WebServer.Port) {
+                $PSWebServer['Config'].WebServer.Port
+            } else {
+                8080
+            }
 
             $registerNode = @"
 INSERT OR REPLACE INTO Nodes (
@@ -314,30 +404,48 @@ INSERT OR REPLACE INTO Nodes (
 "@
 
             Invoke-PSWebSQLiteNonQuery -File $taskDbPath -Query $registerNode
-            Write-Verbose "$MyTag Registered node: $currentNodeID ($hostname)" -Verbose
+            Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "Registered node in database" -Data @{
+                NodeID = $currentNodeID
+                Hostname = $hostname
+                Port = $port
+            }
 
         } catch {
-            Write-Warning "$MyTag Failed to create task database: $_"
+            Write-PSWebHostLog -Severity 'Error' -Category $Category -Message "Failed to create task database: $($_.Exception.Message)" -Data @{
+                DatabasePath = $taskDbPath
+                Error = $_.Exception.ToString()
+            }
         }
+    } else {
+        Write-PSWebHostLog -Severity 'Verbose' -Category $Category -Message "Task database exists: $taskDbPath"
     }
-
-    # 6. Load initial task inventory (for dashboard)
-    if (Get-Command Get-AllTasks -ErrorAction SilentlyContinue) {
-        try {
-            $taskInventory = Get-AllTasks
-            $PSWebServer['WebHostTaskManagement'].Stats.TasksManaged = $taskInventory.Count
-            Write-Verbose "$MyTag Loaded $($taskInventory.Count) tasks" -Verbose
-        } catch {
-            Write-Verbose "$MyTag Could not load initial task inventory: $_" -Verbose
-        }
-    }
-
-    Write-Host "$MyTag Task management system initialized" -ForegroundColor Green
-    Write-Verbose "$MyTag Data path: $DataPath"
-    Write-Verbose "$MyTag Task database: $taskDbPath"
-    Write-Verbose "$MyTag Runtime config: $runtimeConfigPath"
-
 } catch {
-    Write-Warning "$MyTag Failed to initialize: $($_.Exception.Message)"
-    Write-Warning "$MyTag Server will continue without task management UI"
+    Write-PSWebHostLog -Severity 'Error' -Category $Category -Message "Database initialization failed: $($_.Exception.Message)" -Data @{
+        Error = $_.Exception.ToString()
+    }
+}
+
+# ============================================================================
+# Step 7: Load Initial Task Inventory
+# ============================================================================
+try {
+    if (Get-Command Get-AllTasks -ErrorAction SilentlyContinue) {
+        $taskInventory = Get-AllTasks
+        $PSWebServer['WebHostTaskManagement'].Stats.TasksManaged = $taskInventory.Count
+        Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "Loaded task inventory: $($taskInventory.Count) tasks"
+    } else {
+        Write-PSWebHostLog -Severity 'Verbose' -Category $Category -Message "Get-AllTasks command not available (PSWebHostTasks module may not be loaded)"
+    }
+} catch {
+    Write-PSWebHostLog -Severity 'Warning' -Category $Category -Message "Could not load initial task inventory: $($_.Exception.Message)"
+}
+
+# ============================================================================
+# Initialization Complete
+# ============================================================================
+Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "========== Task Management System Initialized =========="
+Write-PSWebHostLog -Severity 'Info' -Category $Category -Message "Configuration summary:" -Data @{
+    DataPath = $PSWebServer['WebHostTaskManagement'].DataPath
+    DatabasePath = $PSWebServer['WebHostTaskManagement'].TaskDatabasePath
+    TasksManaged = $PSWebServer['WebHostTaskManagement'].Stats.TasksManaged
 }

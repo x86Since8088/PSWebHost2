@@ -1,6 +1,6 @@
 # This script loads the WebHost environment and deeply inspects $Global:PSWebServer
 $ProjectRoot = "C:\SC\PsWebHost"
-. (Join-Path $ProjectRoot "WebHost.ps1") -ShowVariables 3>$null 4>$null | Out-Null
+. (Join-Path $ProjectRoot "WebHost.ps1") -InitializeEnvironmentOnly 3>$null 4>$null | Out-Null
 
 Write-Host "`n=== Deep Inspection of `$Global:PSWebServer ===" -ForegroundColor Cyan
 

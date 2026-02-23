@@ -24,7 +24,7 @@ Browser-based twin test runner for PSWebHost with real-time execution, coverage 
 
 ### Browser Tests
 1. Start PSWebHost: pwsh WebHost.ps1
-2. Navigate to: http://localhost:8888/apps/unittests/api/v1/ui/elements/unit-test-runner
+2. Navigate to: http://localhost:8888/apps/UnitTests/cards/unit-test-runner
 3. Select "UnitTests Browser Tests"
 4. Click "Run Tests"
 
@@ -57,14 +57,14 @@ Browser-based twin test runner for PSWebHost with real-time execution, coverage 
 Edit $AppName.Tests.ps1:
 ```powershell
 function Test-CLIFunctionality {
-    Test-Assert -TestName "Your New Test" 
-        -Condition (\ -eq \) 
+    Test-Assert -TestName "Your New Test"
+        -Condition ($actual -eq $expected)
         -Message "Should do something"
 }
 ```
 
 ### Browser Test
-Edit rowser-tests.js:
+Edit browser-tests.js:
 ```javascript
 async testYourFeature() {
     const result = await this.apiCall('/endpoint');

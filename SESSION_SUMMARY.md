@@ -24,7 +24,7 @@ Migrated the file-explorer endpoint from core routes to the **WebhostFileExplore
 
 Unlike previous migrations, file-explorer required **two separate endpoints**:
 
-1. **UI Metadata Endpoint** - `/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer`
+1. **UI Metadata Endpoint** - `/apps/WebhostFileExplorer/cards/file-explorer`
    - Returns JSON metadata for the card system
    - Tells the card system where to find the component
 
@@ -111,13 +111,13 @@ Conducted comprehensive review of all menu URLs across 16 apps and core menu to 
 #### Medium Priority Items
 
 - Several unverified UI element endpoints need testing:
-  - `/api/v1/ui/elements/site-settings`
-  - `/api/v1/ui/elements/admin/role-management`
-  - `/api/v1/ui/elements/admin/users-management`
-  - `/api/v1/ui/elements/nodes-manager`
+  - `/cards/site-settings`
+  - `/cards/admin/role-management`
+  - `/cards/admin/users-management`
+  - `/cards/nodes-manager`
   - `/api/v1/ui/elements/world-map`
-  - `/api/v1/ui/elements/system-log`
-  - `/api/v1/ui/elements/markdown-viewer`
+  - `/cards/system-log`
+  - `/cards/markdown-viewer`
 
 ### Content-Type Patterns Documented
 

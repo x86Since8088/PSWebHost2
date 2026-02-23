@@ -55,6 +55,147 @@ function ConvertTo-CompressedBase64 {
     }
 }
 
+function Backup-ConfigurationFile {
+    <#
+    .SYNOPSIS
+        Backs up a configuration file if it has changed since the last backup
+
+    .DESCRIPTION
+        When a configuration file is read, this function:
+        1. Checks for the most recent backup of the file
+        2. Compares LastWriteTime between current file and most recent backup
+        3. If different (or no backup exists), creates a timestamped copy
+        4. Preserves relative subfolder path in the backup directory
+
+    .PARAMETER ConfigFilePath
+        Full path to the configuration file to backup
+
+    .PARAMETER ProjectRoot
+        Root directory of the project (defaults to $Global:PSWebServer.Project_Root.Path)
+
+    .EXAMPLE
+        Backup-ConfigurationFile -ConfigFilePath "C:\SC\PsWebHost\apps\MyApp\app.yaml"
+
+    .EXAMPLE
+        Backup-ConfigurationFile -ConfigFilePath $securityPath -ProjectRoot $projectRoot
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ConfigFilePath,
+
+        [string]$ProjectRoot = $Global:PSWebServer.Project_Root.Path
+    )
+
+    $MyTag = "[Backup-ConfigurationFile]"
+
+    # Validate config file exists
+    if (-not (Test-Path $ConfigFilePath)) {
+        Write-Verbose "$MyTag Configuration file not found: $ConfigFilePath"
+        return
+    }
+
+    # Only backup specific configuration file types
+    $extension = [System.IO.Path]::GetExtension($ConfigFilePath)
+    if ($extension -notin @('.yaml', '.yml', '.json')) {
+        Write-Verbose "$MyTag Skipping backup for non-config file: $ConfigFilePath"
+        return
+    }
+
+    try {
+        # Get current file info
+        $currentFile = Get-Item $ConfigFilePath
+        $currentLastWrite = $currentFile.LastWriteTime
+
+        # Determine backup directory
+        $backupRoot = Join-Path $ProjectRoot "backups\config"
+
+        # Calculate relative path from project root
+        $relativePath = $ConfigFilePath.Replace($ProjectRoot, '').TrimStart('\', '/')
+        $relativeDir = Split-Path $relativePath -Parent
+        $fileName = Split-Path $relativePath -Leaf
+
+        # Create backup subdirectory preserving relative path
+        $backupDir = Join-Path $backupRoot $relativeDir
+        if (-not (Test-Path $backupDir)) {
+            New-Item -Path $backupDir -ItemType Directory -Force | Out-Null
+            Write-Verbose "$MyTag Created backup directory: $backupDir"
+        }
+
+        # Find most recent backup for this file
+        $filePattern = [System.IO.Path]::GetFileNameWithoutExtension($fileName)
+        $existingBackups = Get-ChildItem -Path $backupDir -Filter "$filePattern*$extension" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending
+
+        $needsBackup = $false
+
+        if ($existingBackups.Count -eq 0) {
+            # No backups exist
+            $needsBackup = $true
+            Write-Verbose "$MyTag No existing backups found for: $fileName"
+        }
+        else {
+            # Check if most recent backup has different LastWriteTime
+            $mostRecentBackup = $existingBackups[0]
+
+            # Extract timestamp from backup filename (format: filename__yyyyMMddHHmmss.ext)
+            # We need to check the actual content timestamp, not the backup file's timestamp
+            # Read the backup's original timestamp from its LastWriteTime or embedded in name
+            if ($mostRecentBackup.Name -match '__(\d{14})\.') {
+                $backupTimestamp = [datetime]::ParseExact($matches[1], 'yyyyMMddHHmmss', $null)
+
+                # Compare timestamps (allow 1 second tolerance for file system precision)
+                $timeDiff = [Math]::Abs(($currentLastWrite - $backupTimestamp).TotalSeconds)
+
+                if ($timeDiff -gt 1) {
+                    $needsBackup = $true
+                    Write-Verbose "$MyTag File modified since last backup. Current: $currentLastWrite, Backup: $backupTimestamp"
+                }
+                else {
+                    Write-Verbose "$MyTag File unchanged since last backup: $fileName"
+                }
+            }
+            else {
+                # Old backup format or first backup - create new one
+                $needsBackup = $true
+                Write-Verbose "$MyTag Existing backup has old format, creating new backup"
+            }
+        }
+
+        # Create timestamped backup if needed
+        if ($needsBackup) {
+            $timestamp = $currentLastWrite.ToString('yyyyMMddHHmmss')
+            $backupFileName = "$filePattern`__$timestamp$extension"
+            $backupPath = Join-Path $backupDir $backupFileName
+
+            # Copy file to backup location
+            Copy-Item -Path $ConfigFilePath -Destination $backupPath -Force
+
+            # Preserve original LastWriteTime in the backup
+            (Get-Item $backupPath).LastWriteTime = $currentLastWrite
+
+            Write-Verbose "$MyTag Created backup: $backupPath"
+            Write-PSWebHostLog -Severity 'Info' -Category 'Config' -Message "Backed up configuration file: $relativePath -> $backupFileName"
+
+            # Cleanup old backups (keep last 10)
+            $allBackupsForFile = Get-ChildItem -Path $backupDir -Filter "$filePattern*$extension" -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending
+
+            if ($allBackupsForFile.Count -gt 10) {
+                $toDelete = $allBackupsForFile | Select-Object -Skip 10
+                foreach ($oldBackup in $toDelete) {
+                    Remove-Item $oldBackup.FullName -Force
+                    Write-Verbose "$MyTag Removed old backup: $($oldBackup.Name)"
+                }
+            }
+        }
+    }
+    catch {
+        Write-Warning "$MyTag Failed to backup configuration file $ConfigFilePath : $($_.Exception.Message)"
+        Write-PSWebHostLog -Severity 'Warning' -Category 'Config' -Message "Failed to backup config file $ConfigFilePath : $($_.Exception.Message)"
+    }
+}
+
 function Resolve-RouteScriptPath {
     param (
         [string]$UrlPath,
@@ -129,6 +270,9 @@ function Authorize-Request {
     }
 
     try {
+        # Backup configuration file if it has changed
+        Backup-ConfigurationFile -ConfigFilePath $SecurityPath
+
         $securityConfig = Get-Content $SecurityPath | ConvertFrom-Json
     } catch {
         Write-Verbose "$($MyTag) Failed to read security config: $($_)"
@@ -357,9 +501,633 @@ function Validate-UserSession {
     return $true
 }
 
+function context_response {
+    [CmdletBinding(DefaultParameterSetName = 'String')]
+    param(
+        [Parameter(Mandatory=$true)] [System.Net.HttpListenerResponse]$Response,
+        [Parameter(Mandatory=$false, ParameterSetName='String')] [string]$String,
+        [Parameter(Mandatory=$false, ParameterSetName='Bytes')] [byte[]]$Byte,
+        [Parameter(Mandatory=$false, ParameterSetName='Path')] [string]$Path,
+        [Parameter()] [string]$ContentType,
+        [Parameter()] [int]$StatusCode = 200,
+        [Parameter()] [string]$StatusDescription,
+        [Parameter()] [System.Collections.IDictionary]$Headers,
+        [Parameter()] [System.Net.CookieCollection]$Cookies,
+        [Parameter()] [string]$RedirectLocation,
+        [Parameter()] [System.Text.Encoding]$ContentEncoding = [System.Text.Encoding]::UTF8,
+        [Parameter()] [int]$CacheDuration = 0
+    )
+
+    try {
+        # Check if the response is already closed or client disconnected
+        if ($null -eq $Response -or $null -eq $Response.OutputStream) {
+            Write-Verbose "Response object is null or output stream is closed, client may have disconnected"
+            return
+        }
+
+        $Response.StatusCode = $StatusCode
+        if ($PSBoundParameters.ContainsKey('StatusDescription')) { $Response.StatusDescription = $StatusDescription }
+        if ($PSBoundParameters.ContainsKey('Headers')) { foreach ($key in $Headers.Keys) { $Response.AddHeader($key, $Headers[$key]) } }
+        if ($PSBoundParameters.ContainsKey('Cookies')) { $Response.Cookies.Add($Cookies) }
+        if ($PSBoundParameters.ContainsKey('RedirectLocation')) {
+            Write-Verbose "Redirecting to: $($RedirectLocation) with status code $($StatusCode)"
+            $Response.Redirect($RedirectLocation)
+        }
+
+        # Add cache control headers if CacheDuration is specified
+        if ($CacheDuration -gt 0) {
+            $cacheControl = "public, max-age=$CacheDuration, stale-while-revalidate=$([math]::Min($CacheDuration * 2, 1800)), stale-if-error=$([math]::Min($CacheDuration * 3, 3600))"
+            $Response.AddHeader("Cache-Control", $cacheControl)
+            $expiresDate = (Get-Date).AddSeconds($CacheDuration).ToUniversalTime().ToString("r")
+            $Response.AddHeader("Expires", $expiresDate)
+            # Add ETag for cache validation
+            $etag = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$StatusCode-$((Get-Date).Ticks)"))
+            $Response.AddHeader("ETag", "`"$etag`"")
+        } elseif ($CacheDuration -eq 0) {
+            # Explicitly disable caching
+            $Response.AddHeader("Cache-Control", "no-store, no-cache, must-revalidate")
+            $Response.AddHeader("Pragma", "no-cache")
+            $Response.AddHeader("Expires", "0")
+        }
+
+        $finalContentType = $ContentType
+        if ($PSCmdlet.ParameterSetName -eq 'Path' -and -not $PSBoundParameters.ContainsKey('ContentType')) {
+            $extension = [System.IO.Path]::GetExtension($Path)
+            if ($Global:PSWebServer.config.MimeTypes.psobject.Properties[$extension]) {
+                $finalContentType = $Global:PSWebServer.config.MimeTypes.psobject.Properties[$extension].Value
+            } else {
+                $finalContentType = 'application/octet-stream'
+            }
+        }
+        if ($finalContentType) { $Response.ContentType = $finalContentType }
+
+        $contentBytes = $null
+        switch ($PSCmdlet.ParameterSetName) {
+            'String' {
+                $contentBytes = $ContentEncoding.GetBytes($String)
+                $Response.ContentEncoding = $ContentEncoding
+            }
+            'Bytes'  { $contentBytes = $Byte }
+            'Path'   {
+                if (Test-Path -Path $Path -PathType Leaf) {
+                    $contentBytes = [System.IO.File]::ReadAllBytes($Path)
+                } else {
+                    $Response.StatusCode = 404
+                    $Response.StatusDescription = "Not Found"
+                    $errorMessage = "File not found at path: $($Path -replace ([regex]::Escape($global:PSWebServer.Project_Root.Path)),'')"
+                    $contentBytes = $ContentEncoding.GetBytes($errorMessage)
+                    $Response.ContentType = 'text/plain'
+                }
+            }
+        }
+
+        if ($null -ne $contentBytes) {
+            $Response.ContentLength64 = $contentBytes.Length
+            $Response.OutputStream.Write($contentBytes, 0, $contentBytes.Length)
+        } else {
+            $Response.ContentLength64 = 0
+        }
+    } catch [System.Net.HttpListenerException] {
+        # Client disconnected or network error - this is expected, just log and return
+        $errorCode = $_.Exception.ErrorCode
+        if ($errorCode -eq 64 -or $errorCode -eq 1229) {
+            # Error 64 = "The specified network name is no longer available"
+            # Error 1229 = "An operation was attempted on a nonexistent network connection"
+            Write-Verbose "Client disconnected during response: $($_.Exception.Message)"
+        } else {
+            Write-PSWebHostLog -Severity 'Warning' -Category 'Response' -Message "Network error during response: $($_.Exception.Message) (ErrorCode: $errorCode)"
+        }
+    } catch [System.InvalidOperationException] {
+        # Response already sent or stream closed
+        if ($_.Exception.Message -match 'response has been submitted|stream.*closed') {
+            Write-Verbose "Response already sent or stream closed: $($_.Exception.Message)"
+        } else {
+            Write-PSWebHostLog -Severity 'Error' -Category 'Response' -Message "Invalid operation in context_response: $($_.Exception.Message)"
+        }
+    } catch {
+        # Other errors - try to send error response only if possible
+        $errorMessage = "Failed to build response. Error: $_ "
+        Write-PSWebHostLog -Severity 'Error' -Category 'Response' -Message $errorMessage
+
+        try {
+            # Only attempt to send error response if headers haven't been sent and stream is available
+            if (-not $Response.HeadersSent -and $null -ne $Response.OutputStream) {
+                $Response.StatusCode = 500
+                $Response.StatusDescription = "Internal Server Error"
+                $errorBytes = [System.Text.Encoding]::UTF8.GetBytes("Internal Server Error: $_ ")
+                $Response.ContentLength64 = $errorBytes.Length
+                $Response.OutputStream.Write($errorBytes, 0, $errorBytes.Length)
+            }
+        } catch {
+            # If we can't send the error response, just log it
+            Write-Verbose "Unable to send error response (client may have disconnected): $($_.Exception.Message)"
+        }
+    }
+}
+
+function Invoke-HttpRequestPublic {
+    <#
+    .SYNOPSIS
+        Handles public static file requests from /public/ and /apps/[appname]/public/ paths.
+
+    .DESCRIPTION
+        Serves static files without session requirements. Uses MIME types from config.
+        Handles both project root /public/ and app /apps/[appname]/public/ paths consistently.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Net.HttpListenerContext]$Context
+    )
+
+    $MyTag = '[Invoke-HttpRequestPublic]'
+    $request = $Context.Request
+    $response = $Context.Response
+    $requestedPath = $request.Url.LocalPath
+    $projectRoot = $Global:PSWebServer.Project_Root.Path
+
+    Write-Verbose "$MyTag Handling public static file request: $requestedPath"
+
+    # Determine base directory and file path based on URL pattern
+    if ($requestedPath -match '^/apps/(?<appname>[a-zA-Z0-9_-]+)/public/(?<filepath>.+)$') {
+        # App public file: /apps/[appname]/public/...
+        $appName = $matches.appname
+        $filePath = $matches.filepath
+
+        if ($Global:PSWebServer.Apps -and $Global:PSWebServer.Apps.ContainsKey($appName)) {
+            $appInfo = $Global:PSWebServer.Apps[$appName]
+            $baseDirectory = $appInfo.PublicPath
+            Write-Verbose "$MyTag App public file: app=$appName, file=$filePath, base=$baseDirectory"
+        } else {
+            Write-Verbose "$MyTag App '$appName' not found"
+            context_response -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "App not found"
+            return
+        }
+    } elseif ($requestedPath -match '^/public/(?<filepath>.+)$') {
+        # Project root public file: /public/...
+        $filePath = $matches.filepath
+        $baseDirectory = $projectRoot
+        Write-Verbose "$MyTag Project public file: $filePath"
+    } else {
+        Write-Verbose "$MyTag Invalid public path pattern: $requestedPath"
+        context_response -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String "Invalid path"
+        return
+    }
+
+    # Sanitize and resolve file path
+    $sanitizedPath = Sanitize-FilePath -FilePath "public/$filePath" -BaseDirectory $baseDirectory
+
+    if ($sanitizedPath.Score -ne 'pass') {
+        Write-Verbose "$MyTag Sanitization failed: $($sanitizedPath.Message)"
+        Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "$MyTag Path sanitization failed: $($sanitizedPath.Message)"
+        context_response -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
+        return
+    }
+
+    if (-not (Test-Path $sanitizedPath.Path -PathType Leaf)) {
+        # Special handling for /public/elements/ - search in app directories
+        if ($requestedPath -match '^/public/elements/(?<fullpath>.+)$') {
+            $fullPath = $matches.fullpath
+            Write-Verbose "$MyTag Component file not in project root, searching apps: $fullPath"
+
+            # Try searching all apps
+            if ($Global:PSWebServer.Apps) {
+                foreach ($appName in $Global:PSWebServer.Apps.Keys) {
+                    $appInfo = $Global:PSWebServer.Apps[$appName]
+                    $appPublicDir = $appInfo.PublicPath
+                    $componentFilePath = Join-Path $appPublicDir "elements/$fullPath"
+
+                    if (Test-Path $componentFilePath -PathType Leaf) {
+                        Write-Verbose "$MyTag Component file found in app '$appName': $componentFilePath"
+                        context_response -Response $response -Path $componentFilePath
+                        return
+                    }
+                }
+            }
+        }
+
+        Write-Verbose "$MyTag File not found: $($sanitizedPath.Path)"
+        context_response -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "File not found"
+        return
+    }
+
+    Write-Verbose "$MyTag Serving file: $($sanitizedPath.Path)"
+    context_response -Response $response -Path $sanitizedPath.Path
+}
+
+function Invoke-HttpRequestRoute {
+    <#
+    .SYNOPSIS
+        Handles route execution for both app routes and default routes.
+
+    .DESCRIPTION
+        Unified route handler for:
+        - Bearer token authentication (API keys)
+        - App routes: /apps/[appname]/... (excluding /public/)
+        - Default routes: /* (resolved from /routes/ directory)
+        - Card routes: /cards/* (searched in main routes and app routes)
+
+        Handles authorization, card settings, performance tracking, and script execution.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Net.HttpListenerContext]$Context,
+
+        [Parameter(Mandatory)]
+        [System.Net.HttpListenerRequest]$Request,
+
+        [Parameter(Mandatory)]
+        [string]$SessionID,
+
+        [switch]$Async,
+
+        $HostUIQueue
+    )
+
+    $MyTag = '[Invoke-HttpRequestRoute]'
+    $response = $Context.Response
+    $requestedPath = $Request.Url.LocalPath
+    $httpMethod = $Request.HttpMethod.ToLower()
+    $projectRoot = $Global:PSWebServer.Project_Root.Path
+    $scriptPath = $null
+
+    Write-Verbose "$MyTag Handling route request: $httpMethod $requestedPath"
+
+    # --- API Key Bearer Token Authentication ---
+    # Check Authorization header for Bearer token - enhances/overrides session auth
+    $apiKeyAuthenticated = $false
+    $authHeader = $Request.Headers['Authorization']
+    if ($authHeader -and $authHeader.StartsWith('Bearer ', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $bearerToken = $authHeader.Substring(7).Trim()
+        Write-Verbose "$MyTag Authorization Bearer token detected, validating API key..."
+
+        $remoteIP = $Request.RemoteEndPoint.Address.ToString()
+        Write-Verbose "$MyTag Remote IP for API key validation: $remoteIP"
+
+        try {
+            $apiKeyResult = Test-Authentication_API_Key_Bearer -BearerToken $bearerToken -RemoteIP $remoteIP
+        } catch {
+            Write-PSWebHostLog -Severity 'Error' -Category 'Authentication' -Message "$MyTag Error calling Test-Authentication_API_Key_Bearer: $($_.Exception.Message)"
+            Write-Host "$MyTag Error calling Test-Authentication_API_Key_Bearer: $($_.Exception.Message)" -ForegroundColor Red
+            $apiKeyResult = $null
+        }
+
+        if ($apiKeyResult -and $apiKeyResult.Authenticated) {
+            Write-Verbose "$MyTag API key authentication successful: $($apiKeyResult.KeyName) from $($apiKeyResult.Source)"
+            $apiKeyAuthenticated = $true
+
+            # Update the in-memory session with API key authentication
+            $global:PSWebSessions[$SessionID] = [hashtable]::Synchronized(@{
+                UserID = $apiKeyResult.UserID
+                Provider = "API_Key"
+                UserAgent = $Request.UserAgent
+                AuthTokenExpiration = (Get-Date).AddHours(1)
+                LastUpdated = (Get-Date)
+                AuthenticationState = "completed"
+                Roles = $apiKeyResult.Roles
+                ApiKeyName = $apiKeyResult.KeyName
+                ApiKeySource = $apiKeyResult.Source
+            })
+
+            Write-Verbose "$MyTag API_Key session created in memory for UserID: $($apiKeyResult.UserID), SessionID: $SessionID"
+            Write-PSWebHostLog -Severity 'Info' -Category 'Authentication' -Message "$MyTag API key authenticated: $($apiKeyResult.KeyName) from $remoteIP with roles: $($apiKeyResult.Roles -join ', '), SessionID: $SessionID"
+        } else {
+            Write-Verbose "$MyTag API key authentication failed for bearer token"
+            Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "$MyTag Invalid API key bearer token from $($Request.RemoteEndPoint.Address)"
+            context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Invalid API key"
+            return
+        }
+    }
+
+    # Get session (either updated by bearer token auth or existing cookie session)
+    $Session = Get-PSWebSessions -SessionID $SessionID
+    Write-Verbose "$MyTag Session retrieved: $SessionID UserID: $($Session.UserID)"
+
+    # --- App Route Resolution ---
+    if ($requestedPath -match '^/apps/(?<appname>[a-zA-Z0-9_-]+)/(?<routepath>.+)$') {
+        $appName = $matches.appname
+        $routePath = $matches.routepath
+
+        # Skip if this is a public file (should have been handled by Invoke-HttpRequestPublic)
+        if ($routePath.StartsWith("public/")) {
+            Write-Verbose "$MyTag Public path in app route handler (should not happen): $requestedPath"
+            context_response -Response $response -StatusCode 500 -StatusDescription "Internal Server Error" -String "Routing error"
+            return
+        }
+
+        Write-Verbose "$MyTag App route request: app=$appName, route=$routePath"
+
+        if ($Global:PSWebServer.Apps -and $Global:PSWebServer.Apps.ContainsKey($appName)) {
+            $appInfo = $Global:PSWebServer.Apps[$appName]
+            $manifest = $appInfo.Manifest
+
+            # Check if app requires specific roles
+            if ($manifest.requiredRoles -and $manifest.requiredRoles.Count -gt 0) {
+                $hasRequiredRole = $false
+                foreach ($reqRole in $manifest.requiredRoles) {
+                    if ($Session.Roles -contains $reqRole) {
+                        $hasRequiredRole = $true
+                        break
+                    }
+                }
+                if (-not $hasRequiredRole) {
+                    Write-Verbose "$MyTag User lacks required roles for app '$appName': $($manifest.requiredRoles -join ', ')"
+                    Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "Unauthorized app access: $appName requires roles: $($manifest.requiredRoles -join ', ')"
+                    context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized - App requires: $($manifest.requiredRoles -join ', ')"
+                    return
+                }
+            }
+
+            $appRoutesDir = $appInfo.RoutesPath
+            if (Test-Path $appRoutesDir) {
+                # Ensure routePath has leading slash for resolution
+                if (-not $routePath.StartsWith("/")) {
+                    $routePath = "/$routePath"
+                }
+                $scriptPath = Resolve-RouteScriptPath -UrlPath $routePath -HttpMethod $httpMethod -BaseDirectory $appRoutesDir
+                if ($scriptPath) {
+                    Write-Verbose "$MyTag App route script found: $scriptPath"
+                    # Execute with app-specific defaults
+                    Invoke-RouteScript -Context $Context -Session $Session -SessionID $SessionID `
+                                      -ScriptPath $scriptPath -DefaultRoles @("authenticated") `
+                                      -Async:$Async -HostUIQueue $HostUIQueue
+                    return
+                }
+            }
+        } else {
+            Write-Verbose "$MyTag App '$appName' not found"
+            context_response -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "App not found"
+            return
+        }
+    }
+
+    # --- Card Route Resolution ---
+    if ($requestedPath -match '^/cards/') {
+        Write-Verbose "$MyTag Card route request: $requestedPath"
+
+        # First try main routes/cards directory
+        $routeBaseDir = Join-Path $projectRoot "routes"
+        $scriptPath = Resolve-RouteScriptPath -UrlPath $requestedPath -HttpMethod $httpMethod -BaseDirectory $routeBaseDir
+
+        # If not found in main routes, search app routes
+        if (-not $scriptPath -and $Global:PSWebServer.Apps) {
+            foreach ($appName in $Global:PSWebServer.Apps.Keys) {
+                $appInfo = $Global:PSWebServer.Apps[$appName]
+                $appRoutesDir = $appInfo.RoutesPath
+                if ($appRoutesDir -and (Test-Path $appRoutesDir)) {
+                    $scriptPath = Resolve-RouteScriptPath -UrlPath $requestedPath -HttpMethod $httpMethod -BaseDirectory $appRoutesDir
+                    if ($scriptPath) {
+                        Write-Verbose "$MyTag Card route found in app '$appName': $scriptPath"
+                        break
+                    }
+                }
+            }
+        } elseif ($scriptPath) {
+            Write-Verbose "$MyTag Card route found in main routes: $scriptPath"
+        }
+    }
+
+    # --- Default Route Resolution ---
+    if (-not $scriptPath) {
+        Write-Verbose "$MyTag Attempting default route resolution"
+        $routeBaseDir = Join-Path $projectRoot "routes"
+        $scriptPath = Resolve-RouteScriptPath -UrlPath $requestedPath -HttpMethod $httpMethod -BaseDirectory $routeBaseDir
+    }
+
+    # --- Execute Script or 404 ---
+    if ($scriptPath) {
+        Write-Verbose "$MyTag Route script found: $scriptPath"
+        Invoke-RouteScript -Context $Context -Session $Session -SessionID $SessionID `
+                          -ScriptPath $scriptPath -DefaultRoles @("unauthenticated") `
+                          -Async:$Async -HostUIQueue $HostUIQueue
+    } else {
+        # Special case: favicon
+        if ($requestedPath -eq "/favicon.ico") {
+            $DefaultFavicon = Join-Path $projectRoot "public/favicon.ico"
+            Write-Verbose "$MyTag Serving favicon: $DefaultFavicon"
+            context_response -Response $response -Path $DefaultFavicon
+        } else {
+            Write-Verbose "$MyTag No handler found, returning 404: $requestedPath"
+            Write-PSWebHostLog -Severity 'Info' -Category 'Routing' -Message "$MyTag 404 Not Found: $requestedPath from $($request.RemoteEndPoint)"
+            context_response -Response $response -StatusCode 404 -String "404 Not Found" -ContentType "text/plain"
+        }
+    }
+}
+
+function Invoke-RouteScript {
+    <#
+    .SYNOPSIS
+        Executes a route script with authorization, card settings, and performance tracking.
+
+    .DESCRIPTION
+        Internal helper for route script execution. Handles:
+        - Security configuration and authorization
+        - Card settings retrieval and decompression
+        - Performance tracking
+        - Async vs sync execution
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Net.HttpListenerContext]$Context,
+
+        [Parameter(Mandatory)]
+        [hashtable]$Session,
+
+        [Parameter(Mandatory)]
+        [string]$SessionID,
+
+        [Parameter(Mandatory)]
+        [string]$ScriptPath,
+
+        [Parameter(Mandatory)]
+        [string[]]$DefaultRoles,
+
+        [switch]$Async,
+
+        $HostUIQueue
+    )
+
+    $MyTag = '[Invoke-RouteScript]'
+    $request = $Context.Request
+    $response = $Context.Response
+    $requestedPath = $request.Url.LocalPath
+    $httpMethod = $request.HttpMethod.ToLower()
+
+    Write-Verbose "$MyTag Executing route script: $ScriptPath"
+
+    # --- Security Configuration ---
+    $securityPath = [System.IO.Path]::ChangeExtension($ScriptPath, ".security.json")
+    Write-Verbose "$MyTag Security config path: $securityPath"
+
+    if (-not (Test-Path $securityPath)) {
+        $securityContent = @{ Allowed_Roles = $DefaultRoles } | ConvertTo-Json -Compress
+        Set-Content -Path $securityPath -Value $securityContent
+        Write-Verbose "$MyTag Auto-created default security file with roles: $($DefaultRoles -join ', ')"
+        Write-PSWebHostLog -Severity 'Info' -Category 'Security' -Message "Auto-created default security file for $requestedPath with roles: $($DefaultRoles -join ', ')"
+    }
+
+    # Backup configuration file if it has changed
+    Backup-ConfigurationFile -ConfigFilePath $securityPath
+
+    # --- Authorization ---
+    $securityConfig = Get-Content $securityPath | ConvertFrom-Json
+    Write-Verbose "$MyTag Security config loaded. Allowed roles: $($securityConfig.Allowed_Roles -join ', ')"
+
+    $isAuthorized = Authorize-Request -Session $Session -SecurityPath $securityPath
+    Write-Verbose "$MyTag Authorization result: $isAuthorized"
+
+    if (-not $isAuthorized) {
+        Write-Verbose "$MyTag Authorization failed - user not in allowed roles"
+        Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "Unauthorized access to $requestedPath by user $($Session.UserID) with roles: $($Session.Roles -join ', ')"
+        context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized"
+        return
+    }
+
+    # --- Prepare Script Parameters ---
+    $scriptParams = @{
+        Context = $Context
+        SessionData = $Session
+    }
+
+    [string[]]$ScriptParamNames = (Get-Command -Name $ScriptPath).Parameters.keys
+    ($scriptParams.Keys | Where-Object { $ScriptParamNames -notcontains $_ }) | ForEach-Object {
+        Write-Verbose "$MyTag Removing unexpected script parameter: $_"
+        $scriptParams.Remove($_)
+    }
+
+    # --- Card Settings Handling (POST requests) ---
+    if ($httpMethod -eq 'post') {
+        Write-Verbose "$MyTag Processing POST request, checking for card settings"
+        $guidPath = [System.IO.Path]::ChangeExtension($ScriptPath, ".json")
+        if (Test-Path $guidPath) {
+            Write-Verbose "$MyTag Card settings config found: $guidPath"
+            $guid = (Get-Content $guidPath | ConvertFrom-Json).guid
+            if ($guid -and $Session.UserID) {
+                Write-Verbose "$MyTag Retrieving card settings for GUID: $guid, UserID: $($Session.UserID)"
+                $cardSettingsData = Get-CardSettings -EndpointGuid $guid -UserId $Session.UserID
+                if ($cardSettingsData) {
+                    try {
+                        Write-Verbose "$MyTag Decompressing card settings data"
+                        $compressedBytes = [System.Convert]::FromBase64String($cardSettingsData)
+                        $memStream = New-Object System.IO.MemoryStream
+                        $memStream.Write($compressedBytes, 0, $compressedBytes.Length)
+                        $memStream.Position = 0
+                        $gzipStream = New-Object System.IO.Compression.GZipStream($memStream, [System.IO.Compression.CompressionMode]::Decompress)
+                        $streamReader = New-Object System.IO.StreamReader($gzipStream)
+                        $uncompressedJson = $streamReader.ReadToEnd()
+                        $ht = @{}
+                        ($uncompressedJson | ConvertFrom-Json).psobject.Properties | ForEach-Object { $ht[$_.Name] = $_.value }
+                        $scriptParams.CardSettings = $ht
+                        Write-Verbose "$MyTag Card settings decompressed and added to script parameters"
+                    } catch {
+                        Write-Verbose "$MyTag Failed to decompress/deserialize card settings for GUID $guid"
+                        Write-PSWebHostLog -Severity 'Error' -Category 'Settings' -Message "Failed to decompress/deserialize card settings for GUID $guid"
+                    }
+                } else {
+                    Write-Verbose "$MyTag No card settings data found for GUID: $guid"
+                }
+            } else {
+                Write-Verbose "$MyTag Skipping card settings retrieval: GUID=$guid, UserID=$($Session.UserID)"
+            }
+        } else {
+            Write-Verbose "$MyTag Card settings config not found: $guidPath"
+        }
+    }
+
+    # --- Performance Tracking - Start ---
+    $requestID = [Guid]::NewGuid().ToString()
+    $perfStartTime = Get-Date
+    $logFilePath = $Global:PSWebServer.LogFilePath
+    $logFileSizeBefore = if (Test-Path $logFilePath) { (Get-Item $logFilePath).Length } else { 0 }
+
+    if ($Global:PSWebPerfQueue) {
+        & (Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1") -QueueData @{
+            Type = 'WebRequest'
+            Data = @{
+                Action = 'Start'
+                RequestID = $requestID
+                StartTime = $perfStartTime.ToString('u')
+                FilePath = $ScriptPath
+                HttpMethod = $httpMethod
+                IPAddress = $request.RemoteEndPoint.Address.ToString()
+                UserAgent = $request.UserAgent
+                SessionID = $SessionID
+                LogFileSizeBefore = $logFileSizeBefore
+            }
+        }
+    }
+
+    # --- Execute Script ---
+    $scriptStatusCode = $null
+    if ($Async.IsPresent) {
+        Write-Verbose "$MyTag Executing route script asynchronously via runspace pool"
+        if ($global:AsyncRunspacePool -and $global:AsyncRunspacePool.Initialized) {
+            $asyncFunc = $global:AsyncRunspacePool.Functions['Invoke-AsyncHttpRequest']
+            if ($asyncFunc) {
+                & $asyncFunc -Context $Context -ScriptPath $ScriptPath -ScriptParams $scriptParams -SessionID $SessionID
+            } else {
+                Write-Warning "$MyTag Invoke-AsyncHttpRequest function not found in pool, falling back to legacy"
+                Invoke-ContextRunspace -Context $Context -ScriptPath $ScriptPath -SessionID $SessionID
+            }
+        } else {
+            Invoke-ContextRunspace -Context $Context -ScriptPath $ScriptPath -SessionID $SessionID
+        }
+    } else {
+        Write-Verbose "$MyTag Executing route script synchronously: $($httpMethod.ToUpper()) $ScriptPath"
+        if ($PSBoundParameters.Verbose.IsPresent) {
+            $scriptParams['Verbose'] = $true
+        }
+        try {
+            & $ScriptPath @scriptParams
+            $scriptStatusCode = 200
+        } catch {
+            Write-PSWebHostLog -Severity 'Error' -Category 'Routing' -Message "$MyTag Error executing route script: $($_.Exception.Message + "`n" + $_.InvocationInfo.PositionMessage)" -Data @{ ScriptPath = $ScriptPath; SessionID = $SessionID; PositionMessage = $_.InvocationInfo.PositionMessage; Message = $_.Exception.Message } -WriteHost
+            context_response -Response $response -StatusCode 500 -StatusDescription "Internal Server Error" -String "Internal Server Error"
+            $scriptStatusCode = 500
+        }
+        Write-Verbose "$MyTag Route script execution completed"
+    }
+
+    # --- Performance Tracking - Complete ---
+    $perfEndTime = Get-Date
+    $executionTimeMicroseconds = [long](($perfEndTime - $perfStartTime).TotalMilliseconds * 1000)
+    $logFileSizeAfter = if (Test-Path $logFilePath) { (Get-Item $logFilePath).Length } else { 0 }
+
+    if ($Global:PSWebPerfQueue) {
+        $finalStatusCode = if ($scriptStatusCode) { $scriptStatusCode } else { $response.StatusCode }
+        $finalStatusText = if ($response.StatusDescription) { $response.StatusDescription } else { $null }
+
+        & (Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1") -QueueData @{
+            Type = 'WebRequest'
+            Data = @{
+                Action = 'Complete'
+                RequestID = $requestID
+                EndTime = $perfEndTime.ToString('u')
+                UserID = if ($Session.UserID) { $Session.UserID } else { '' }
+                AuthenticationProvider = if ($Session.Provider) { $Session.Provider } else { '' }
+                ExecutionTimeMicroseconds = $executionTimeMicroseconds
+                LogFileSizeBefore = $logFileSizeBefore
+                LogFileSizeAfter = $logFileSizeAfter
+                StatusCode = $finalStatusCode
+                StatusText = $finalStatusText
+            }
+        }
+    }
+}
 
 function Process-HttpRequest {
-    [cmdletbinding()]
+    <#
+    .SYNOPSIS
+        Main HTTP request processing dispatcher.
+
+    .DESCRIPTION
+        Handles session management, authentication, and routes requests to specialized handlers:
+        - Public static files: Invoke-HttpRequestPublic (no session required)
+        - Route execution: Invoke-HttpRequestRoute (session required)
+    #>
+    [CmdletBinding()]
     param (
         [System.Net.HttpListenerContext]$Context,
         [switch]$Async = $Async.ispresent,
@@ -372,18 +1140,19 @@ function Process-HttpRequest {
         try{$global:PSWebServer       = $using:global:PSWebServer      }catch{}
         try{$global:PSWebSessions     = $using:global:PSWebSessions    }catch{}
     }
-    Write-Verbose "$($MyTag) Starting processing request: $($httpMethod) $($requestedPath) from $($request.RemoteEndPoint)"
 
     $request = $Context.Request
     $response = $Context.Response
-    $handled = $false
     $requestedPath = $request.Url.LocalPath
     $httpMethod = $request.HttpMethod.ToLower()
-    $projectRoot = $Global:PSWebServer.Project_Root.Path
+
+    Write-Verbose "$($MyTag) Starting processing request: $httpMethod $requestedPath from $($request.RemoteEndPoint)"
+
+    # Early exit for .well-known paths
     if ($requestedPath -match '/\.well-known/') {
         return
     }
-    
+
     # Apply debug settings from config
     if ($global:PSWebServer.config.debug_url) {
         foreach ($urlMatch in ($global:PSWebServer.config.debug_url.PSObject.Properties|Sort-Object Name)) {
@@ -395,10 +1164,9 @@ function Process-HttpRequest {
         }
     }
 
-    Write-Verbose "$($MyTag) $(Get-Date -f 'yyyMMdd HH:mm:ss') Request received: $($httpMethod) $($requestedPath) from $($request.RemoteEndPoint)"
+    Write-Verbose "$($MyTag) $(Get-Date -f 'yyyMMdd HH:mm:ss') Request received: $httpMethod $requestedPath from $($request.RemoteEndPoint)"
 
     # --- Session Cookie Handling ---
-    # Always handle session cookies first, then apply API key auth on top if present
     try { Write-Verbose "$($MyTag) Incoming Cookie header: $($request.Headers['Cookie'])" } catch {}
     $sessionCookie = $request.Cookies["PSWebSessionID"]
     if ($sessionCookie -and -not [string]::IsNullOrWhiteSpace($sessionCookie.Value)) {
@@ -409,7 +1177,6 @@ function Process-HttpRequest {
         Write-Verbose "$($MyTag) No session cookie found or empty, creating new session: $($sessionID)"
 
         # Create session in memory only for unauthenticated sessions
-        # Database session is created when user authenticates
         $global:PSWebSessions[$sessionID] = [hashtable]::Synchronized(@{
             UserID = ""
             Provider = ""
@@ -422,7 +1189,6 @@ function Process-HttpRequest {
 
         # Set cookie
         $newCookie = New-Object System.Net.Cookie("PSWebSessionID", $sessionID)
-        # Only set Domain for non-localhost and non-IP hosts to avoid browser rejection for host-only cookies
         $hostName = $request.Url.HostName
         if ($hostName -notmatch '^(localhost|(\d{1,3}\.){3}\d{1,3}|::1)$') {
             $newCookie.Domain = $hostName
@@ -430,7 +1196,6 @@ function Process-HttpRequest {
         $newCookie.Expires = (Get-Date).AddDays(7)
         $newCookie.Path = "/"
         $newCookie.HttpOnly = $true
-        # Only set the Secure flag if the connection is actually HTTPS
         $newCookie.Secure = $request.IsSecureConnection
 
         $response.AppendCookie($newCookie)
@@ -449,461 +1214,45 @@ function Process-HttpRequest {
         }
     }
 
-    # --- API Key Bearer Token Authentication ---
-    # Check Authorization header for Bearer token - enhances/overrides session auth
-    $apiKeyAuthenticated = $false
-    $authHeader = $request.Headers['Authorization']
-    if ($authHeader -and $authHeader.StartsWith('Bearer ', [System.StringComparison]::OrdinalIgnoreCase)) {
-        $bearerToken = $authHeader.Substring(7).Trim()
-        Write-Verbose "$($MyTag) Authorization Bearer token detected, validating API key..."
+    # --- Request Routing Dispatcher ---
+    # Route public files BEFORE cookie/auth (no authentication required)
+    # All other routes AFTER session establishment (authentication handled in route handler)
 
-        # Get remote IP address
-        $remoteIP = $request.RemoteEndPoint.Address.ToString()
-        Write-Verbose "$($MyTag) Remote IP for API key validation: $remoteIP"
+    Write-Verbose "$($MyTag) Dispatching request: $requestedPath"
 
-        # Validate the bearer token
-        try {
-            $apiKeyResult = Test-Authentication_API_Key_Bearer -BearerToken $bearerToken -RemoteIP $remoteIP
-        } catch {
-            Write-PSWebHostLog -Severity 'Error' -Category 'Authentication' -Message "$($MyTag) Error calling Test-Authentication_API_Key_Bearer: $($_.Exception.Message)"
-            Write-Host "$($MyTag) Error calling Test-Authentication_API_Key_Bearer: $($_.Exception.Message)" -ForegroundColor Red
-            $apiKeyResult = $null
-        }
-
-        if ($apiKeyResult -and $apiKeyResult.Authenticated) {
-            Write-Verbose "$($MyTag) API key authentication successful: $($apiKeyResult.KeyName) from $($apiKeyResult.Source)"
-            $apiKeyAuthenticated = $true
-
-            # Update the existing session with API key authentication
-            # This allows API key auth to work alongside session cookies
-            $global:PSWebSessions[$sessionID] = [hashtable]::Synchronized(@{
-                UserID = $apiKeyResult.UserID
-                Provider = "API_Key"
-                UserAgent = $request.UserAgent
-                AuthTokenExpiration = (Get-Date).AddHours(1)
-                LastUpdated = (Get-Date)
-                Roles = $apiKeyResult.Roles
-                ApiKeyName = $apiKeyResult.KeyName
-                ApiKeySource = $apiKeyResult.Source
-            })
-
-            Write-PSWebHostLog -Severity 'Info' -Category 'Authentication' -Message "$($MyTag) API key authenticated: $($apiKeyResult.KeyName) from $remoteIP with roles: $($apiKeyResult.Roles -join ', ')"
-        } else {
-            Write-Verbose "$($MyTag) API key authentication failed for bearer token"
-            Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "$($MyTag) Invalid API key bearer token from $($request.RemoteEndPoint.Address)"
-            # Invalid API key - return 401 Unauthorized immediately
-            context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Invalid API key"
+    switch -regex ($requestedPath) {
+        # PUBLIC STATIC FILES - No session/cookie/auth required
+        '^/public/' {
+            Write-Verbose "$($MyTag) Routing to public handler: /public/"
+            Invoke-HttpRequestPublic -Context $Context
             return
         }
-    }
-
-    # For new sessions without API key auth, redirect to establish cookie
-    if (-not $sessionCookie -and -not $apiKeyAuthenticated) {
-        Write-Verbose "$($MyTag) Redirecting to same page to ensure cookie is sent: $($request.Url.AbsoluteUri)"
-        context_response -Response $response -StatusCode 302 -RedirectLocation $request.Url.AbsoluteUri
-        return
-    }
-
-    $session = Get-PSWebSessions -SessionID $sessionID
-    Write-Verbose "`t$($MyTag) $(Get-Date -f 'yyyMMdd HH:mm:ss') Session: $($sessionID) UserID: $($session.UserID)"
-
-    if ($requestedPath.StartsWith("/public", [System.StringComparison]::OrdinalIgnoreCase)) {
-            Write-Verbose "$($MyTag) Handling public static file request: $($requestedPath)"
-        $handled = $true
-        $sanitizedPath = Sanitize-FilePath -FilePath $requestedPath.trim('/') -BaseDirectory $projectRoot
-        if ($sanitizedPath.Score -eq 'pass' -and (Test-Path $sanitizedPath.Path -PathType Leaf)) {
-            Write-Verbose "$($MyTag) Static file found in project root, serving: $($sanitizedPath.Path)"
-            context_response -Response $response -Path $sanitizedPath.Path
-            return
-        } elseif ($sanitizedPath.Score -eq 'pass' -and $requestedPath -match '^/public/elements/(?<fullpath>.+)$') {
-            # File not in project root, check if this is a component file request
-            # Try to find it in app public directories
-            # Support nested paths like: /public/elements/admin/users-management/component.js
-            $fullPath = $matches.fullpath
-            Write-Verbose "$($MyTag) Component file not in project root, searching apps: $fullPath"
-
-            # Extract component name (may be nested like "admin/users-management")
-            # by checking what's registered in our known components map
-            $componentName = $null
-            $filePath = $null
-
-            # Map of known components to apps (for performance)
-            # Supports both flat and nested component paths
-            $componentAppMap = @{
-                'uplot-home' = 'uplot'; 'time-series' = 'uplot'; 'area-chart' = 'uplot'
-                'bar-chart' = 'uplot'; 'scatter-plot' = 'uplot'; 'multi-axis' = 'uplot'; 'heatmap' = 'uplot'
-                'windowsadmin-home' = 'WindowsAdmin'; 'service-control' = 'WindowsAdmin'; 'task-scheduler' = 'WindowsAdmin'
-                'sqlite-manager' = 'SQLiteManager'; 'sqlite-query-editor' = 'SQLiteManager'
-                'admin/users-management' = 'admin'; 'admin/role-management' = 'admin'
-            }
-
-            # Try to match against known component paths (longest first for nested paths)
-            $sortedComponents = $componentAppMap.Keys | Sort-Object { $_.Length } -Descending
-            foreach ($knownComponent in $sortedComponents) {
-                if ($fullPath.StartsWith("$knownComponent/")) {
-                    $componentName = $knownComponent
-                    $filePath = $fullPath.Substring($knownComponent.Length + 1)
-                    break
-                }
-            }
-
-            # Try mapped component first
-            if ($componentName -and $componentAppMap[$componentName]) {
-                $appKey = $componentAppMap[$componentName]
-                if ($Global:PSWebServer.Apps -and $Global:PSWebServer.Apps.ContainsKey($appKey)) {
-                    $appInfo = $Global:PSWebServer.Apps[$appKey]
-                    $appPublicDir = $appInfo.PublicPath
-                    $componentFilePath = Join-Path $appPublicDir "elements/$componentName/$filePath"
-
-                    if (Test-Path $componentFilePath -PathType Leaf) {
-                        Write-Verbose "$($MyTag) Component file found in app '$appKey': $componentFilePath"
-                        context_response -Response $response -Path $componentFilePath
-                        return
-                    }
-                }
-            }
-
-            # Not in map or not found, try searching all apps with full path
-            if ($Global:PSWebServer.Apps) {
-                foreach ($appName in $Global:PSWebServer.Apps.Keys) {
-                    $appInfo = $Global:PSWebServer.Apps[$appName]
-                    $appPublicDir = $appInfo.PublicPath
-                    $componentFilePath = Join-Path $appPublicDir "elements/$fullPath"
-
-                    if (Test-Path $componentFilePath -PathType Leaf) {
-                        Write-Verbose "$($MyTag) Component file found in app '$appName': $componentFilePath"
-                        context_response -Response $response -Path $componentFilePath
-                        return
-                    }
-                }
-            }
-
-            Write-Verbose "$($MyTag) Component file not found in any app: $fullPath"
-            context_response -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "Component file not found"
-            return
-        } elseif ($sanitizedPath.Score -ne 'pass') {
-            Write-Verbose "$($MyTag) Static file sanitization failed: $($sanitizedPath.Message)"
-            Write-PSWebHostLog -Message "`t$MyTag $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
-            context_response -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
-            return
-        } else {
-            Write-Verbose "$($MyTag) Static file not found: $($sanitizedPath.Path)"
-            context_response -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "File not found"
+        '^/apps/[^/]+/public/' {
+            Write-Verbose "$($MyTag) Routing to public handler: /apps/.../public/"
+            Invoke-HttpRequestPublic -Context $Context
             return
         }
-    }
-
-    if (-not $handled -and $requestedPath -eq "/" -and $httpMethod -eq "get") {
-        Write-Verbose "$($MyTag) Root path redirect: '/' -> '/spa'"
-        Write-PSWebHostLog -Severity 'Info' -Category 'Routing' -Message "$($MyTag) Redirecting '/' to '/spa'" -WriteHost:$Verbose.ispresent
-        context_response -Response $response -StatusCode 302 -RedirectLocation "/spa"
-        $handled = $true
-    }
-
-    # --- Apps Static File Handling ---
-    # Serve static files from /apps/[appname]/public/*
-    if (-not $handled -and $requestedPath -match '^/apps/(?<appname>[a-zA-Z0-9_-]+)/public/(?<filepath>.+)$') {
-        $appName = $matches.appname
-        $filePath = $matches.filepath
-        Write-Verbose "$($MyTag) Apps public file request: app=$appName, file=$filePath"
-
-        if ($Global:PSWebServer.Apps -and $Global:PSWebServer.Apps.ContainsKey($appName)) {
-            $appInfo = $Global:PSWebServer.Apps[$appName]
-            $appPublicDir = $appInfo.PublicPath
-
-            if (Test-Path $appPublicDir) {
-                $handled = $true
-                $sanitizedPath = Sanitize-FilePath -FilePath $filePath -BaseDirectory $appPublicDir
-                if ($sanitizedPath.Score -eq 'pass') {
-                    Write-Verbose "$($MyTag) Apps static file sanitization passed, serving: $($sanitizedPath.Path)"
-                    context_response -Response $response -Path $sanitizedPath.Path
-                    return
-                } else {
-                    Write-Verbose "$($MyTag) Apps static file sanitization failed: $($sanitizedPath.Message)"
-                    Write-PSWebHostLog -Message "`t$MyTag $SessionID 400 Bad Request: $($sanitizedPath.Message)" -Severity 'Warning' -Category 'Security'
-                    context_response -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String $sanitizedPath.Message
-                    return
-                }
-            }
-        } else {
-            Write-Verbose "$($MyTag) App '$appName' not found or not loaded"
-        }
-    }
-
-    # --- Apps Route Resolution ---
-    # Handle /apps/[appname]/* routes (excluding /public/)
-    $appScriptPath = $null
-    $appSecurityConfig = $null
-    if (-not $handled -and $requestedPath -match '^/apps/(?<appname>[a-zA-Z0-9_-]+)/(?<routepath>.*)$') {
-        $appName = $matches.appname
-        $routePath = $matches.routepath
-
-        # Skip if this is a public file request (already handled above)
-        if (-not $routePath.StartsWith("public/")) {
-            Write-Verbose "$($MyTag) Apps route request: app=$appName, route=$routePath"
-
-            if ($Global:PSWebServer.Apps -and $Global:PSWebServer.Apps.ContainsKey($appName)) {
-                $appInfo = $Global:PSWebServer.Apps[$appName]
-                $manifest = $appInfo.Manifest
-
-                # Check if app requires specific roles
-                if ($manifest.requiredRoles -and $manifest.requiredRoles.Count -gt 0) {
-                    $hasRequiredRole = $false
-                    foreach ($reqRole in $manifest.requiredRoles) {
-                        if ($session.Roles -contains $reqRole) {
-                            $hasRequiredRole = $true
-                            break
-                        }
-                    }
-                    if (-not $hasRequiredRole) {
-                        Write-Verbose "$($MyTag) User lacks required roles for app '$appName': $($manifest.requiredRoles -join ', ')"
-                        Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "Unauthorized app access: $appName requires roles: $($manifest.requiredRoles -join ', ')"
-                        context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized - App requires: $($manifest.requiredRoles -join ', ')"
-                        return
-                    }
-                }
-
-                $appRoutesDir = $appInfo.RoutesPath
-                if (Test-Path $appRoutesDir) {
-                    # Ensure routePath has leading slash for resolution
-                    if (-not $routePath.StartsWith("/")) {
-                        $routePath = "/$routePath"
-                    }
-                    $appScriptPath = Resolve-RouteScriptPath -UrlPath $routePath -HttpMethod $httpMethod -BaseDirectory $appRoutesDir
-                    if ($appScriptPath) {
-                        Write-Verbose "$($MyTag) Apps route script found: $appScriptPath"
-                        $handled = $true
-                    }
-                }
-            } else {
-                Write-Verbose "$($MyTag) App '$appName' not found or not loaded"
-            }
-        }
-    }
-
-    # --- Execute App Route Script ---
-    # If we found an app script path, execute it
-    if ($appScriptPath) {
-        Write-Verbose "$($MyTag) Executing app route script: $appScriptPath"
-        $securityPath = [System.IO.Path]::ChangeExtension($appScriptPath, ".security.json")
-
-        if (-not (Test-Path $securityPath)) {
-            $defaultRoles = @("authenticated")  # Apps default to authenticated
-            $securityContent = @{ Allowed_Roles = $defaultRoles } | ConvertTo-Json -Compress
-            Set-Content -Path $securityPath -Value $securityContent
-            Write-Verbose "$($MyTag) Auto-created default security file for app route with roles: $($defaultRoles -join ', ')"
-        }
-
-        $isAuthorized = Authorize-Request -Session $session -SecurityPath $securityPath
-        if (-not $isAuthorized) {
-            Write-Verbose "$MyTag App route authorization failed"
-            Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "Unauthorized app route access: $requestedPath"
-            context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized"
-            return
-        }
-
-        $scriptParams = @{
-            Context = $Context
-            SessionData = $session
-        }
-        [string[]]$ScriptParamNames = (Get-Command -Name $appScriptPath).Parameters.keys
-        ($scriptParams.Keys | Where-Object { $ScriptParamNames -notcontains $_ }) | ForEach-Object {
-            $scriptParams.Remove($_)
-        }
-
-        try {
-            & $appScriptPath @scriptParams
-        } catch {
-            Write-PSWebHostLog -Severity 'Error' -Category 'Apps' -Message "$MyTag Error executing app route: $($_.Exception.Message)" -WriteHost
-            context_response -Response $response -StatusCode 500 -StatusDescription "Internal Server Error" -String "App Error: $($_.Exception.Message)"
-        }
-        return
-    }
-
-    if (-not $handled) {
-        Write-Verbose "$($MyTag) No handler matched yet, attempting route resolution"
-        $routeBaseDir = Join-Path $projectRoot "routes"
-        $scriptPath = $null
-
-        $scriptPath = Resolve-RouteScriptPath -UrlPath $requestedPath -HttpMethod $httpMethod -BaseDirectory $routeBaseDir
-
-        if ($scriptPath) {
-            Write-Verbose "$($MyTag) Route script found: $($scriptPath)"
-            $securityPath = [System.IO.Path]::ChangeExtension($scriptPath, ".security.json")
-            Write-Verbose "$($MyTag) Security config path: $($securityPath)"
-
-            if (-not (Test-Path $securityPath)) {
-                $defaultRoles = @("unauthenticated")
-                $securityContent = @{ Allowed_Roles = $defaultRoles } | ConvertTo-Json -Compress
-                Set-Content -Path $securityPath -Value $securityContent
-                Write-Verbose "$($MyTag) Auto-created default security file with roles: $($defaultRoles -join ', ')"
-                Write-PSWebHostLog -Severity 'Info' -Category 'Security' -Message "Auto-created default security file for $requestedPath with roles: $($defaultRoles -join ', ')"
-            }
-
-            $isAuthorized = $false
-            $securityConfig = Get-Content $securityPath | ConvertFrom-Json
-            Write-Verbose "$($MyTag) Security config loaded. Allowed roles: $($securityConfig.Allowed_Roles -join ', ')"
-
-            Write-Verbose "$($MyTag) About to call Authorize-Request. Session type: $($session.GetType().FullName) IsArray: $($session -is [System.Array])"
-            $isAuthorized = Authorize-Request -Session $session -SecurityPath $securityPath
-            Write-Verbose "$($MyTag) Authorization result: $($isAuthorized)"
-
-            if (-not $isAuthorized) {
-                Write-Verbose "$MyTag Authorization failed - user not in allowed roles"
-                Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "Unauthorized access to $requestedPath by user $($session.UserID) with roles: $($session.Roles -join ', ')"
-                context_response -Response $response -StatusCode 401 -StatusDescription "Unauthorized" -String "Unauthorized"
+        default {
+            # ALL OTHER ROUTES - Require session cookie
+            # Ensure cookie is established for non-public routes
+            if (-not $sessionCookie) {
+                Write-Verbose "$($MyTag) Redirecting to establish cookie: $($request.Url.AbsoluteUri)"
+                context_response -Response $response -StatusCode 302 -RedirectLocation $request.Url.AbsoluteUri
                 return
-                $handled = $true
-            } else {
-                Write-Verbose "$MyTag Authorization passed, preparing to execute: $scriptPath"
-                $scriptParams = @{
-                    Context = $Context
-                    SessionData = $session
-                }
-                [string[]]$ScriptParamNames = (get-command -Name $scriptPath).Parameters.keys
-                ($scriptParams.Keys | Where-Object { $ScriptParamNames -notcontains $_ }) | ForEach-Object {
-                    Write-Verbose "$MyTag Removing unexpected script parameter: $_"
-                    $scriptParams.Remove($_)
-                }
-
-                if ($httpMethod -eq 'post') {
-                    Write-Verbose "$MyTag Processing POST request, checking for card settings"
-                    $guidPath = [System.IO.Path]::ChangeExtension($scriptPath, ".json")
-                    if (Test-Path $guidPath) {
-                        Write-Verbose "$MyTag Card settings config found: $guidPath"
-                        $guid = (Get-Content $guidPath | ConvertFrom-Json).guid
-                        if ($guid -and $session.UserID) {
-                            Write-Verbose "$MyTag Retrieving card settings for GUID: $guid, UserID: $($session.UserID)"
-                            $cardSettingsData = Get-CardSettings -EndpointGuid $guid -UserId $session.UserID
-                            Write-Host -Message "$MyTag Retrieved -EndpointGuid $guid -UserId $($session.UserID) card settings data: $cardSettingsData"
-                            if ($cardSettingsData) {
-                                try {
-                                    Write-Verbose "$MyTag Decompressing card settings data"
-                                    $compressedBytes = [System.Convert]::FromBase64String($cardSettingsData)
-                                    $memStream = New-Object System.IO.MemoryStream
-                                    $memStream.Write($compressedBytes, 0, $compressedBytes.Length)
-                                    $memStream.Position = 0
-                                    $gzipStream = New-Object System.IO.Compression.GZipStream($memStream, [System.IO.Compression.CompressionMode]::Decompress)
-                                    $streamReader = New-Object System.IO.StreamReader($gzipStream)
-                                    $uncompressedJson = $streamReader.ReadToEnd()
-                                    $ht = @{}
-                                    ($uncompressedJson | ConvertFrom-Json).psobject.Properties|ForEach-Object{$ht[$_.Name] = $_.value}
-                                    $scriptParams.CardSettings = $ht
-                                    Write-Verbose "$MyTag Card settings decompressed and added to script parameters"
-                                } catch {
-                                    Write-Verbose "$MyTag Failed to decompress/deserialize card settings for GUID $guid"
-                                    Write-PSWebHostLog -Severity 'Error' -Category 'Settings' -Message "Failed to decompress/deserialize card settings for GUID $guid" 
-                                    $_
-                                }
-                            } else {
-                                Write-Verbose "$MyTag No card settings data found for GUID: $guid"
-                            }
-                        } else {
-                            Write-Verbose "$MyTag Skipping card settings retrieval: GUID=$guid, UserID=$($session.UserID)"
-                        }
-                    } else {
-                        Write-Verbose "$MyTag Card settings config not found: $guidPath"
-                    }
-                }
-
-                # Performance tracking - Start
-                $requestID = [Guid]::NewGuid().ToString()
-                $perfStartTime = Get-Date
-                $logFilePath = $Global:PSWebServer.LogFilePath
-                $logFileSizeBefore = if (Test-Path $logFilePath) { (Get-Item $logFilePath).Length } else { 0 }
-
-                # Queue start record
-                if ($Global:PSWebPerfQueue) {
-                    & (Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1") -QueueData @{
-                        Type = 'WebRequest'
-                        Data = @{
-                            Action = 'Start'
-                            RequestID = $requestID
-                            StartTime = $perfStartTime.ToString('u')
-                            FilePath = $scriptPath
-                            HttpMethod = $httpMethod
-                            IPAddress = $request.RemoteEndPoint.Address.ToString()
-                            UserAgent = $request.UserAgent
-                            SessionID = $sessionID
-                            LogFileSizeBefore = $logFileSizeBefore
-                        }
-                    }
-                }
-
-                if ($Async.ispresent) {
-                    Write-Verbose "$MyTag Executing route script asynchronously via runspace pool"
-                    # Use the new async runspace pool if available
-                    # The function reference is stored in the synchronized hashtable during initialization
-                    if ($global:AsyncRunspacePool -and $global:AsyncRunspacePool.Initialized) {
-                        $asyncFunc = $global:AsyncRunspacePool.Functions['Invoke-AsyncHttpRequest']
-                        if ($asyncFunc) {
-                            & $asyncFunc -Context $Context -ScriptPath $scriptPath -ScriptParams $scriptParams -SessionID $sessionID
-                        } else {
-                            Write-Warning "$MyTag Invoke-AsyncHttpRequest function not found in pool, falling back to legacy"
-                            Invoke-ContextRunspace -Context $Context -ScriptPath $scriptPath -SessionID $sessionID
-                        }
-                    } else {
-                        # Fallback to legacy runspace handling
-                        Invoke-ContextRunspace -Context $Context -ScriptPath $scriptPath -SessionID $sessionID
-                    }
-                } else {
-                    Write-Verbose "$MyTag Executing route script synchronously: $($httpMethod.ToUpper()) $scriptPath"
-                    if ($PSBoundParameters.Verbose.ispresent) {
-                        $scriptParams['Verbose'] = $true
-                    }
-                    try{
-                        & $scriptPath @scriptParams
-                        $scriptStatusCode = 200
-                    }
-                    catch{
-                        Write-PSWebHostLog -Severity 'Error' -Category 'Routing' -Message "$MyTag Error executing route script: $($_.Exception.Message + "`n" + $_.InvocationInfo.PositionMessage)" -Data @{ ScriptPath = $scriptPath; SessionID = $sessionID; PositionMessage = $_.InvocationInfo.PositionMessage; Message = $_.Exception.Message } -WriteHost
-                        context_response -Response $response -StatusCode 500 -StatusDescription "Internal Server Error" -String "Internal Server Error"
-                        $scriptStatusCode = 500
-                    }
-                    Write-Verbose "$MyTag Route script execution completed"
-                }
-
-                # Performance tracking - Complete
-                $perfEndTime = Get-Date
-                $executionTimeMicroseconds = [long](($perfEndTime - $perfStartTime).TotalMilliseconds * 1000)
-                $logFileSizeAfter = if (Test-Path $logFilePath) { (Get-Item $logFilePath).Length } else { 0 }
-
-                # Queue complete record
-                if ($Global:PSWebPerfQueue) {
-                    $finalStatusCode = if ($scriptStatusCode) { $scriptStatusCode } else { $response.StatusCode }
-                    $finalStatusText = if ($response.StatusDescription) { $response.StatusDescription } else { $null }
-
-                    & (Join-Path $Global:PSWebServer.Project_Root.Path "system\SQLITE_Perf_Table_Updater.ps1") -QueueData @{
-                        Type = 'WebRequest'
-                        Data = @{
-                            Action = 'Complete'
-                            RequestID = $requestID
-                            EndTime = $perfEndTime.ToString('u')
-                            UserID = if ($session.UserID) { $session.UserID } else { '' }
-                            AuthenticationProvider = if ($session.Provider) { $session.Provider } else { '' }
-                            ExecutionTimeMicroseconds = $executionTimeMicroseconds
-                            LogFileSizeBefore = $logFileSizeBefore
-                            LogFileSizeAfter = $logFileSizeAfter
-                            StatusCode = $finalStatusCode
-                            StatusText = $finalStatusText
-                        }
-                    }
-                }
-                $handled = $true
             }
-        }
-    }
 
-    if (-not $handled) {
-        Write-Verbose "$MyTag No route handler matched, checking for default handlers"
-        $DefaultFavicon = Join-Path $PSWebServer.Project_Root.Path "public/favicon.ico"
-        if ($requestedPath -eq "/favicon.ico") {
-            Write-Verbose "$MyTag Serving favicon: $DefaultFavicon"
-            context_response -Response $response -Path $DefaultFavicon
-        } else {
-            Write-Verbose "$MyTag No handler found for request, returning 404: $requestedPath"
-            Write-PSWebHostLog -Severity 'Info' -Category 'Routing' -Message "$MyTag 404 Not Found: $requestedPath from $($request.RemoteEndPoint)"
-            context_response -Response $response -StatusCode 404 -String "404 Not Found" -ContentType "text/plain"
+            # Root redirect
+            if ($requestedPath -eq "/" -and $httpMethod -eq "get") {
+                Write-Verbose "$($MyTag) Root path redirect: '/' -> '/spa'"
+                Write-PSWebHostLog -Severity 'Info' -Category 'Routing' -Message "$($MyTag) Redirecting '/' to '/spa'"
+                context_response -Response $response -StatusCode 302 -RedirectLocation "/spa"
+                return
+            }
+
+            # All app routes and default routes (bearer token auth handled inside)
+            Write-Verbose "$($MyTag) Routing to route handler"
+            Invoke-HttpRequestRoute -Context $Context -SessionID $sessionID -Request $request -Async:$Async -HostUIQueue $HostUIQueue
+            return
         }
     }
 }
@@ -925,7 +1274,8 @@ function Write-PSWebHostLog {
         [switch]$WriteHost,
         [string]$State = 'Unspecified',
         [string]$ForeGroundColor,
-        [string]$BackGroundColor = ($host.UI.RawUI.BackgroundColor, "Black"|Where-Object{$_ -match '\w'}|Select-Object -First 1)
+        [string]$BackGroundColor = ($host.UI.RawUI.BackgroundColor, "Black"|Where-Object{$_ -match '\w'}|Select-Object -First 1),
+        [string]$EventGUID
     )
 
     # Auto-detect Source from calling script if not provided
@@ -1061,6 +1411,13 @@ function Write-PSWebHostLog {
 
     # New log format with additional context fields (Source, ActivityName, PercentComplete, UserID, SessionID, RunspaceID come before Data)
     # Format: UTCTime, LocalTime, Severity, Category, Message, Source, ActivityName, PercentComplete, UserID, SessionID, RunspaceID, Data
+    $global:PSWebServer.LogFileFields = 'utcTime','localTime','Severity','Category','escapedMessage','Source','ActivityName','percentString','UserID','SessionID','RunspaceID','dataString'
+    foreach ($VarName in ('Category','Source','ActivityName','percentString','UserID','SessionID','RunspaceID')) {
+        $var = Get-Variable $VarName
+        if ($var.Value -match '[\t\r\n]') {
+            $var.Value = [regex]::Escape($var.Value)
+        }
+    }
     $logEntry = "$utcTime`t$localTime`t$Severity`t$Category`t$escapedMessage`t$Source`t$ActivityName`t$percentString`t$UserID`t$SessionID`t$RunspaceID`t$dataString"
 
     if ($null -ne $global:PSWebHostLogQueue) {
@@ -1071,7 +1428,7 @@ function Write-PSWebHostLog {
     if ($null -ne $global:PSWebServer) {
         $eventGuid = [Guid]::NewGuid().ToString()
         if ($null -eq $global:PSWebServer.events) {
-            $global:PSWebServer.events = [hashtable]::Synchronized(@{})
+            $global:PSWebServer.events = [hashtable]::Synchronized([ordered]@{})
         }
         if ($null -eq $global:PSWebServer.eventGuid) {
             $global:PSWebServer.eventGuid = [hashtable]::Synchronized(@{})
@@ -1093,6 +1450,23 @@ function Write-PSWebHostLog {
             Data = @{ Message = $Message; Severity = $Severity; Details = $Data }
             CompletionDate = Get-Date
         }
+        try {
+            # Clean up events hashtable (keep last 1000)
+            while($global:PSWebServer.events.count -gt 1000) {
+                $global:PSWebServer.events.keys |
+                    Select-Object -First ($global:PSWebServer.events.count - 1000) |
+                    ForEach-Object{$global:PSWebServer.events.Remove($_)}
+            }
+
+            # Clean up eventGuid hashtable (MEMORY LEAK FIX)
+            # This hashtable was growing unbounded - keep last 1000 entries
+            while($global:PSWebServer.eventGuid.count -gt 1000) {
+                $global:PSWebServer.eventGuid.keys |
+                    Select-Object -First ($global:PSWebServer.eventGuid.count - 1000) |
+                    ForEach-Object{$global:PSWebServer.eventGuid.Remove($_)}
+            }
+        }
+        catch{}
         $global:PSWebServer.eventGuid[$date] = $eventGuid
     }
     if ($WriteHost.IsPresent) {
@@ -1223,130 +1597,6 @@ function Read-PSWebHostLog {
     }
 }
 
-function context_response {
-    [CmdletBinding(DefaultParameterSetName = 'String')]
-    param(
-        [Parameter(Mandatory=$true)] [System.Net.HttpListenerResponse]$Response,
-        [Parameter(Mandatory=$false, ParameterSetName='String')] [string]$String,
-        [Parameter(Mandatory=$false, ParameterSetName='Bytes')] [byte[]]$Byte,
-        [Parameter(Mandatory=$false, ParameterSetName='Path')] [string]$Path,
-        [Parameter()] [string]$ContentType,
-        [Parameter()] [int]$StatusCode = 200,
-        [Parameter()] [string]$StatusDescription,
-        [Parameter()] [System.Collections.IDictionary]$Headers,
-        [Parameter()] [System.Net.CookieCollection]$Cookies,
-        [Parameter()] [string]$RedirectLocation,
-        [Parameter()] [System.Text.Encoding]$ContentEncoding = [System.Text.Encoding]::UTF8,
-        [Parameter()] [int]$CacheDuration = 0
-    )
-
-    try {
-        # Check if the response is already closed or client disconnected
-        if ($null -eq $Response -or $null -eq $Response.OutputStream) {
-            Write-Verbose "Response object is null or output stream is closed, client may have disconnected"
-            return
-        }
-
-        $Response.StatusCode = $StatusCode
-        if ($PSBoundParameters.ContainsKey('StatusDescription')) { $Response.StatusDescription = $StatusDescription }
-        if ($PSBoundParameters.ContainsKey('Headers')) { foreach ($key in $Headers.Keys) { $Response.AddHeader($key, $Headers[$key]) } }
-        if ($PSBoundParameters.ContainsKey('Cookies')) { $Response.Cookies.Add($Cookies) }
-        if ($PSBoundParameters.ContainsKey('RedirectLocation')) {
-            Write-Verbose "Redirecting to: $($RedirectLocation) with status code $($StatusCode)"
-            $Response.Redirect($RedirectLocation)
-        }
-
-        # Add cache control headers if CacheDuration is specified
-        if ($CacheDuration -gt 0) {
-            $cacheControl = "public, max-age=$CacheDuration, stale-while-revalidate=$([math]::Min($CacheDuration * 2, 1800)), stale-if-error=$([math]::Min($CacheDuration * 3, 3600))"
-            $Response.AddHeader("Cache-Control", $cacheControl)
-            $expiresDate = (Get-Date).AddSeconds($CacheDuration).ToUniversalTime().ToString("r")
-            $Response.AddHeader("Expires", $expiresDate)
-            # Add ETag for cache validation
-            $etag = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes("$StatusCode-$((Get-Date).Ticks)"))
-            $Response.AddHeader("ETag", "`"$etag`"")
-        } elseif ($CacheDuration -eq 0) {
-            # Explicitly disable caching
-            $Response.AddHeader("Cache-Control", "no-store, no-cache, must-revalidate")
-            $Response.AddHeader("Pragma", "no-cache")
-            $Response.AddHeader("Expires", "0")
-        }
-
-        $finalContentType = $ContentType
-        if ($PSCmdlet.ParameterSetName -eq 'Path' -and -not $PSBoundParameters.ContainsKey('ContentType')) {
-            $extension = [System.IO.Path]::GetExtension($Path)
-            if ($Global:PSWebServer.config.MimeTypes.psobject.Properties[$extension]) {
-                $finalContentType = $Global:PSWebServer.config.MimeTypes.psobject.Properties[$extension].Value
-            } else {
-                $finalContentType = 'application/octet-stream'
-            }
-        }
-        if ($finalContentType) { $Response.ContentType = $finalContentType }
-
-        $contentBytes = $null
-        switch ($PSCmdlet.ParameterSetName) {
-            'String' {
-                $contentBytes = $ContentEncoding.GetBytes($String)
-                $Response.ContentEncoding = $ContentEncoding
-            }
-            'Bytes'  { $contentBytes = $Byte }
-            'Path'   {
-                if (Test-Path -Path $Path -PathType Leaf) {
-                    $contentBytes = [System.IO.File]::ReadAllBytes($Path)
-                } else {
-                    $Response.StatusCode = 404
-                    $Response.StatusDescription = "Not Found"
-                    $errorMessage = "File not found at path: $($Path -replace ([regex]::Escape($global:PSWebServer.Project_Root.Path)),'')"
-                    $contentBytes = $ContentEncoding.GetBytes($errorMessage)
-                    $Response.ContentType = 'text/plain'
-                }
-            }
-        }
-
-        if ($null -ne $contentBytes) {
-            $Response.ContentLength64 = $contentBytes.Length
-            $Response.OutputStream.Write($contentBytes, 0, $contentBytes.Length)
-        } else {
-            $Response.ContentLength64 = 0
-        }
-    } catch [System.Net.HttpListenerException] {
-        # Client disconnected or network error - this is expected, just log and return
-        $errorCode = $_.Exception.ErrorCode
-        if ($errorCode -eq 64 -or $errorCode -eq 1229) {
-            # Error 64 = "The specified network name is no longer available"
-            # Error 1229 = "An operation was attempted on a nonexistent network connection"
-            Write-Verbose "Client disconnected during response: $($_.Exception.Message)"
-        } else {
-            Write-PSWebHostLog -Severity 'Warning' -Category 'Response' -Message "Network error during response: $($_.Exception.Message) (ErrorCode: $errorCode)"
-        }
-    } catch [System.InvalidOperationException] {
-        # Response already sent or stream closed
-        if ($_.Exception.Message -match 'response has been submitted|stream.*closed') {
-            Write-Verbose "Response already sent or stream closed: $($_.Exception.Message)"
-        } else {
-            Write-PSWebHostLog -Severity 'Error' -Category 'Response' -Message "Invalid operation in context_response: $($_.Exception.Message)"
-        }
-    } catch {
-        # Other errors - try to send error response only if possible
-        $errorMessage = "Failed to build response. Error: $_ "
-        Write-PSWebHostLog -Severity 'Error' -Category 'Response' -Message $errorMessage
-
-        try {
-            # Only attempt to send error response if headers haven't been sent and stream is available
-            if (-not $Response.HeadersSent -and $null -ne $Response.OutputStream) {
-                $Response.StatusCode = 500
-                $Response.StatusDescription = "Internal Server Error"
-                $errorBytes = [System.Text.Encoding]::UTF8.GetBytes("Internal Server Error: $_ ")
-                $Response.ContentLength64 = $errorBytes.Length
-                $Response.OutputStream.Write($errorBytes, 0, $errorBytes.Length)
-            }
-        } catch {
-            # If we can't send the error response, just log it
-            Write-Verbose "Unable to send error response (client may have disconnected): $($_.Exception.Message)"
-        }
-    }
-}
-
 #region Event Management
 
 
@@ -1422,14 +1672,157 @@ function Sync-SessionStateToDatabase {
         if ($session.AuthenticationState -notmatch '\w' -and ((get-date) -lt $session.AuthTokenExpiration)) {
             $session.AuthenticationState = 'Authenticated'
         }
-        if ($session.LastUpdated) {
+        if ($session.LastUpdated -and $session.UserID -and $session.Provider) {
             $dbSession = Get-LoginSession -SessionID $sessionID
             if ($dbSession) {
+                # Session exists in DB - update if memory version is newer
                 $dbLastUpdated = [datetimeoffset]::FromUnixTimeSeconds([int64]$dbSession.AuthenticationTime).DateTime
                 if ($session.LastUpdated -gt $dbLastUpdated) {
                     Set-LoginSession -SessionID $sessionID -UserID $session.UserID -Provider $session.Provider -AuthenticationTime $session.LastUpdated -AuthenticationState $session.AuthenticationState -LogonExpires $session.AuthTokenExpiration -UserAgent $session.UserAgent | Out-Null
                 }
+            } else {
+                # Session doesn't exist in DB - create it (e.g., Bearer token auth)
+                Set-LoginSession -SessionID $sessionID -UserID $session.UserID -Provider $session.Provider -AuthenticationTime $session.LastUpdated -AuthenticationState $session.AuthenticationState -LogonExpires $session.AuthTokenExpiration -UserAgent $session.UserAgent | Out-Null
             }
+        }
+    }
+}
+
+function Set-WebHostRunSpaceInfo {
+    <#
+    .SYNOPSIS
+        Updates runspace statistics in $global:PSWebServer.Runspaces for monitoring and management.
+
+    .DESCRIPTION
+        Called from within runspaces to report their status, statistics, and current activity.
+        This allows the main thread to monitor runspace health, track usage, and manage
+        runspace lifecycle (including automatic restart after 100 requests).
+
+    .PARAMETER RunspaceId
+        The runspace instance ID (from $Host.Runspace.InstanceId).
+
+    .PARAMETER Name
+        The name or identifier for this runspace (e.g., "AsyncWorker-5").
+
+    .PARAMETER PoolName
+        The pool this runspace belongs to (e.g., "AsyncRunspacePool", "BackgroundTasks").
+
+    .PARAMETER Purpose
+        The purpose of this runspace (e.g., "HTTP Request Handler", "Background Job").
+
+    .PARAMETER State
+        Current state of the runspace (e.g., "Listening", "Free", "Busy", "Processing").
+
+    .PARAMETER RequestCount
+        Total number of requests processed by this runspace.
+
+    .PARAMETER LastRequest
+        URL of the last request processed (from $Context.Request.Url).
+
+    .PARAMETER LastSessionID
+        Session ID of the last request processed.
+
+    .PARAMETER TimeStarted
+        When this runspace was started (datetime).
+
+    .PARAMETER AdditionalData
+        Hashtable of any additional custom data to store.
+
+    .EXAMPLE
+        Set-WebHostRunSpaceInfo -RunspaceId $Host.Runspace.InstanceId `
+                                -Name "AsyncWorker-1" `
+                                -PoolName "AsyncRunspacePool" `
+                                -Purpose "HTTP Request Handler" `
+                                -State "Busy" `
+                                -RequestCount 42 `
+                                -LastRequest "GET /api/users" `
+                                -LastSessionID "abc123"
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [guid]$RunspaceId,
+
+        [string]$Name,
+
+        [string]$PoolName,
+
+        [string]$Purpose,
+
+        [string]$State,
+
+        [int]$RequestCount,
+
+        [string]$LastRequest,
+
+        [string]$LastSessionID,
+
+        [datetime]$TimeStarted,
+
+        [hashtable]$AdditionalData = @{}
+    )
+
+    $MyTag = "[Set-WebHostRunSpaceInfo]"
+
+    # Validate RunspaceId - catch empty GUIDs early
+    if ($RunspaceId -eq [guid]::Empty) {
+        if ($null -ne $global:PSWebHostLogQueue) {
+            $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tWarning`tRunspaceManagement`t$MyTag Cannot update runspace info: RunspaceId is empty GUID`t`t`t"
+            $global:PSWebHostLogQueue.Enqueue($logEntry)
+        }
+        return
+    }
+
+    try {
+        # Initialize Runspaces hashtable if needed
+        if ($null -eq $global:PSWebServer.Runspaces) {
+            $global:PSWebServer.Runspaces = [hashtable]::Synchronized(@{})
+        }
+
+        # Get or create runspace info
+        if (-not $global:PSWebServer.Runspaces.ContainsKey($RunspaceId)) {
+            $global:PSWebServer.Runspaces[$RunspaceId] = [hashtable]::Synchronized(@{
+                RunspaceId = $RunspaceId
+                Name = $Name
+                PoolName = $PoolName
+                Purpose = $Purpose
+                TimeStarted = if ($TimeStarted) { $TimeStarted } else { Get-Date }
+                FirstReported = Get-Date
+                RequestCount = 0
+                State = 'Unknown'
+                LastRequest = $null
+                LastSessionID = $null
+                LastUpdated = Get-Date
+                AdditionalData = [hashtable]::Synchronized(@{})
+            })
+        }
+
+        # Update fields (only if provided)
+        $rsInfo = $global:PSWebServer.Runspaces[$RunspaceId]
+
+        if ($PSBoundParameters.ContainsKey('Name')) { $rsInfo.Name = $Name }
+        if ($PSBoundParameters.ContainsKey('PoolName')) { $rsInfo.PoolName = $PoolName }
+        if ($PSBoundParameters.ContainsKey('Purpose')) { $rsInfo.Purpose = $Purpose }
+        if ($PSBoundParameters.ContainsKey('State')) { $rsInfo.State = $State }
+        if ($PSBoundParameters.ContainsKey('RequestCount')) { $rsInfo.RequestCount = $RequestCount }
+        if ($PSBoundParameters.ContainsKey('LastRequest')) { $rsInfo.LastRequest = $LastRequest }
+        if ($PSBoundParameters.ContainsKey('LastSessionID')) { $rsInfo.LastSessionID = $LastSessionID }
+        if ($PSBoundParameters.ContainsKey('TimeStarted')) { $rsInfo.TimeStarted = $TimeStarted }
+
+        # Merge additional data
+        foreach ($key in $AdditionalData.Keys) {
+            $rsInfo.AdditionalData[$key] = $AdditionalData[$key]
+        }
+
+        # Always update LastUpdated
+        $rsInfo.LastUpdated = Get-Date
+
+    } catch {
+        # Silently fail to avoid disrupting runspace operations
+        # Only log if logging is available
+        if ($null -ne $global:PSWebHostLogQueue) {
+            $logEntry = "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss.fffZ')`t$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')`tWarning`tRunspaceManagement`t$MyTag Failed to update runspace info: $($_.Exception.Message)`t`t`t"
+            $global:PSWebHostLogQueue.Enqueue($logEntry)
         }
     }
 }

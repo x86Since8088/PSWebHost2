@@ -21,7 +21,7 @@ const SystemLogCard = ({ onError }) => {
 
         fetchLogRef.current = () => {
             // Fetch job status
-            window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/job-status')
+            window.psweb_fetchWithAuthHandling('/cards/job-status')
                 .then(res => res.json())
                 .then(data => {
                     if (isMounted) {
@@ -37,13 +37,16 @@ const SystemLogCard = ({ onError }) => {
                 ...(filter && { filter: filter })
             });
 
-            window.psweb_fetchWithAuthHandling(`/api/v1/ui/elements/system-log?${params}`)
+            window.psweb_fetchWithAuthHandling(`/cards/system-log?${params}`)
                 .then(res => {
                     if (!res.ok) {
                         if (isMounted) {
                             onError({ message: "Failed to fetch log", status: res.status, statusText: res.statusText });
                         }
-                        throw new Error(`HTTP error! status: ${res.status}`);
+                        const error = new Error(`HTTP error! status: ${res.status}`);
+                        error.status = res.status;
+                        error.statusText = res.statusText;
+                        throw error;
                     }
                     return res.json();
                 })

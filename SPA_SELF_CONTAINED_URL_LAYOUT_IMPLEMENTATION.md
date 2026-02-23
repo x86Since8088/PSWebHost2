@@ -18,7 +18,7 @@
             "h": 14,
             "elementId": "file-explorer",
             "title": "File Explorer",
-            "endpoint": "/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer"
+            "endpoint": "/apps/WebhostFileExplorer/cards/file-explorer"
         },
         {
             "id": "realtime-events-1769486221470",
@@ -28,7 +28,7 @@
             "h": 14,
             "elementId": "realtime-events",
             "title": "Real-time Events",
-            "endpoint": "/apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events"
+            "endpoint": "/apps/WebhostRealtimeEvents/cards/realtime-events"
         }
     ]
 }
@@ -547,7 +547,7 @@ if (!componentPath) {
 ```bash
 # Open URL with file-explorer
 # Check Network tab:
-# ✓ GET /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer (metadata)
+# ✓ GET /apps/WebhostFileExplorer/cards/file-explorer (metadata)
 # ✓ GET /apps/WebhostFileExplorer/public/elements/file-explorer/component.js (script)
 ```
 

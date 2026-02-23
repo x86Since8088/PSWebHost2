@@ -441,3 +441,28 @@ The Windows Administration app has a **solid foundation** with fully functional 
 **Time to MVP:** 5-8 days of focused development
 **Risk Level:** Low (foundation is solid, well-structured code)
 **Maintainability:** High (follows PSWebHost patterns, clean separation of concerns)
+
+---
+
+## Code Refactoring Notice
+
+**IMPORTANT:** This app contains Linux-specific code that should be extracted to a shared cross-platform module.
+
+See: `LINUX_CODE_EXTRACTION_PLAN.md` for detailed extraction plan.
+
+**Files with Linux Code:**
+- `/routes/api/v1/system/services/get.ps1` (lines 51-72)
+- `/routes/api/v1/system/tasks/get.ps1` (lines 71-105)
+- `/routes/api/v1/system/services/{name}/start/post.ps1` (lines 67-88)
+- `/routes/api/v1/system/services/{name}/stop/post.ps1` (lines 76-97)
+- `/routes/api/v1/system/services/{name}/restart/post.ps1` (lines 76-97)
+
+**Proposed Shared Module:** `PSCrossPlatformOSManagement.psm1`
+
+**Status:** Pending coordination with LinuxAdmin agent before extraction.
+
+**Benefits:**
+- Eliminates code duplication between WindowsAdmin and LinuxAdmin apps
+- Improves maintainability with single source of truth
+- Enables easier testing and future enhancements
+- Provides consistent cross-platform API

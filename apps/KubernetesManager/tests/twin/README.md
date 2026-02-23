@@ -24,7 +24,7 @@ Kubernetes cluster monitoring and management
 
 ### Browser Tests
 1. Start PSWebHost: pwsh WebHost.ps1
-2. Navigate to: http://localhost:8888/apps/unittests/api/v1/ui/elements/unit-test-runner
+2. Navigate to: http://localhost:8888/apps/UnitTests/cards/unit-test-runner
 3. Select "KubernetesManager Browser Tests"
 4. Click "Run Tests"
 

@@ -20,7 +20,7 @@ $ErrorActionPreference = 'Stop'
 
 # Load WebHost environment (initializes SQLite and required modules)
 $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\')).Path
-. (Join-Path $ProjectRoot "WebHost.ps1") -ShowVariables 3>$null 4>$null | Out-Null
+. (Join-Path $ProjectRoot "WebHost.ps1") -InitializeEnvironmentOnly 3>$null 4>$null | Out-Null
 
 # Generate test account credentials if TestAccount switch is used
 if ($TestAccount) {

@@ -182,7 +182,7 @@ WebHostTaskManagement/
 - Lists all PowerShell runspaces
 - Shows: ID, state, availability, associated job, thread options
 
-**GET /apps/WebHostTaskManagement/api/v1/ui/elements/task-manager**
+**GET /apps/WebHostTaskManagement/cards/task-manager**
 - Returns UI component layout configuration
 
 **UI Features:**
@@ -359,7 +359,7 @@ Already added to `routes/api/v1/ui/elements/main-menu/main-menu.yaml`:
 
 ```yaml
 - Name: Task Management
-  url: /apps/WebHostTaskManagement/api/v1/ui/elements/task-manager
+  url: /apps/WebHostTaskManagement/cards/task-manager
   hover_description: Manage scheduled tasks, monitor background jobs, and view active runspaces.
   tags:
   - tasks
@@ -417,7 +417,7 @@ Get-PSWebHostApp -AppName "TestApp"
 
 ### UI Testing
 
-1. Navigate to: `/apps/WebHostTaskManagement/api/v1/ui/elements/task-manager`
+1. Navigate to: `/apps/WebHostTaskManagement/cards/task-manager`
 2. Verify left-side menu displays (Tasks, Jobs, Runspaces)
 3. Test switching between views
 4. Test enable/disable task actions

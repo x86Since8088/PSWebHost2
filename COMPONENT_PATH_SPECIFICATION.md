@@ -85,7 +85,7 @@ If no path is found, you'll see:
 ```
 ❌ No component path found for system-log. Component paths must be explicitly specified via:
   1. componentPath in layout.json, OR
-  2. scriptPath in /api/v1/ui/elements/system-log endpoint response
+  2. scriptPath in /cards/system-log endpoint response
 ```
 
 This error tells you exactly what's missing and where to fix it.

@@ -8,11 +8,81 @@ param (
     [hashtable]$Query = @{}
 )
 
-# Handle test mode
+# Load required modules and functions for test mode
 if ($Test) {
+    # $PSScriptRoot = apps/WebHostMetrics/routes/api/v1/metrics
+    # Need to go up 6 levels to reach project root
+    $projectRoot = Split-Path (Split-Path (Split-Path (Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent) -Parent) -Parent) -Parent
+
+    # Initialize global PSWebServer if needed
+    if (-not $Global:PSWebServer) {
+        $Global:PSWebServer = @{
+            Project_Root = @{ Path = $projectRoot }
+        }
+    }
+    elseif (-not $Global:PSWebServer.Project_Root) {
+        $Global:PSWebServer.Project_Root = @{ Path = $projectRoot }
+    }
+
+    # Load PSWebHost_Database module
+    $dbModule = Join-Path $projectRoot "modules\PSWebHost_Database\PSWebHost_Database.psm1"
+    if (Test-Path $dbModule) {
+        try {
+            Import-Module $dbModule -Force -ErrorAction Stop
+            Write-Host "[Test Mode] PSWebHost_Database module loaded" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "[Test Mode] Failed to load PSWebHost_Database: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+    else {
+        Write-Host "[Test Mode] Database module not found at: $dbModule" -ForegroundColor Red
+    }
+
+    # Load PSWebHost_Metrics module
+    $metricsModule = Join-Path $projectRoot "apps\WebHostMetrics\modules\PSWebHost_Metrics\PSWebHost_Metrics.psm1"
+    if (Test-Path $metricsModule) {
+        try {
+            Import-Module $metricsModule -Force -ErrorAction Stop
+            Write-Host "[Test Mode] PSWebHost_Metrics module loaded" -ForegroundColor Green
+        }
+        catch {
+            Write-Host "[Test Mode] Failed to load PSWebHost_Metrics: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    }
+    else {
+        Write-Host "[Test Mode] Metrics module not found at: $metricsModule" -ForegroundColor Red
+    }
+
+    # Mock Write-PSWebHostLog if not available
+    if (-not (Get-Command Write-PSWebHostLog -ErrorAction SilentlyContinue)) {
+        function Write-PSWebHostLog {
+            param($Severity, $Category, $Message, $Data)
+            Write-Host "[$Severity] [$Category] $Message" -ForegroundColor Yellow
+        }
+    }
+}
+
+# Handle test mode session setup
+if ($Test) {
+    # Read and display security configuration
+    $securityFile = Join-Path $PSScriptRoot "get.security.json"
+    if (Test-Path $securityFile) {
+        $securityConfig = Get-Content $securityFile -Raw | ConvertFrom-Json
+        Write-Host "`n=== Security Configuration ===" -ForegroundColor Cyan
+        Write-Host "Allowed Roles: $($securityConfig.Allowed_Roles -join ', ')" -ForegroundColor Yellow
+        Write-Host "================================`n" -ForegroundColor Cyan
+    }
+
     # Create mock sessiondata
     if ($Roles.Count -eq 0) {
         $Roles = @('authenticated')
+    }
+    else {
+        # Ensure 'authenticated' is always included when roles are specified
+        if ('authenticated' -notin $Roles) {
+            $Roles = @('authenticated') + $Roles
+        }
     }
     $sessiondata = @{
         Roles = $Roles
@@ -121,12 +191,16 @@ try {
             $projectRoot = $Global:PSWebServer.Project_Root.Path
             $csvDir = Join-Path $projectRoot "PsWebHost_Data/metrics"
 
+            # Parse granularity parameter (default to 5s which is native collection interval)
+            $granularity = $queryParams['granularity']
+            $granularityLabel = if ($granularity -and $granularity -match '^(5s|15s|30s|1m)$') { $granularity } else { '5s' }
+
             if (-not (Test-Path $csvDir)) {
                 $response_data = @{
                     status = 'success'
                     startTime = $starting.ToString('o')
                     endTime = (Get-Date).ToString('o')
-                    granularity = '5s'
+                    granularity = $granularityLabel
                     data = @{}
                 }
             }
@@ -175,7 +249,7 @@ try {
                     status = 'success'
                     startTime = $starting.ToString('o')
                     endTime = (Get-Date).ToString('o')
-                    granularity = '5s'
+                    granularity = $granularityLabel
                     data = $data
                 }
             }

@@ -168,7 +168,7 @@ class SystemLogElement extends HTMLElement {
                 ...(this.filter && { filter: this.filter })
             });
 
-            const response = await fetch(`/api/v1/ui/elements/system-log?${params}`);
+            const response = await fetch(`/cards/system-log?${params}`);
             const data = await response.json();
 
             if (response.ok) {

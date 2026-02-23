@@ -33,7 +33,7 @@ $MyTag = '[Log_Tail.ps1]'
 # Load WebHost environment if not already loaded
 if ($null -eq $Global:PSWebServer) {
     $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\')).Path
-    . (Join-Path $ProjectRoot "WebHost.ps1") -ShowVariables 3>$null 4>$null | Out-Null
+    . (Join-Path $ProjectRoot "WebHost.ps1") -InitializeEnvironmentOnly 3>$null 4>$null | Out-Null
 } else {
     $ProjectRoot = $Global:PSWebServer.Project_Root.Path
 }

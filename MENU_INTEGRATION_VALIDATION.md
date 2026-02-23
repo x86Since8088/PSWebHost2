@@ -133,7 +133,7 @@ Task Management appears when `system_admin` is included
 ```yaml
 - Name: Task Management
   parent: System Management\WebHost
-  url: /apps/WebHostTaskManagement/api/v1/ui/elements/task-manager
+  url: /apps/WebHostTaskManagement/cards/task-manager
   hover_description: Manage scheduled tasks, monitor background jobs, and view active runspaces
   icon: tasks
   tags:
@@ -148,7 +148,7 @@ Task Management appears when `system_admin` is included
 
 **Required Roles:** `system_admin` (inherited from `app.yaml`)
 
-**Component URL:** `/apps/WebHostTaskManagement/api/v1/ui/elements/task-manager`
+**Component URL:** `/apps/WebHostTaskManagement/cards/task-manager`
 
 **Component Script:** `/apps/WebHostTaskManagement/public/elements/task-manager/component.js`
 

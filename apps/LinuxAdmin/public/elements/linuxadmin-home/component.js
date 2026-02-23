@@ -45,11 +45,10 @@ class LinuxAdminHome extends React.Component {
         return React.createElement('div', { className: 'linuxadmin-home' },
             React.createElement('h2', null, 'Linux Administration'),
             React.createElement('div', { className: 'status-card' },
-                React.createElement('p', null, Category: ${status.category}),
-                React.createElement('p', null, `SubCategory: ``),
-
-                React.createElement('p', null, Status: ${status.status}),
-                React.createElement('p', null, Version: ${status.version})
+                React.createElement('p', null, `Category: ${status.category}`),
+                React.createElement('p', null, `SubCategory: ${status.subCategory}`),
+                React.createElement('p', null, `Status: ${status.status}`),
+                React.createElement('p', null, `Version: ${status.version}`)
             )
         );
     }

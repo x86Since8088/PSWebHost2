@@ -126,23 +126,50 @@ function Invoke-ApiTest {
 function Test-CLIFunctionality {
     Write-Host "`n=== CLI Tests ===" -ForegroundColor Cyan
 
-    # Example: Test module import
+    # Test module import
+    $module = Get-Module -Name "PSWebVault" -ErrorAction SilentlyContinue
     Test-Assert -TestName "Module Import" `
-        -Condition (Get-Module -Name "PSWebvault" -ErrorAction SilentlyContinue) `
-        -Message "Module should be loaded"
+        -Condition ($null -ne $module) `
+        -Message "PSWebVault module should be loaded"
 
-    # Example: Test function availability
-    Test-Assert -TestName "Function Exists" `
-        -Condition (Get-Command -Name "Get-vault" -ErrorAction SilentlyContinue) `
-        -Message "Function should be available"
+    # Test function availability
+    $commands = @(
+        'Set-VaultCredential',
+        'Get-VaultCredential',
+        'Get-VaultCredentials',
+        'Remove-VaultCredential',
+        'Protect-VaultCredential',
+        'Unprotect-VaultCredential',
+        'Add-VaultAuditLog',
+        'Get-VaultAuditLog'
+    )
 
-    # Example: Test function output
-    $result = Get-vault -Parameter "test"
-    Test-Assert -TestName "Function Returns Expected Output" `
-        -Condition ($result -eq "expected") `
-        -Message "Function should return expected value"
+    foreach ($cmdName in $commands) {
+        $cmd = Get-Command -Name $cmdName -ErrorAction SilentlyContinue
+        Test-Assert -TestName "Function Exists: $cmdName" `
+            -Condition ($null -ne $cmd) `
+            -Message "$cmdName function should be available"
+    }
 
-    # Add more CLI tests here...
+    # Test encryption/decryption
+    $testPlainText = "TestPassword123!"
+    $encrypted = Protect-VaultCredential -PlainText $testPlainText
+    Test-Assert -TestName "Credential Encryption" `
+        -Condition ($null -ne $encrypted -and $encrypted -ne $testPlainText) `
+        -Message "Should encrypt credential"
+
+    if ($encrypted) {
+        $decrypted = Unprotect-VaultCredential -EncryptedText $encrypted
+        Test-Assert -TestName "Credential Decryption" `
+            -Condition ($decrypted -eq $testPlainText) `
+            -Message "Should decrypt credential to original value"
+    }
+
+    # Test database path resolution
+    $dbPath = Get-VaultDatabasePath
+    Test-Assert -TestName "Database Path Resolution" `
+        -Condition ($null -ne $dbPath) `
+        -Message "Should resolve database path"
 }
 
 #endregion
@@ -175,22 +202,27 @@ function Test-IntegrationFunctionality {
 
     # Test app status endpoint
     Invoke-ApiTest -TestName "App Status Endpoint" `
-        -Endpoint "/apps/$(vault)/api/v1/status" `
+        -Endpoint "/apps/vault/api/v1/status" `
         -ExpectedStatusCode 200
 
     # Test UI element endpoint
-    Invoke-ApiTest -TestName "Home UI Element" `
-        -Endpoint "/apps/$(vault)/api/v1/ui/elements/$(vault)-home" `
+    Invoke-ApiTest -TestName "Vault Manager UI Element" `
+        -Endpoint "/apps/vault/api/v1/ui/elements/vault-manager" `
         -ExpectedStatusCode 200
 
-    # Add more integration tests here...
+    # Test credentials list endpoint
+    Invoke-ApiTest -TestName "Credentials List Endpoint" `
+        -Endpoint "/apps/vault/api/v1/credentials" `
+        -ExpectedStatusCode 200
 
-    # Example: Test data endpoint
-    # Invoke-ApiTest -TestName "Data Endpoint" `
-    #     -Endpoint "/apps/$(vault)/api/v1/data" `
-    #     -Method 'POST' `
-    #     -Body @{ query = "test" } `
-    #     -ExpectedStatusCode 200
+    # Test credentials list with filters
+    Invoke-ApiTest -TestName "Credentials List with Scope Filter" `
+        -Endpoint "/apps/vault/api/v1/credentials?scope=global" `
+        -ExpectedStatusCode 200
+
+    Invoke-ApiTest -TestName "Credentials List with Type Filter" `
+        -Endpoint "/apps/vault/api/v1/credentials?credentialType=Password" `
+        -ExpectedStatusCode 200
 }
 
 #endregion

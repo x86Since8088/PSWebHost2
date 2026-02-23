@@ -11,9 +11,97 @@ try {
     Import-Module powershell-yaml -DisableNameChecking
 
     # Get format from query parameter (default: list)
-    # Formats: list (names/types only), table (Out-String), detailed (full inspection with YAML)
+    # Formats: list (names/types only), table (Out-String), detailed (full inspection with YAML), tree (hierarchical browsing), memory (advanced memory analysis)
     $format = $Request.QueryString['format']
     if (-not $format) { $format = 'list' }
+
+    # --- FORMAT: memory (advanced memory analysis with streaming NDJSON) ---
+    if ($format -eq 'memory') {
+        # Import memory analysis module
+        Import-Module (Join-Path $Global:PSWebServer.Project_Root.Path "modules/PSWebHost_MemoryAnalysis/PSWebHost_MemoryAnalysis.psd1") -DisableNameChecking
+
+        # Parse query parameters
+        $varPath = $Request.QueryString['path']
+        $depth = [int]($Request.QueryString['depth'] ?? 5)
+        $minSize = [int]($Request.QueryString['minSize'] ?? 0)
+        $includeAssemblies = $Request.QueryString['includeAssemblies'] -eq 'true'
+        $includeMethodOverhead = $Request.QueryString['includeMethodOverhead'] -eq 'true'
+        $timeoutSeconds = [int]($Request.QueryString['timeout'] ?? 60)
+
+        # Validate parameters
+        if ($depth -lt 1) { $depth = 1 }
+        if ($depth -gt 20) { $depth = 20 }
+        if ($timeoutSeconds -lt 1) { $timeoutSeconds = 1 }
+        if ($timeoutSeconds -gt 300) { $timeoutSeconds = 300 }
+
+        # Set streaming headers (NDJSON format)
+        $Response.ContentType = 'application/x-ndjson; charset=utf-8'
+        $Response.SendChunked = $true
+        $Response.AddHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+        $Response.AddHeader('X-Content-Type-Options', 'nosniff')
+        $Response.AddHeader('X-Accel-Buffering', 'no')  # Disable nginx buffering
+
+        # Streaming callback - writes NDJSON to response stream
+        $streamCallback = {
+            param($Message)
+
+            try {
+                $json = $Message | ConvertTo-Json -Compress -Depth 10
+                $line = "$json`n"
+                $bytes = [System.Text.Encoding]::UTF8.GetBytes($line)
+                $Response.OutputStream.Write($bytes, 0, $bytes.Length)
+                $Response.OutputStream.Flush()
+            } catch {
+                Write-Warning "[MemoryAnalysis] Stream write failed: $_"
+            }
+        }
+
+        # Execute analysis with streaming
+        try {
+            # Build variable path array
+            $pathArray = if ([string]::IsNullOrWhiteSpace($varPath)) {
+                @("")  # Empty = analyze all globals
+            } else {
+                @($varPath)
+            }
+
+            # Run analysis
+            Get-MemoryConsumption `
+                -VariablePath $pathArray `
+                -Depth $depth `
+                -MinSize $minSize `
+                -IncludeAssemblies:$includeAssemblies `
+                -StreamCallback $streamCallback `
+                -TimeoutSeconds $timeoutSeconds `
+                -IncludeMethodOverhead:$includeMethodOverhead `
+                -ErrorAction Stop | Out-Null
+
+        } catch {
+            # Stream error message
+            $errorMsg = @{
+                type = 'error'
+                message = $_.Exception.Message
+                stackTrace = $_.ScriptStackTrace
+                timestamp = (Get-Date).ToString('o')
+            }
+
+            try {
+                & $streamCallback -Message $errorMsg
+            } catch {
+                Write-Error "[MemoryAnalysis] Failed to send error message: $_"
+            }
+
+        } finally {
+            # Close response
+            try {
+                $Response.Close()
+            } catch {
+                # Response already closed
+            }
+        }
+
+        return
+    }
 
     # Exclude known problematic variables
     $excludeVars = @('PSWebServer', 'Host', 'ExecutionContext', 'true', 'false', 'null',
@@ -256,9 +344,239 @@ try {
         return
     }
 
+    # --- FORMAT: tree (hierarchical variable browsing with expandable nodes) ---
+    if ($format -eq 'tree') {
+        $varName = $Request.QueryString['var']
+
+        # If no variable specified, return list of root variables
+        if (-not $varName) {
+            $varList = $allVars | ForEach-Object {
+                $type = if ($null -ne $_.Value) { $_.Value.GetType().FullName } else { 'null' }
+                $isExpandable = $false
+
+                # Check if expandable (has properties, keys, or is an array)
+                if ($null -ne $_.Value) {
+                    if ($_.Value -is [System.Collections.IDictionary]) {
+                        $isExpandable = $_.Value.Count -gt 0
+                    } elseif ($_.Value -is [System.Collections.IEnumerable] -and $_.Value -isnot [string]) {
+                        $isExpandable = @($_.Value).Count -gt 0
+                    } elseif ($_.Value.PSObject.Properties.Count -gt 0) {
+                        $isExpandable = $true
+                    }
+                }
+
+                [pscustomobject]@{
+                    Name = $_.Name
+                    Type = $type
+                    IsExpandable = $isExpandable
+                    Path = $_.Name
+                }
+            } | Select-Object Name, Type, IsExpandable, Path
+
+            $json = $varList | ConvertTo-Json -Depth 2 -Compress
+            context_response -Response $Response -String $json -ContentType "application/json"
+            return
+        }
+
+        # If variable specified, inspect its contents
+        try {
+            # Parse the path (e.g., "PSWebServer.Apps.WebHostMetrics")
+            $pathParts = $varName -split '\.'
+            $rootVarName = $pathParts[0]
+
+            # Get root variable
+            $currentObj = Get-Variable -Name $rootVarName -Scope Global -ErrorAction Stop -ValueOnly
+
+            # Navigate to nested property if path has multiple parts
+            for ($i = 1; $i -lt $pathParts.Count; $i++) {
+                $propName = $pathParts[$i]
+
+                if ($currentObj -is [System.Collections.IDictionary]) {
+                    $currentObj = $currentObj[$propName]
+                } elseif ($currentObj -is [System.Collections.IList]) {
+                    if ($propName -match '^\[(\d+)\]$') {
+                        $index = [int]$Matches[1]
+                        $currentObj = $currentObj[$index]
+                    } else {
+                        throw "Invalid array index: $propName"
+                    }
+                } else {
+                    $currentObj = $currentObj.$propName
+                }
+            }
+
+            $children = @()
+
+            # If it's a dictionary/hashtable, return keys as children
+            if ($currentObj -is [System.Collections.IDictionary]) {
+                foreach ($key in $currentObj.Keys) {
+                    $val = $currentObj[$key]
+                    $childType = if ($null -ne $val) { $val.GetType().FullName } else { 'null' }
+                    $childPath = "$varName.$key"
+
+                    $isExpandable = $false
+                    if ($null -ne $val) {
+                        if ($val -is [System.Collections.IDictionary]) {
+                            $isExpandable = $val.Count -gt 0
+                        } elseif ($val -is [System.Collections.IEnumerable] -and $val -isnot [string]) {
+                            $isExpandable = @($val).Count -gt 0
+                        } elseif ($val.PSObject.Properties.Count -gt 0) {
+                            $isExpandable = $true
+                        }
+                    }
+
+                    $displayValue = if ($null -eq $val) {
+                        'null'
+                    } elseif ($val -is [string]) {
+                        if ($val.Length -gt 100) { $val.Substring(0, 100) + '...' } else { $val }
+                    } elseif ($val -is [System.Collections.ICollection]) {
+                        "[$childType] Count: $($val.Count)"
+                    } else {
+                        try {
+                            ($val | ConvertTo-Json -Compress -Depth 1).Substring(0, [Math]::Min(200, ($val | ConvertTo-Json -Compress -Depth 1).Length))
+                        } catch {
+                            "[$childType]"
+                        }
+                    }
+
+                    $children += [pscustomobject]@{
+                        Name = $key
+                        Type = $childType
+                        Value = $displayValue
+                        IsExpandable = $isExpandable
+                        Path = $childPath
+                    }
+                }
+            }
+            # If it's an array/list, return indexed items
+            elseif ($currentObj -is [System.Collections.IEnumerable] -and $currentObj -isnot [string]) {
+                $index = 0
+                foreach ($item in $currentObj) {
+                    if ($index -ge 1000) {
+                        $children += [pscustomobject]@{
+                            Name = "[...]"
+                            Type = "info"
+                            Value = "Array has more items (showing first 1000)"
+                            IsExpandable = $false
+                            Path = ""
+                        }
+                        break
+                    }
+
+                    $itemType = if ($null -ne $item) { $item.GetType().FullName } else { 'null' }
+                    $childPath = "$varName.[$index]"
+
+                    $isExpandable = $false
+                    if ($null -ne $item) {
+                        if ($item -is [System.Collections.IDictionary]) {
+                            $isExpandable = $item.Count -gt 0
+                        } elseif ($item -is [System.Collections.IEnumerable] -and $item -isnot [string]) {
+                            $isExpandable = @($item).Count -gt 0
+                        } elseif ($item.PSObject.Properties.Count -gt 0) {
+                            $isExpandable = $true
+                        }
+                    }
+
+                    $displayValue = if ($null -eq $item) {
+                        'null'
+                    } elseif ($item -is [string]) {
+                        if ($item.Length -gt 100) { $item.Substring(0, 100) + '...' } else { $item }
+                    } else {
+                        try {
+                            ($item | ConvertTo-Json -Compress -Depth 1).Substring(0, [Math]::Min(200, ($item | ConvertTo-Json -Compress -Depth 1).Length))
+                        } catch {
+                            "[$itemType]"
+                        }
+                    }
+
+                    $children += [pscustomobject]@{
+                        Name = "[$index]"
+                        Type = $itemType
+                        Value = $displayValue
+                        IsExpandable = $isExpandable
+                        Path = $childPath
+                    }
+                    $index++
+                }
+            }
+            # If it's an object with properties
+            elseif ($null -ne $currentObj -and $currentObj.PSObject.Properties.Count -gt 0) {
+                foreach ($prop in $currentObj.PSObject.Properties) {
+                    $val = $prop.Value
+                    $childType = if ($null -ne $val) { $val.GetType().FullName } else { 'null' }
+                    $childPath = "$varName.$($prop.Name)"
+
+                    $isExpandable = $false
+                    if ($null -ne $val) {
+                        if ($val -is [System.Collections.IDictionary]) {
+                            $isExpandable = $val.Count -gt 0
+                        } elseif ($val -is [System.Collections.IEnumerable] -and $val -isnot [string]) {
+                            $isExpandable = @($val).Count -gt 0
+                        } elseif ($val.PSObject.Properties.Count -gt 0) {
+                            $isExpandable = $true
+                        }
+                    }
+
+                    $displayValue = if ($null -eq $val) {
+                        'null'
+                    } elseif ($val -is [string]) {
+                        if ($val.Length -gt 100) { $val.Substring(0, 100) + '...' } else { $val }
+                    } else {
+                        try {
+                            ($val | ConvertTo-Json -Compress -Depth 1).Substring(0, [Math]::Min(200, ($val | ConvertTo-Json -Compress -Depth 1).Length))
+                        } catch {
+                            "[$childType]"
+                        }
+                    }
+
+                    $children += [pscustomobject]@{
+                        Name = $prop.Name
+                        Type = $childType
+                        Value = $displayValue
+                        IsExpandable = $isExpandable
+                        Path = $childPath
+                    }
+                }
+            }
+            # Primitive value
+            else {
+                $displayValue = if ($null -eq $currentObj) {
+                    'null'
+                } elseif ($currentObj -is [string]) {
+                    $currentObj
+                } else {
+                    try {
+                        $currentObj | ConvertTo-Json -Compress -Depth 2
+                    } catch {
+                        $currentObj.ToString()
+                    }
+                }
+
+                $children += [pscustomobject]@{
+                    Name = "Value"
+                    Type = if ($null -ne $currentObj) { $currentObj.GetType().FullName } else { 'null' }
+                    Value = $displayValue
+                    IsExpandable = $false
+                    Path = ""
+                }
+            }
+
+            $json = $children | ConvertTo-Json -Depth 3 -Compress
+            if ($json -in @('null', '')) { $json = '[]' }
+            context_response -Response $Response -String $json -ContentType "application/json"
+            return
+        } catch {
+            $json = @{
+                error = "Failed to inspect variable '$varName': $($_.Exception.Message)"
+            } | ConvertTo-Json -Compress
+            context_response -Response $Response -StatusCode 400 -String $json -ContentType "application/json"
+            return
+        }
+    }
+
     # Unknown format
     $json = @{
-        error = "Unknown format '$format'. Valid formats: list, table, detailed"
+        error = "Unknown format '$format'. Valid formats: list, table, detailed, tree"
     } | ConvertTo-Json -Compress
     context_response -Response $Response -StatusCode 400 -String $json -ContentType "application/json"
 

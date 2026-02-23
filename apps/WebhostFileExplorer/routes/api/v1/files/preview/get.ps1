@@ -5,19 +5,11 @@ param (
     $sessiondata
 )
 
-# Dot-source File Explorer helper functions
-try {
-    $helperPath = Join-Path $PSScriptRoot "..\..\..\..\..\modules\FileExplorerHelper.ps1"
-
-    if (-not (Test-Path $helperPath)) {
-        throw "Helper file not found: $helperPath"
-    }
-
-    # Always dot-source (each script scope needs its own copy)
-    . $helperPath
+# Import File Explorer helper module functions
+try {Import-TrackedModule "FileExplorerHelper"
 }
 catch {
-    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Failed to load FileExplorerHelper.ps1: $($_.Exception.Message)"
+    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Failed to import FileExplorerHelper module: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
     context_response -Response $Response -StatusCode 500 -String $Report.body -ContentType $Report.contentType
     return

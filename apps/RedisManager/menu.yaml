@@ -3,7 +3,7 @@
 # Databases > Redis
 
 - Name: Redis Manager
-  url: /apps/redismanager/api/v1/ui/elements/redis-manager
+  url: /apps/redismanager/cards/redis-manager
   hover_description: Redis cache and data structure management
   icon: database
   tags:

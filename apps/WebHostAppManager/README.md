@@ -27,10 +27,17 @@ This app is restricted to site administrators only, as it provides sensitive inf
 
 ### Main UI Endpoint
 
-**URL:** `/apps/WebHostAppManager/api/v1/ui/elements/apps-manager`
+**URL:** `/apps/WebHostAppManager/cards/apps-manager`
 **Method:** GET
 **Security:** Requires `site_admin` role
-**Returns:** HTML interface with app grid
+**Returns:** JSON card metadata for loading React component
+
+### API Endpoint
+
+**URL:** `/api/v1/apps/list`
+**Method:** GET
+**Security:** Requires `site_admin` role
+**Returns:** JSON with apps list and node information
 
 ## Installation
 
@@ -61,19 +68,23 @@ The app is accessible from the main menu:
 
 ## UI Components
 
-### App Card
+### React Component
 
-Each app is displayed as a card containing:
+The app uses a React-based component (`public/elements/apps-manager/component.js`) that:
 
-- **Name and Version** - App identifier and version number
-- **Status Badge** - Green (Enabled) or Red (Disabled)
-- **Description** - Brief description of the app's purpose
-- **Metadata Grid:**
-  - Required Roles
-  - Load Timestamp
-- **Action Buttons:**
-  - Open (future implementation)
-  - Details (shows full app info)
+- Fetches app data from `/api/v1/apps/list` endpoint
+- Renders a grid of app cards with modern styling
+- Each app card displays:
+  - **Name and Version** - App identifier and version number
+  - **Status Badge** - Green (Enabled) or Red (Disabled)
+  - **Description** - Brief description of the app's purpose
+  - **Metadata Grid:**
+    - Required Roles
+    - Load Timestamp
+    - App Path
+  - **Action Buttons:**
+    - Open (navigates to app)
+    - Details (shows full app info via alert)
 
 ### Node GUID Display
 
@@ -86,25 +97,36 @@ Shows the unique GUID for the current PSWebHost node, useful for:
 
 ### Data Source
 
-The app reads directly from `$Global:PSWebServer.Apps`, which contains:
+The API endpoint (`/api/v1/apps/list`) reads directly from `$Global:PSWebServer.Apps`, which contains:
 - App manifests (from `app.yaml` files)
 - Load timestamps
 - Configuration data
 
-### Response Format
+### Architecture
 
-The endpoint returns a complete HTML page with:
-- Embedded CSS for styling
-- JavaScript for rendering cards
-- JSON data embedded in script tag
+The app follows PSWebHost's modern card-based architecture:
+
+1. **Card Metadata Endpoint** (`routes/cards/apps-manager/get.ps1`):
+   - Returns JSON metadata about the card
+   - Specifies component path, title, description, features
+
+2. **React Component** (`public/elements/apps-manager/component.js`):
+   - Loaded dynamically by the card framework
+   - Handles all UI rendering and interactions
+   - Uses `window.psweb_fetchWithAuthHandling()` for API calls
+
+3. **API Endpoint** (`routes/api/v1/apps/list/get.ps1`):
+   - Provides JSON data for the component
+   - Returns app list and node GUID
 
 ### Styling
 
-Uses modern, responsive design:
+Styles are defined in `public/elements/apps-manager/style.css`:
 - Grid layout (auto-fill, minmax 350px)
 - Card-based UI with hover effects
 - Status badges with color coding
 - Monospace font for technical data
+- Responsive design with modern aesthetics
 
 ## Future Enhancements
 
@@ -153,10 +175,11 @@ Planned features:
 
 To add functionality:
 
-1. Edit `routes/api/v1/ui/elements/apps-manager/get.ps1`
-2. Modify HTML/CSS/JavaScript as needed
-3. Test with various app configurations
-4. Update this README
+1. **For UI changes:** Edit `public/elements/apps-manager/component.js` and `style.css`
+2. **For API changes:** Edit `routes/api/v1/apps/list/get.ps1`
+3. **For card metadata:** Edit `routes/cards/apps-manager/get.ps1`
+4. Test with various app configurations
+5. Update this README
 
 ### Testing
 
@@ -179,6 +202,6 @@ Part of PSWebHost - see main LICENSE file.
 
 ---
 
-**Last Updated:** 2026-01-17
-**Migrated From:** `routes/api/v1/ui/elements/apps-manager/`
+**Last Updated:** 2026-02-23
+**Architecture:** Modern React-based card component
 **Status:** ✅ Production Ready

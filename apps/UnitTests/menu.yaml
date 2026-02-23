@@ -1,5 +1,5 @@
 - Name: Unit Test Runner
-  url: /apps/UnitTests/api/v1/ui/elements/unit-test-runner
+  url: /apps/UnitTests/cards/unit-test-runner
   hover_description: Run in-browser unit tests for PSWebHost components and libraries
   parent: Admin Tools
   icon: flask
@@ -13,6 +13,7 @@
   - unit-tests
 
 - Name: Coverage Report
+  parent: Admin Tools
   url: /apps/unittests/api/v1/coverage
   hover_description: View route test coverage statistics
   icon: chart-bar
@@ -22,6 +23,7 @@
   - metrics
 
 - Name: Process Tracking
+  parent: Admin Tools
   url: /apps/unittests/api/v1/processes
   hover_description: View process leak detection report
   icon: cogs

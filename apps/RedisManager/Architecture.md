@@ -14,7 +14,9 @@ RedisManager is a **skeleton app** with infrastructure but no Redis functionalit
 **Status:**
 - ✅ App registration and initialization complete
 - ✅ Status API returns metadata
-- ❌ redis-manager UI is placeholder HTML
+- ✅ Card component endpoint configured
+- ✅ Test framework (twin tests) in place
+- ❌ No UI component implementation
 - ❌ No Redis client integration
 
 ---

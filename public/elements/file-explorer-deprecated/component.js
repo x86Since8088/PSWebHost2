@@ -54,7 +54,10 @@ const FileExplorerCard = ({ onError }) => {
                         console.error('[FileExplorer] loadFileTree: Fetch failed', { status: res.status, statusText: res.statusText });
                         onError({ message: "Failed to fetch file explorer data", status: res.status, statusText: res.statusText });
                     }
-                    throw new Error(`HTTP error! status: ${res.status}`);
+                    const error = new Error(`HTTP error! status: ${res.status}`);
+                    error.status = res.status;
+                    error.statusText = res.statusText;
+                    throw error;
                 }
                 return res.text();
             })

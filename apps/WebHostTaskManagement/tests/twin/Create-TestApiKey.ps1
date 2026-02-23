@@ -59,7 +59,7 @@ Write-Verbose "Project root: $projectRoot"
 
 # Load WebHost environment
 Write-Host "Loading PSWebHost environment..." -ForegroundColor Cyan
-. (Join-Path $projectRoot "WebHost.ps1") -ShowVariables 3>$null 4>$null | Out-Null
+. (Join-Path $projectRoot "WebHost.ps1") -InitializeEnvironmentOnly 3>$null 4>$null | Out-Null
 
 # Path for storing test API keys (relative to script location)
 $testConfigDir = Join-Path $PSScriptRoot ".config"

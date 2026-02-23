@@ -35,7 +35,7 @@ The SPA now uses v2 URL format that stores endpoint URLs and fetches component p
             "h": 14,
             "elementId": "file-explorer",
             "title": "File Explorer",
-            "endpoint": "/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer",
+            "endpoint": "/apps/WebhostFileExplorer/cards/file-explorer",
             "backgroundColor": "#1a1a1a"
         }
     ]
@@ -179,9 +179,9 @@ Cards: [{
     x: 0, y: 14, w: 12, h: 14,
     elementId: "file-explorer",
     title: "File Explorer",
-    endpoint: "/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer"
+    endpoint: "/apps/WebhostFileExplorer/cards/file-explorer"
 }]
-First Card Endpoint: /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer
+First Card Endpoint: /apps/WebhostFileExplorer/cards/file-explorer
 ```
 
 ### Test 3: Restore Layout from URL
@@ -197,7 +197,7 @@ First Card Endpoint: /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer
 ```
 [URL Layout] Loaded v2 layout from URL: {cardCount: 1}
 [URL Layout] Using self-contained URL layout (v2) {cardCount: 1}
-[URL Layout] Fetching metadata for file-explorer from: /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer
+[URL Layout] Fetching metadata for file-explorer from: /apps/WebhostFileExplorer/cards/file-explorer
 [URL Layout] Got componentPath for file-explorer: /apps/WebhostFileExplorer/public/elements/file-explorer/component.js
 [URL Layout] Loading component for file-explorer from: /apps/WebhostFileExplorer/public/elements/file-explorer/component.js
 [URL Layout] ✓ Loaded component: file-explorer
@@ -221,7 +221,7 @@ First Card Endpoint: /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer
 
 **Expected Network Requests**:
 ```
-✓ GET /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer (metadata)
+✓ GET /apps/WebhostFileExplorer/cards/file-explorer (metadata)
 ✓ GET /apps/WebhostFileExplorer/public/elements/file-explorer/component.js (script)
 ✓ GET /public/elements/profile/component.js
 ✓ GET /public/elements/main-menu/component.js
@@ -388,7 +388,7 @@ Update layout.json to include endpoint URLs for static cards:
 ```json
 {
     "realtime-events": {
-        "url": "/apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events",
+        "url": "/apps/WebhostRealtimeEvents/cards/realtime-events",
         "componentPath": "/apps/.../component.js"
     }
 }

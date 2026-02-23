@@ -3,7 +3,7 @@
 # Operating Systems > Linux
 
 - Name: Linux Services
-  url: /apps/linuxadmin/api/v1/ui/elements/linux-services
+  url: /apps/linuxadmin/cards/linux-services
   hover_description: Manage Linux systemd services
   icon: settings
   tags:
@@ -12,7 +12,7 @@
     - services
 
 - Name: Linux Cron Jobs
-  url: /apps/linuxadmin/api/v1/ui/elements/linux-cron
+  url: /apps/linuxadmin/cards/linux-cron
   hover_description: Manage Linux cron jobs
   icon: clock
   tags:

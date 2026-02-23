@@ -113,8 +113,21 @@ try {
 
     # Filter parameters
     $filter = if ($Request) { $Request.QueryString['filter'] } else { $null }
-    $category = if ($Request) { $Request.QueryString['category'] } else { $null }
-    $severity = if ($Request) { $Request.QueryString['severity'] } else { $null }
+
+    # Multi-select filters (can have multiple values)
+    $categories = if ($Request -and $Request.QueryString['category']) {
+        @($Request.QueryString.GetValues('category'))
+    } else {
+        @()
+    }
+
+    $severities = if ($Request -and $Request.QueryString['severity']) {
+        @($Request.QueryString.GetValues('severity'))
+    } else {
+        @()
+    }
+
+    # Single-select filters
     $source = if ($Request) { $Request.QueryString['source'] } else { $null }
     $userID = if ($Request) { $Request.QueryString['userID'] } else { $null }
     $sessionID = if ($Request) { $Request.QueryString['sessionID'] } else { $null }
@@ -149,12 +162,12 @@ try {
             }
         }
 
-        if ($category) {
-            $logs = $logs | Where-Object { $_.Category -like $category }
+        if ($categories.Count -gt 0) {
+            $logs = $logs | Where-Object { $categories -contains $_.Category }
         }
 
-        if ($severity) {
-            $logs = $logs | Where-Object { $_.Severity -like $severity }
+        if ($severities.Count -gt 0) {
+            $logs = $logs | Where-Object { $severities -contains $_.Severity }
         }
 
         if ($source) {
@@ -208,8 +221,8 @@ try {
         }
         filters = @{
             filter = $filter
-            category = $category
-            severity = $severity
+            categories = $categories
+            severities = $severities
             source = $source
             userID = $userID
             sessionID = $sessionID
@@ -239,8 +252,8 @@ try {
         Write-Host "Earliest: $($responseData.timeRange.earliest)" -ForegroundColor Gray
         Write-Host "Latest: $($responseData.timeRange.latest)" -ForegroundColor Gray
         if ($responseData.filters.filter) { Write-Host "Text Filter: $($responseData.filters.filter)" -ForegroundColor Yellow }
-        if ($responseData.filters.category) { Write-Host "Category: $($responseData.filters.category)" -ForegroundColor Yellow }
-        if ($responseData.filters.severity) { Write-Host "Severity: $($responseData.filters.severity)" -ForegroundColor Yellow }
+        if ($responseData.filters.categories.Count -gt 0) { Write-Host "Categories: $($responseData.filters.categories -join ', ')" -ForegroundColor Yellow }
+        if ($responseData.filters.severities.Count -gt 0) { Write-Host "Severities: $($responseData.filters.severities -join ', ')" -ForegroundColor Yellow }
         Write-Host "Sort By: $($responseData.sorting.sortBy) ($($responseData.sorting.sortOrder))" -ForegroundColor Yellow
         return
     }

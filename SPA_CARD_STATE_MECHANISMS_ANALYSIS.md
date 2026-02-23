@@ -342,7 +342,7 @@ if (!componentPath) {
     "cards": ["realtime-events-1769486221470", "file-explorer-1769486224446"],
     "metadata": {
         "file-explorer-1769486224446": {
-            "endpoint": "/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer",
+            "endpoint": "/apps/WebhostFileExplorer/cards/file-explorer",
             "type": "dynamic"
         },
         "realtime-events-1769486221470": {

@@ -16,7 +16,7 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 
 # Load WebHost environment
 Write-Host "[1/3] Loading WebHost environment..." -ForegroundColor Yellow
-. (Join-Path $PSScriptRoot '..\WebHost.ps1') -ShowVariables
+. (Join-Path $PSScriptRoot '..\WebHost.ps1') -InitializeEnvironmentOnly
 Write-Host "      ✓ Environment loaded" -ForegroundColor Green
 
 # Validate password

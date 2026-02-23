@@ -170,7 +170,10 @@ const ChartJsComponent = ({ element, onError }) => {
             const response = await window.psweb_fetchWithAuthHandling(sourceUrl.toString(), options);
 
             if (!response.ok) {
-                throw new Error(`Data source returned ${response.status}`);
+                const error = new Error(`Data source returned ${response.status}`);
+                error.status = response.status;
+                error.statusText = response.statusText;
+                throw error;
             }
 
             let responseData;

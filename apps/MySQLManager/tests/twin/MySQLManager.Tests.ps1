@@ -125,24 +125,12 @@ function Invoke-ApiTest {
 
 function Test-CLIFunctionality {
     Write-Host "`n=== CLI Tests ===" -ForegroundColor Cyan
+    Write-Host "  [SKIP] CLI tests not applicable - app is skeleton only" -ForegroundColor Yellow
 
-    # Example: Test module import
-    Test-Assert -TestName "Module Import" `
-        -Condition (Get-Module -Name "PSWebMySQLManager" -ErrorAction SilentlyContinue) `
-        -Message "Module should be loaded"
+    $script:TestResults.Skipped++
 
-    # Example: Test function availability
-    Test-Assert -TestName "Function Exists" `
-        -Condition (Get-Command -Name "Get-MySQLManager" -ErrorAction SilentlyContinue) `
-        -Message "Function should be available"
-
-    # Example: Test function output
-    $result = Get-MySQLManager -Parameter "test"
-    Test-Assert -TestName "Function Returns Expected Output" `
-        -Condition ($result -eq "expected") `
-        -Message "Function should return expected value"
-
-    # Add more CLI tests here...
+    # Note: MySQLManager has no PowerShell modules or CLI functionality
+    # All tests skipped until implementation is complete
 }
 
 #endregion
@@ -175,22 +163,12 @@ function Test-IntegrationFunctionality {
 
     # Test app status endpoint
     Invoke-ApiTest -TestName "App Status Endpoint" `
-        -Endpoint "/apps/$(mysqlmanager)/api/v1/status" `
+        -Endpoint "/apps/mysqlmanager/api/v1/status" `
         -ExpectedStatusCode 200
 
-    # Test UI element endpoint
-    Invoke-ApiTest -TestName "Home UI Element" `
-        -Endpoint "/apps/$(mysqlmanager)/api/v1/ui/elements/$(mysqlmanager)-home" `
-        -ExpectedStatusCode 200
-
-    # Add more integration tests here...
-
-    # Example: Test data endpoint
-    # Invoke-ApiTest -TestName "Data Endpoint" `
-    #     -Endpoint "/apps/$(mysqlmanager)/api/v1/data" `
-    #     -Method 'POST' `
-    #     -Body @{ query = "test" } `
-    #     -ExpectedStatusCode 200
+    # Note: UI element tests skipped - no web components implemented yet
+    Write-Host "  [SKIP] UI element tests - no components implemented" -ForegroundColor Yellow
+    $script:TestResults.Skipped++
 }
 
 #endregion

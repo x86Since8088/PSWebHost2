@@ -175,21 +175,26 @@ function Test-IntegrationFunctionality {
 
     # Test app status endpoint
     Invoke-ApiTest -TestName "App Status Endpoint" `
-        -Endpoint "/apps/$(ui_uplot)/api/v1/status" `
+        -Endpoint "/apps/uplot/api/v1/status" `
         -ExpectedStatusCode 200
 
     # Test UI element endpoint
     Invoke-ApiTest -TestName "Home UI Element" `
-        -Endpoint "/apps/$(ui_uplot)/api/v1/ui/elements/$(ui_uplot)-home" `
+        -Endpoint "/apps/uplot/api/v1/ui/elements/uplot-home" `
+        -ExpectedStatusCode 200
+
+    # Test config endpoint
+    Invoke-ApiTest -TestName "Config Endpoint" `
+        -Endpoint "/apps/uplot/api/v1/config" `
         -ExpectedStatusCode 200
 
     # Add more integration tests here...
 
     # Example: Test data endpoint
-    # Invoke-ApiTest -TestName "Data Endpoint" `
-    #     -Endpoint "/apps/$(ui_uplot)/api/v1/data" `
+    # Invoke-ApiTest -TestName "CSV Data Endpoint" `
+    #     -Endpoint "/apps/uplot/api/v1/data/csv" `
     #     -Method 'POST' `
-    #     -Body @{ query = "test" } `
+    #     -Body @{ url = "https://example.com/data.csv" } `
     #     -ExpectedStatusCode 200
 }
 

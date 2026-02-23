@@ -6,7 +6,7 @@ Windows Subsystem for Linux management and integration
 **Containers** > **WSL**
 
 ## Installation
-This app is automatically loaded by PSWebHost when placed in the \pps/\ directory.
+This app is automatically loaded by PSWebHost when placed in the \apps\ directory.
 
 ## Configuration
 - **Route Prefix:** \$RoutePrefix\
@@ -27,7 +27,7 @@ WSLManager/
 
 ## Development
 To add new features:
-1. Create routes in \outes/api/v1/\
+1. Create routes in \routes/api/v1/\
 2. Add UI elements in \public/elements/\
 3. Update \menu.yaml\ for menu integration
 4. Update this README

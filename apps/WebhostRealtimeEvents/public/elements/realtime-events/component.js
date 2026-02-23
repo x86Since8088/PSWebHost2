@@ -16,11 +16,15 @@ const RealtimeEventsCard = ({ onError }) => {
     const [endTime, setEndTime] = useState('');
 
     // Advanced filters
-    const [categoryFilter, setCategoryFilter] = useState('');
-    const [severityFilter, setSeverityFilter] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState([]);
+    const [severityFilter, setSeverityFilter] = useState([]);
     const [sourceFilter, setSourceFilter] = useState('');
     const [userIDFilter, setUserIDFilter] = useState('');
     const [sessionIDFilter, setSessionIDFilter] = useState('');
+
+    // Available options for multi-select
+    const [availableCategories, setAvailableCategories] = useState([]);
+    const [availableSeverities, setAvailableSeverities] = useState(['Critical', 'Error', 'Warning', 'Info', 'Verbose', 'Debug']);
 
     // Sorting
     const [sortBy, setSortBy] = useState('Date');
@@ -50,12 +54,12 @@ const RealtimeEventsCard = ({ onError }) => {
         Category: 120,
         Message: 300,
         Source: 200,
-        ActivityName: 150,
-        PercentComplete: 80,
-        UserID: 150,
-        SessionID: 120,
-        RunspaceID: 80,
-        Data: 200
+        ActivityName: 180,        // Increased from 150 for longer activity names
+        PercentComplete: 90,      // Increased from 80 for better spacing
+        UserID: 180,              // Increased from 150 for longer user IDs
+        SessionID: 280,           // Increased from 120 for GUIDs/long session IDs
+        RunspaceID: 100,          // Increased from 80 for better visibility
+        Data: 250                 // Increased from 200 for more detailed data
     });
 
     const resizingColumn = useRef(null);
@@ -76,14 +80,15 @@ const RealtimeEventsCard = ({ onError }) => {
         const now = new Date();
         const futureTime = new Date(now.getTime() + (24 * 60 * 60 * 1000)); // 24 hours from now
 
-        // Format for datetime-local input: YYYY-MM-DDThh:mm
+        // Format for datetime-local input: YYYY-MM-DDThh:mm:ss
         const formatDateTime = (date) => {
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
             const hours = String(date.getHours()).padStart(2, '0');
             const minutes = String(date.getMinutes()).padStart(2, '0');
-            return `${year}-${month}-${day}T${hours}:${minutes}`;
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
         };
 
         setCustomTimeRange(true);
@@ -210,7 +215,11 @@ const RealtimeEventsCard = ({ onError }) => {
                 // Send as local datetime string (server will interpret as its local time)
                 // Format: YYYY-MM-DDThh:mm:ss
                 const formatForServer = (dateTimeLocal) => {
-                    return dateTimeLocal + ':00'; // Add seconds if not present
+                    // Add seconds if not present (supports both formats)
+                    if (dateTimeLocal.length === 16) {
+                        return dateTimeLocal + ':00';
+                    }
+                    return dateTimeLocal;
                 };
                 params.append('earliest', formatForServer(startTime));
                 params.append('latest', formatForServer(endTime));
@@ -220,8 +229,12 @@ const RealtimeEventsCard = ({ onError }) => {
 
             // Filters
             if (filterText) params.append('filter', filterText);
-            if (categoryFilter) params.append('category', categoryFilter);
-            if (severityFilter) params.append('severity', severityFilter);
+            if (categoryFilter.length > 0) {
+                categoryFilter.forEach(cat => params.append('category', cat));
+            }
+            if (severityFilter.length > 0) {
+                severityFilter.forEach(sev => params.append('severity', sev));
+            }
             if (sourceFilter) params.append('source', sourceFilter);
             if (userIDFilter) params.append('userID', userIDFilter);
             if (sessionIDFilter) params.append('sessionID', sessionIDFilter);
@@ -248,7 +261,18 @@ const RealtimeEventsCard = ({ onError }) => {
                 .then(data => {
                     if (!isMounted) return;
 
-                    const logsArray = (data.logs || []).map((log, index) => ({
+                    // Validate response structure
+                    if (!data || typeof data !== 'object') {
+                        console.error('[RealtimeEvents] Invalid response data:', data);
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Ensure logs is an array
+                    const logs = Array.isArray(data.logs) ? data.logs : [];
+                    console.log(`[RealtimeEvents] Received ${logs.length} logs`);
+
+                    const logsArray = logs.map((log, index) => ({
                         ...log,
                         _id: `log-${Date.now()}-${index}`,
                         Data: typeof log.Data === 'object' ? JSON.stringify(log.Data) : log.Data
@@ -257,6 +281,10 @@ const RealtimeEventsCard = ({ onError }) => {
                     setLogs(logsArray);
                     setLastUpdate(new Date());
                     setLoading(false);
+
+                    // Extract unique categories
+                    const categories = [...new Set(logsArray.map(log => log.Category).filter(Boolean))].sort();
+                    setAvailableCategories(categories);
 
                     // Clear selections that are no longer in the list
                     setSelectedLogs(prev => {
@@ -543,6 +571,7 @@ const RealtimeEventsCard = ({ onError }) => {
                         <>
                             <input
                                 type="datetime-local"
+                                step="1"
                                 className="filter-input"
                                 value={startTime}
                                 onChange={(e) => setStartTime(e.target.value)}
@@ -550,6 +579,7 @@ const RealtimeEventsCard = ({ onError }) => {
                             />
                             <input
                                 type="datetime-local"
+                                step="1"
                                 className="filter-input"
                                 value={endTime}
                                 onChange={(e) => setEndTime(e.target.value)}
@@ -569,22 +599,96 @@ const RealtimeEventsCard = ({ onError }) => {
                         value={filterText}
                         onChange={(e) => setFilterText(e.target.value)}
                     />
-                    <input
-                        type="text"
-                        className="filter-input"
-                        placeholder="Category..."
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                        style={{ minWidth: '120px' }}
-                    />
-                    <input
-                        type="text"
-                        className="filter-input"
-                        placeholder="Severity..."
-                        value={severityFilter}
-                        onChange={(e) => setSeverityFilter(e.target.value)}
-                        style={{ minWidth: '120px' }}
-                    />
+
+                    {/* Category Multi-Select */}
+                    <details style={{ position: 'relative', display: 'inline-block' }}>
+                        <summary style={{ cursor: 'pointer', padding: '4px 8px', border: '1px solid var(--border-color)', borderRadius: '3px', fontSize: '0.9em', listStyle: 'none', background: 'var(--bg-color)', minWidth: '120px' }}>
+                            Category {categoryFilter.length > 0 && `(${categoryFilter.length})`}
+                        </summary>
+                        <div style={{ position: 'absolute', left: 0, top: '100%', background: 'var(--card-bg-color)', border: '1px solid var(--border-color)', borderRadius: '3px', padding: '8px', marginTop: '2px', zIndex: 1000, minWidth: '150px', maxHeight: '300px', overflow: 'auto' }}>
+                            <label style={{ display: 'block', padding: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={categoryFilter.length === availableCategories.length && availableCategories.length > 0}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setCategoryFilter([...availableCategories]);
+                                        } else {
+                                            setCategoryFilter([]);
+                                        }
+                                    }}
+                                    style={{ marginRight: '8px' }}
+                                />
+                                <strong>Select All</strong>
+                            </label>
+                            <hr style={{ margin: '4px 0' }} />
+                            {availableCategories.map(cat => (
+                                <label key={cat} style={{ display: 'block', padding: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={categoryFilter.includes(cat)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setCategoryFilter([...categoryFilter, cat]);
+                                            } else {
+                                                setCategoryFilter(categoryFilter.filter(c => c !== cat));
+                                            }
+                                        }}
+                                        style={{ marginRight: '8px' }}
+                                    />
+                                    {cat}
+                                </label>
+                            ))}
+                            {availableCategories.length === 0 && (
+                                <div style={{ padding: '8px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                                    No categories available
+                                </div>
+                            )}
+                        </div>
+                    </details>
+
+                    {/* Severity Multi-Select */}
+                    <details style={{ position: 'relative', display: 'inline-block' }}>
+                        <summary style={{ cursor: 'pointer', padding: '4px 8px', border: '1px solid var(--border-color)', borderRadius: '3px', fontSize: '0.9em', listStyle: 'none', background: 'var(--bg-color)', minWidth: '120px' }}>
+                            Severity {severityFilter.length > 0 && `(${severityFilter.length})`}
+                        </summary>
+                        <div style={{ position: 'absolute', left: 0, top: '100%', background: 'var(--card-bg-color)', border: '1px solid var(--border-color)', borderRadius: '3px', padding: '8px', marginTop: '2px', zIndex: 1000, minWidth: '150px' }}>
+                            <label style={{ display: 'block', padding: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={severityFilter.length === availableSeverities.length}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setSeverityFilter([...availableSeverities]);
+                                        } else {
+                                            setSeverityFilter([]);
+                                        }
+                                    }}
+                                    style={{ marginRight: '8px' }}
+                                />
+                                <strong>Select All</strong>
+                            </label>
+                            <hr style={{ margin: '4px 0' }} />
+                            {availableSeverities.map(sev => (
+                                <label key={sev} style={{ display: 'block', padding: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={severityFilter.includes(sev)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSeverityFilter([...severityFilter, sev]);
+                                            } else {
+                                                setSeverityFilter(severityFilter.filter(s => s !== sev));
+                                            }
+                                        }}
+                                        style={{ marginRight: '8px' }}
+                                    />
+                                    {sev}
+                                </label>
+                            ))}
+                        </div>
+                    </details>
+
                     <input
                         type="text"
                         className="filter-input"
@@ -696,25 +800,32 @@ const RealtimeEventsCard = ({ onError }) => {
                         <tbody>
                             {logs.map((log) => (
                                 <tr key={log._id}>
-                                    {columns.map((col) => (
-                                        <td key={col.key} title={col.key !== 'checkbox' ? log[col.key] : ''}>
-                                            {col.key === 'checkbox' ? (
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedLogs.has(log._id)}
-                                                    onChange={(e) => handleSelectLog(log._id, e.target.checked)}
-                                                />
-                                            ) : col.key === 'Severity' ? (
-                                                <span style={{ color: getSeverityColor(log.Severity), fontWeight: 'bold' }}>
-                                                    {log.Severity}
-                                                </span>
-                                            ) : col.key === 'PercentComplete' && log.PercentComplete ? (
-                                                <span>{log.PercentComplete}%</span>
-                                            ) : (
-                                                log[col.key]
-                                            )}
-                                        </td>
-                                    ))}
+                                    {columns.map((col) => {
+                                        const cellValue = log[col.key];
+                                        const displayValue = col.key === 'checkbox' ? '' :
+                                            typeof cellValue === 'object' && cellValue !== null ? JSON.stringify(cellValue) :
+                                            cellValue !== undefined && cellValue !== null ? String(cellValue) : '';
+
+                                        return (
+                                            <td key={col.key} title={displayValue}>
+                                                {col.key === 'checkbox' ? (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedLogs.has(log._id)}
+                                                        onChange={(e) => handleSelectLog(log._id, e.target.checked)}
+                                                    />
+                                                ) : col.key === 'Severity' ? (
+                                                    <span style={{ color: getSeverityColor(log.Severity), fontWeight: 'bold' }}>
+                                                        {log.Severity || ''}
+                                                    </span>
+                                                ) : col.key === 'PercentComplete' && log.PercentComplete !== undefined && log.PercentComplete !== null ? (
+                                                    <span>{log.PercentComplete}%</span>
+                                                ) : (
+                                                    displayValue
+                                                )}
+                                            </td>
+                                        );
+                                    })}
                                 </tr>
                             ))}
                         </tbody>

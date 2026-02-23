@@ -1,6 +1,6 @@
 [cmdletbinding()]
 param (
-    [switch]$ShowVariables,
+    [switch]$InitializeEnvironmentOnly,
     [switch]$Upgrade # New parameter
 )
 begin{
@@ -281,7 +281,7 @@ end {
         Write-Error "An error occurred during database schema validation: $($_.Exception.Message)"
     }
 
-    if ($ShowVariables.IsPresent) {
+    if ($InitializeEnvironmentOnly.IsPresent) {
         $variablesToDump = @{
             ScriptFolder = $ScriptFolder
             ProjectRoot = $projectRoot

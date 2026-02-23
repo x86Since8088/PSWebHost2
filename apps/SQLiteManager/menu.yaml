@@ -3,7 +3,7 @@
 # Databases > SQLite
 
 - Name: SQLite Manager
-  url: /apps/sqlitemanager/api/v1/ui/elements/sqlite-manager
+  url: /apps/sqlitemanager/cards/sqlite-manager
   hover_description: SQLite database file management
   icon: database
   tags:
@@ -12,7 +12,7 @@
     - sql
 
 - Name: Query Editor
-  url: /apps/sqlitemanager/api/v1/ui/elements/sqlite-query-editor
+  url: /apps/sqlitemanager/cards/sqlite-query-editor
   hover_description: Execute SQL queries against the PSWebHost database
   icon: code
   tags:

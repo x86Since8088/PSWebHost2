@@ -74,12 +74,12 @@ This report analyzes all JavaScript files in the PsWebHost project to identify A
 | Endpoint | Status | Referenced By | Method |
 |----------|--------|---------------|--------|
 | `/api/v1/ui/elements/world-map` | ✅ EXISTS | public/elements/world-map/component.js | GET |
-| `/api/v1/ui/elements/system-status` | ✅ EXISTS | public/elements/system-status/component.js | GET |
-| `/api/v1/ui/elements/job-status` | ✅ EXISTS | public/elements/system-log/component.js, public/elements/event-stream/component.js | GET |
+| `/cards/system-status` | ✅ EXISTS | public/elements/system-status/component.js | GET |
+| `/cards/job-status` | ✅ EXISTS | public/elements/system-log/component.js, public/elements/event-stream/component.js | GET |
 | `/api/v1/ui/elements/server-heatmap` | ✅ EXISTS | public/elements/server-heatmap/component.js | GET |
 | `/api/v1/ui/elements/file-explorer` | ✅ EXISTS | public/elements/file-explorer/component.js | GET/POST |
 | `/api/v1/ui/elements/main-menu/preferences` | ✅ EXISTS | public/elements/main-menu/component.js | POST |
-| `/api/v1/ui/elements/help-viewer` | ✅ EXISTS | public/psweb_spa.js | GET |
+| `/cards/help-viewer` | ✅ EXISTS | public/psweb_spa.js | GET |
 
 **All route files exist in:** `C:\SC\PsWebHost\routes\api\v1\ui\elements\`
 
@@ -138,7 +138,7 @@ This report analyzes all JavaScript files in the PsWebHost project to identify A
 |----------|--------|---------------|--------|
 | `/apps/vault/api/v1/status` | ✅ EXISTS | apps/vault/tests/twin/browser-tests.js, apps/vault/public/elements/vault-manager/component.js | GET |
 | `/apps/vault/api/v1/credentials` | ✅ EXISTS | apps/vault/public/elements/vault-manager/component.js | GET/POST/DELETE |
-| `/apps/vault/api/v1/ui/elements/vault-manager` | ✅ EXISTS | apps/vault/routes/api/v1/ui/elements/vault-manager/get.ps1 | GET |
+| `/apps/vault/cards/vault-manager` | ✅ EXISTS | apps/vault/routes/api/v1/ui/elements/vault-manager/get.ps1 | GET |
 | `/apps/vault/api/v1/ui/elements/vault-home` | ❌ **MISSING** | apps/vault/tests/twin/browser-tests.js | GET |
 | `/apps/vault/api/v1/data` | ❌ **MISSING** | apps/vault/tests/twin/browser-tests.js (TEST ONLY) | GET/POST |
 
@@ -161,7 +161,7 @@ This report analyzes all JavaScript files in the PsWebHost project to identify A
 | `/apps/windowsadmin/api/v1/status` | ✅ EXISTS | apps/WindowsAdmin/public/elements/windowsadmin-home/component.js | GET |
 | `/apps/windowsadmin/api/v1/system/tasks` | ✅ EXISTS | apps/WindowsAdmin/public/elements/task-scheduler/component.js | GET |
 | `/apps/windowsadmin/api/v1/system/services` | ✅ EXISTS | apps/WindowsAdmin/public/elements/service-control/component.js | GET |
-| `/apps/WindowsAdmin/api/v1/ui/elements/WindowsAdmin-home` | ❌ **CASE MISMATCH** | apps/WindowsAdmin/tests/twin/browser-tests.js | GET |
+| `/apps/windowsadmin/cards/windowsadmin-home` | ❌ **CASE MISMATCH** | apps/WindowsAdmin/tests/twin/browser-tests.js | GET |
 | `/apps/WindowsAdmin/api/v1/data` | ❌ **MISSING** | apps/WindowsAdmin/tests/twin/browser-tests.js (TEST ONLY) | GET/POST |
 
 **Route Files:**
@@ -180,7 +180,7 @@ This report analyzes all JavaScript files in the PsWebHost project to identify A
 |----------|--------|---------------|--------|
 | `/apps/LinuxAdmin/api/v1/status` | ✅ EXISTS (case mismatch) | apps/LinuxAdmin/tests/twin/browser-tests.js | GET |
 | `/apps/linuxadmin/api/v1/status` | ✅ EXISTS | apps/LinuxAdmin/public/elements/linuxadmin-home/component.js | GET |
-| `/apps/LinuxAdmin/api/v1/ui/elements/LinuxAdmin-home` | ❌ **CASE MISMATCH** | apps/LinuxAdmin/tests/twin/browser-tests.js | GET |
+| `/apps/linuxadmin/cards/linuxadmin-home` | ❌ **CASE MISMATCH** | apps/LinuxAdmin/tests/twin/browser-tests.js | GET |
 | `/apps/LinuxAdmin/api/v1/data` | ❌ **MISSING** | apps/LinuxAdmin/tests/twin/browser-tests.js (TEST ONLY) | GET/POST |
 
 **Route Files:**
@@ -195,7 +195,7 @@ This report analyzes all JavaScript files in the PsWebHost project to identify A
 |----------|--------|---------------|--------|
 | `/apps/WSLManager/api/v1/status` | ✅ EXISTS (case mismatch) | apps/WSLManager/tests/twin/browser-tests.js | GET |
 | `/apps/wslmanager/api/v1/status` | ✅ EXISTS | apps/WSLManager/public/elements/wslmanager-home/component.js | GET |
-| `/apps/WSLManager/api/v1/ui/elements/WSLManager-home` | ❌ **CASE MISMATCH** | apps/WSLManager/tests/twin/browser-tests.js | GET |
+| `/apps/wslmanager/cards/wslmanager-home` | ❌ **CASE MISMATCH** | apps/WSLManager/tests/twin/browser-tests.js | GET |
 | `/apps/WSLManager/api/v1/data` | ❌ **MISSING** | apps/WSLManager/tests/twin/browser-tests.js (TEST ONLY) | GET/POST |
 
 **Route Files:**
@@ -210,7 +210,7 @@ This report analyzes all JavaScript files in the PsWebHost project to identify A
 |----------|--------|---------------|--------|
 | `/apps/DockerManager/api/v1/status` | ✅ EXISTS (case mismatch) | apps/DockerManager/tests/twin/browser-tests.js | GET |
 | `/apps/dockermanager/api/v1/status` | ✅ EXISTS | apps/DockerManager/public/elements/dockermanager-home/component.js | GET |
-| `/apps/DockerManager/api/v1/ui/elements/DockerManager-home` | ❌ **CASE MISMATCH** | apps/DockerManager/tests/twin/browser-tests.js | GET |
+| `/apps/dockermanager/cards/dockermanager-home` | ❌ **CASE MISMATCH** | apps/DockerManager/tests/twin/browser-tests.js | GET |
 | `/apps/DockerManager/api/v1/data` | ❌ **MISSING** | apps/DockerManager/tests/twin/browser-tests.js (TEST ONLY) | GET/POST |
 
 **Route Files:**
@@ -223,7 +223,7 @@ This report analyzes all JavaScript files in the PsWebHost project to identify A
 |----------|--------|---------------|--------|
 | `/apps/KubernetesManager/api/v1/status` | ✅ EXISTS (case mismatch) | apps/KubernetesManager/tests/twin/browser-tests.js | GET |
 | `/apps/kubernetesmanager/api/v1/status` | ✅ EXISTS | apps/KubernetesManager/public/elements/kubernetesmanager-home/component.js | GET |
-| `/apps/KubernetesManager/api/v1/ui/elements/KubernetesManager-home` | ❌ **CASE MISMATCH** | apps/KubernetesManager/tests/twin/browser-tests.js | GET |
+| `/apps/kubernetesmanager/cards/kubernetesmanager-home` | ❌ **CASE MISMATCH** | apps/KubernetesManager/tests/twin/browser-tests.js | GET |
 | `/apps/KubernetesManager/api/v1/data` | ❌ **MISSING** | apps/KubernetesManager/tests/twin/browser-tests.js (TEST ONLY) | GET/POST |
 
 **Route Files:**

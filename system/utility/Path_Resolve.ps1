@@ -92,20 +92,69 @@ try {
 
     switch ($prefix) {
         'User' {
-            # User:me - Personal storage
-            if ($identifier -ne 'me') {
-                throw "Only 'User:me' is supported (user's own storage)"
-            }
+            # User:me - Personal storage (own files)
+            if ($identifier -eq 'me') {
+                # All authenticated users have access to their own storage
+                if ($Roles -notcontains 'authenticated') {
+                    throw "Authentication required for personal storage"
+                }
 
-            # All authenticated users have access to their own storage
-            if ($Roles -notcontains 'authenticated') {
-                throw "Authentication required for personal storage"
+                $basePath = Join-Path $projectRoot "PsWebHost_Data\UserData\$UserID\personal"
+                $result.StorageType = 'personal'
+                $result.AccessLevel = 'owner'
+                $result.Success = $true
             }
+            # User:others - Browse other users' directories (system_admin only)
+            elseif ($identifier -eq 'others') {
+                # Require system_admin role
+                if ($Roles -notcontains 'system_admin') {
+                    throw "system_admin role required for User:others access"
+                }
 
-            $basePath = Join-Path $projectRoot "PsWebHost_Data\UserData\$UserID\personal"
-            $result.StorageType = 'personal'
-            $result.AccessLevel = 'owner'
-            $result.Success = $true
+                # Parse relative path: User:others/{pattern}/{subpath}
+                # Pattern can be: email/last4 or userID
+                if (-not $relativePath) {
+                    # Root level - show list of all users (handled by caller)
+                    $basePath = Join-Path $projectRoot "PsWebHost_Data\UserData"
+                    $result.StorageType = 'personal_admin'
+                    $result.AccessLevel = 'admin'
+                    $result.Success = $true
+                }
+                else {
+                    # Parse user pattern from relative path
+                    $pathParts = $relativePath -split '[/\\]', 2
+                    $userPattern = $pathParts[0]
+                    $subPath = if ($pathParts.Length -gt 1) { $pathParts[1] } else { $null }
+
+                    # Resolve user pattern to UserID
+                    $resolveScript = Join-Path $PSScriptRoot "User_Resolve.ps1"
+                    if (-not (Test-Path $resolveScript)) {
+                        throw "User_Resolve.ps1 not found: $resolveScript"
+                    }
+
+                    $resolveResult = & $resolveScript -Pattern $userPattern
+
+                    if (-not $resolveResult.Success) {
+                        throw "User not found: $($resolveResult.Message)"
+                    }
+
+                    # Build path to target user's personal storage
+                    $targetUserID = $resolveResult.UserID
+                    $basePath = Join-Path $projectRoot "PsWebHost_Data\UserData\$targetUserID\personal"
+
+                    # Update relative path to exclude user pattern
+                    $relativePath = $subPath
+
+                    $result.StorageType = 'personal_admin'
+                    $result.AccessLevel = 'admin'
+                    $result.TargetUserID = $targetUserID
+                    $result.TargetEmail = $resolveResult.Email
+                    $result.Success = $true
+                }
+            }
+            else {
+                throw "Invalid User identifier: $identifier (expected 'me' or 'others')"
+            }
         }
 
         'Bucket' {
@@ -219,9 +268,82 @@ try {
             $result.PhysicalPath = $basePath
         }
 
+        # Check Storage_Path_Permissions if the path is registered
+        # This provides fine-grained permissions for specific storage paths
+        try {
+            # Query for storage path by logical path prefix
+            $storagePathQuery = "SELECT PathID, OwnerUserID FROM Storage_Paths WHERE LogicalPath = @LogicalPath AND IsActive = 1"
+            $storagePathParams = @{ LogicalPath = $LogicalPath }
+            $storagePath = db_sqlitequery -query $storagePathQuery -parameters $storagePathParams
+
+            if ($storagePath -and $storagePath.Count -gt 0) {
+                # Storage path is registered - check permissions
+                $pathID = $storagePath[0].PathID
+                $pathOwnerID = $storagePath[0].OwnerUserID
+
+                # User is owner of the storage path
+                if ($pathOwnerID -eq $UserID) {
+                    $result.AccessLevel = 'owner'
+                }
+                else {
+                    # Get user's groups
+                    $userGroupsQuery = "SELECT GroupID FROM User_Groups_Map WHERE UserID = @UserID"
+                    $userGroups = db_sqlitequery -query $userGroupsQuery -parameters @{ UserID = $UserID }
+                    $groupIDs = @()
+                    if ($userGroups) {
+                        $groupIDs = $userGroups | ForEach-Object { $_.GroupID }
+                    }
+
+                    # Check permissions in Storage_Path_Permissions
+                    $permissionQuery = @"
+SELECT PermissionType
+FROM Storage_Path_Permissions
+WHERE PathID = @PathID
+AND (
+    (PrincipalType = 'user' AND PrincipalID = @UserID)
+    OR (PrincipalType = 'group' AND PrincipalID IN (SELECT value FROM json_each(@GroupIDs)))
+    OR (PrincipalType = 'role' AND PrincipalID IN (SELECT value FROM json_each(@Roles)))
+)
+ORDER BY CASE PermissionType
+    WHEN 'owner' THEN 3
+    WHEN 'write' THEN 2
+    WHEN 'read' THEN 1
+END DESC
+LIMIT 1
+"@
+
+                    $permissionParams = @{
+                        PathID = $pathID
+                        UserID = $UserID
+                        GroupIDs = ($groupIDs | ConvertTo-Json -Compress)
+                        Roles = ($Roles | ConvertTo-Json -Compress)
+                    }
+
+                    $permissionResult = db_sqlitequery -query $permissionQuery -parameters $permissionParams
+
+                    if ($permissionResult -and $permissionResult.Count -gt 0) {
+                        # User has explicit permission via Storage_Path_Permissions
+                        $grantedPermission = $permissionResult[0].PermissionType
+                        $result.AccessLevel = $grantedPermission
+                    }
+                    else {
+                        # No permission found for this storage path
+                        $result.Success = $false
+                        $result.Message = "Access denied to registered storage path. No permissions assigned."
+                    }
+                }
+            }
+            # If no storage path registration found, use default access level from switch statement
+        }
+        catch {
+            # If Storage_Path_Permissions check fails (e.g., tables don't exist), log warning but continue with default permissions
+            Write-Warning "Storage_Path_Permissions check failed: $($_.Exception.Message). Using default permissions."
+        }
+
         # Validate permission level
         $permissionHierarchy = @{
             'owner' = 3
+            'admin' = 3
             'write' = 2
             'read' = 1
         }

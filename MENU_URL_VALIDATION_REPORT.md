@@ -52,13 +52,13 @@ These endpoints should return JSON metadata with component information:
 | URL | Name | Expected Type | Status |
 |-----|------|---------------|--------|
 | `/api/v1/ui/elements/world-map` | World Map | JSON metadata | ✅ Assumed OK |
-| `/api/v1/ui/elements/system-log` | System Log | JSON metadata | ✅ Assumed OK |
-| `/api/v1/ui/elements/markdown-viewer` | Architecture | JSON metadata | ✅ Assumed OK |
-| `/api/v1/ui/elements/site-settings` | Site Settings | JSON metadata | ⚠️ Needs verification |
-| `/apps/WebHostAppManager/api/v1/ui/elements/apps-manager` | Apps | JSON metadata | ✅ Migrated |
-| `/api/v1/ui/elements/admin/role-management` | Role Management | JSON metadata | ⚠️ Needs verification |
-| `/api/v1/ui/elements/admin/users-management` | User Management | JSON metadata | ⚠️ Needs verification |
-| `/api/v1/ui/elements/nodes-manager` | Linked Nodes | JSON metadata | ⚠️ Needs verification |
+| `/cards/system-log` | System Log | JSON metadata | ✅ Assumed OK |
+| `/cards/markdown-viewer` | Architecture | JSON metadata | ✅ Assumed OK |
+| `/cards/site-settings` | Site Settings | JSON metadata | ⚠️ Needs verification |
+| `/apps/WebHostAppManager/cards/apps-manager` | Apps | JSON metadata | ✅ Migrated |
+| `/cards/admin/role-management` | Role Management | JSON metadata | ⚠️ Needs verification |
+| `/cards/admin/users-management` | User Management | JSON metadata | ⚠️ Needs verification |
+| `/cards/nodes-manager` | Linked Nodes | JSON metadata | ⚠️ Needs verification |
 
 ### ⚠️ Potentially Sub-Optimal URLs
 
@@ -119,28 +119,28 @@ These may not be returning optimal content for the card system:
 
 #### WebHostMetrics
 ```yaml
-- url: /apps/WebHostMetrics/api/v1/ui/elements/server-heatmap
+- url: /apps/WebHostMetrics/cards/server-heatmap
   Name: Server Metrics
 ```
 **Status:** ✅ Optimal - Returns JSON metadata
 
 #### WebhostFileExplorer
 ```yaml
-- url: /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer
+- url: /apps/WebhostFileExplorer/cards/file-explorer
   Name: File Explorer
 ```
 **Status:** ✅ Optimal - Returns JSON metadata (just migrated)
 
 #### WebhostRealtimeEvents
 ```yaml
-- url: /apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events
+- url: /apps/WebhostRealtimeEvents/cards/realtime-events
   Name: Real-time Events
 ```
 **Status:** ✅ Optimal - Returns JSON metadata
 
 #### UnitTests
 ```yaml
-- url: /apps/UnitTests/api/v1/ui/elements/unit-test-runner
+- url: /apps/UnitTests/cards/unit-test-runner
   Name: Unit Test Runner
 ```
 **Status:** ✅ Optimal - Returns JSON metadata
@@ -149,7 +149,7 @@ These may not be returning optimal content for the card system:
 
 #### vault App
 ```yaml
-- url: /apps/vault/api/v1/ui/elements/vault-manager
+- url: /apps/vault/cards/vault-manager
   Name: Credential Manager
   # ✅ This is correct
 
@@ -302,13 +302,13 @@ The component JavaScript then calls `/api/v1/status/logging` to get data.
 ### Medium Priority
 
 5. **Unverified UI elements**
-   - `/api/v1/ui/elements/site-settings` - Verify returns metadata
-   - `/api/v1/ui/elements/admin/role-management` - Verify returns metadata
-   - `/api/v1/ui/elements/admin/users-management` - Verify returns metadata
-   - `/api/v1/ui/elements/nodes-manager` - Verify returns metadata
+   - `/cards/site-settings` - Verify returns metadata
+   - `/cards/admin/role-management` - Verify returns metadata
+   - `/cards/admin/users-management` - Verify returns metadata
+   - `/cards/nodes-manager` - Verify returns metadata
    - `/api/v1/ui/elements/world-map` - Verify returns metadata
-   - `/api/v1/ui/elements/system-log` - Verify returns metadata
-   - `/api/v1/ui/elements/markdown-viewer` - Verify returns metadata
+   - `/cards/system-log` - Verify returns metadata
+   - `/cards/markdown-viewer` - Verify returns metadata
 
 6. **UI_Uplot endpoints**
    - Verify all 7 chart URLs return component metadata

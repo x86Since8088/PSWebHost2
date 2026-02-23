@@ -263,7 +263,7 @@ return window.psweb_fetchWithAuthHandling('/apps/WebhostFileExplorer/api/v1/file
 
 - Name: File Explorer
   parent: Main Menu
-  url: /apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer
+  url: /apps/WebhostFileExplorer/cards/file-explorer
   hover_description: User file management and exploration interface with folder creation, file upload, and tree view
   icon: folder
   roles:
@@ -324,7 +324,7 @@ return window.psweb_fetchWithAuthHandling('/apps/WebhostFileExplorer/api/v1/file
 
 | Component | Old Path | New Path |
 |-----------|----------|----------|
-| **UI Metadata Endpoint** | N/A (didn't exist) | `/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer` |
+| **UI Metadata Endpoint** | N/A (didn't exist) | `/apps/WebhostFileExplorer/cards/file-explorer` |
 | **Data API Endpoint** | `/api/v1/ui/elements/file-explorer` | `/apps/WebhostFileExplorer/api/v1/files` |
 | **Endpoint Files** | `routes/api/v1/ui/elements/file-explorer/` | `apps/WebhostFileExplorer/routes/api/v1/` |
 | **Component** | `public/elements/file-explorer/component.js` | `apps/WebhostFileExplorer/public/elements/file-explorer/component.js` |
@@ -411,7 +411,7 @@ After migration, verify:
 
 **UI Metadata Endpoint:**
 ```powershell
-Invoke-WebRequest -Uri "http://localhost:8080/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer"
+Invoke-WebRequest -Uri "http://localhost:8080/apps/WebhostFileExplorer/cards/file-explorer"
 
 # Expected: JSON with component metadata
 ```
@@ -602,10 +602,10 @@ git checkout routes/api/v1/ui/elements/main-menu/main-menu.yaml
 
 | Endpoint | Old Path | New Path | App | Status |
 |----------|----------|----------|-----|--------|
-| **server-heatmap** | `/api/v1/ui/elements/server-heatmap` | `/apps/WebHostMetrics/api/v1/ui/elements/server-heatmap` | WebHostMetrics | ✅ |
-| **unit-test-runner** | `/api/v1/ui/elements/unit-test-runner` | `/apps/UnitTests/api/v1/ui/elements/unit-test-runner` | UnitTests | ✅ |
-| **realtime-events** | `/api/v1/ui/elements/realtime-events` | `/apps/WebhostRealtimeEvents/api/v1/ui/elements/realtime-events` | WebhostRealtimeEvents | ✅ |
-| **file-explorer (UI)** | N/A | `/apps/WebhostFileExplorer/api/v1/ui/elements/file-explorer` | WebhostFileExplorer | ✅ |
+| **server-heatmap** | `/api/v1/ui/elements/server-heatmap` | `/apps/WebHostMetrics/cards/server-heatmap` | WebHostMetrics | ✅ |
+| **unit-test-runner** | `/api/v1/ui/elements/unit-test-runner` | `/apps/UnitTests/cards/unit-test-runner` | UnitTests | ✅ |
+| **realtime-events** | `/api/v1/ui/elements/realtime-events` | `/apps/WebhostRealtimeEvents/cards/realtime-events` | WebhostRealtimeEvents | ✅ |
+| **file-explorer (UI)** | N/A | `/apps/WebhostFileExplorer/cards/file-explorer` | WebhostFileExplorer | ✅ |
 | **file-explorer (Data)** | `/api/v1/ui/elements/file-explorer` | `/apps/WebhostFileExplorer/api/v1/files` | WebhostFileExplorer | ✅ |
 
 ### Deprecated Folders (All in routes/api/v1/ui/elements/)

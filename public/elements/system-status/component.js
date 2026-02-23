@@ -6,13 +6,16 @@ const SystemStatusCard = ({ onError }) => {
     useEffect(() => {
         let isMounted = true;
 
-        window.psweb_fetchWithAuthHandling('/api/v1/ui/elements/system-status')
+        window.psweb_fetchWithAuthHandling('/cards/system-status')
             .then(res => {
                 if (!res.ok) {
                     if (isMounted) {
                         onError({ message: "Failed to fetch system status", status: res.status, statusText: res.statusText });
                     }
-                    throw new Error(`HTTP error! status: ${res.status}`);
+                    const error = new Error(`HTTP error! status: ${res.status}`);
+                    error.status = res.status;
+                    error.statusText = res.statusText;
+                    throw error;
                 }
                 return res.json();
             })

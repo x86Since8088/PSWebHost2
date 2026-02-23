@@ -35,14 +35,7 @@ features:
 # Configuration
 config:
   # Metrics collection settings
-  sampleIntervalSeconds: 5
-  retentionHours: 24
-  csvRetentionDays: 30
-
-  # Performance monitoring
-  enablePerformanceMonitoring: true
-  performanceJobEnabled: true
-
-  # Data storage
-  metricsDirectory: PsWebHost_Data/metrics
-  useSQLiteStorage: true
+  sampleIntervalSeconds: 5           # How often to collect metrics (seconds)
+  retentionHours: 24                 # How long to keep in-memory data (hours)
+  csvRetentionDays: 30               # How long to keep CSV files (days)
+  metricsDirectory: PsWebHost_Data/metrics  # Where to store CSV files

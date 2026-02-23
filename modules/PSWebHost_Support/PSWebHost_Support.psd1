@@ -9,9 +9,10 @@
 
     # Files to export from this module
     FunctionsToExport = @(
+        'Backup-ConfigurationFile',
         'Complete-PSWebHostEvent',
         'ConvertTo-CompressedBase64',
-        'context_reponse',
+        'context_response',
         'Get-PSWebHostEvents',
         'Get-PSWebSessions',
         'Get-RequestBody',
@@ -20,6 +21,7 @@
         'Read-PSWebHostLog',
         'Remove-PSWebSession',
         'Set-PSWebSession',
+        'Set-WebHostRunSpaceInfo',
         'Start-PSWebHostEvent',
         'Sync-SessionStateToDatabase',
         'Validate-UserSession',

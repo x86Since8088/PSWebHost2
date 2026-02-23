@@ -11,14 +11,14 @@ The Real-time Events card has been migrated from a simple UI element to a full-f
 
 ### Old Implementation
 - **Location**: `public/elements/event-stream/component.js`
-- **API**: `/api/v1/ui/elements/event-stream`
+- **API**: `/cards/event-stream`
 - **Data Source**: `$Global:LogHistory` (in-memory buffer)
 - **Capabilities**: Basic event listing with simple text filter
 
 ### New Implementation
 - **App Location**: `apps/WebhostRealtimeEvents/`
 - **Component**: `public/elements/realtime-events/component.js`
-- **API**: `/api/v1/events/logs`
+- **API**: `/apps/WebhostRealtimeEvents/api/v1/logs`
 - **Data Source**: `Logs/PSWebHost.log` via `Read-PSWebHostLog`
 - **Enhanced Capabilities**:
   - ✨ Time range filtering (5 min to 24 hours)
@@ -63,9 +63,9 @@ apps/WebhostRealtimeEvents/
 ```
 
 ### 2. Enhanced API Endpoint
-**New**: `/api/v1/events/logs`
+**New**: `/apps/WebhostRealtimeEvents/api/v1/logs`
 
-Replaces the old `/api/v1/ui/elements/event-stream` with:
+Replaces the old `/cards/event-stream` with:
 - Time range parameters (`timeRange`, `earliest`, `latest`)
 - Advanced filter parameters (`category`, `severity`, `source`, `userID`, `sessionID`, `activityName`, `runspaceID`)
 - Sort parameters (`sortBy`, `sortOrder`)
@@ -77,7 +77,7 @@ Replaces the old `/api/v1/ui/elements/event-stream` with:
 Changed:
 ```yaml
 # Old
-- url: /api/v1/ui/elements/event-stream
+- url: /cards/event-stream
   Name: Real-time Events
 
 # New
@@ -119,9 +119,9 @@ The app fully supports the new 12-column log format:
 ## Backwards Compatibility
 
 ### Old Endpoint Status
-The old `/api/v1/ui/elements/event-stream` endpoint is **deprecated but still functional**.
+The old `/cards/event-stream` endpoint is **deprecated but still functional**.
 
-**Recommendation**: Update any custom integrations to use `/api/v1/events/logs` for better functionality.
+**Recommendation**: Update any custom integrations to use `/apps/WebhostRealtimeEvents/api/v1/logs` for better functionality.
 
 ### Log Format Compatibility
 The app automatically detects and handles both:
@@ -163,7 +163,7 @@ The app automatically detects and handles both:
 
 **Basic Query**:
 ```javascript
-fetch('/api/v1/events/logs?timeRange=30')
+fetch('/apps/WebhostRealtimeEvents/api/v1/logs?timeRange=30')
   .then(res => res.json())
   .then(data => console.log(data.logs));
 ```
@@ -179,7 +179,7 @@ const params = new URLSearchParams({
   count: '100'
 });
 
-fetch(`/api/v1/events/logs?${params}`)
+fetch(`/apps/WebhostRealtimeEvents/api/v1/logs?${params}`)
   .then(res => res.json())
   .then(data => {
     console.log(`Found ${data.totalCount} errors in last hour`);
@@ -195,7 +195,7 @@ const params = new URLSearchParams({
   severity: 'Warning'
 });
 
-fetch(`/api/v1/events/logs?${params}`)
+fetch(`/apps/WebhostRealtimeEvents/api/v1/logs?${params}`)
   .then(res => res.json())
   .then(data => console.log(data));
 ```
@@ -211,19 +211,21 @@ Invoke-Pester apps/WebhostRealtimeEvents/tests/twin/routes/api/v1/logs/get.Tests
 Invoke-Pester apps/WebhostRealtimeEvents/tests/twin/routes/api/v1/status/get.Tests.ps1
 ```
 
+**Note**: Tests validate the `/apps/WebhostRealtimeEvents/api/v1/logs` and `/apps/WebhostRealtimeEvents/api/v1/status` endpoints.
+
 ## Rollback Plan
 
 If issues arise, the old endpoint remains available:
 
 1. Revert menu configuration:
    ```yaml
-   - url: /api/v1/ui/elements/event-stream
+   - url: /cards/event-stream
      Name: Real-time Events (Legacy)
    ```
 
 2. Old component still exists at:
    - Frontend: `public/elements/event-stream/component.js`
-   - Backend: `routes/api/v1/ui/elements/event-stream/get.ps1`
+   - Backend: `routes/cards/event-stream/get.ps1`
 
 ## Future Enhancements
 

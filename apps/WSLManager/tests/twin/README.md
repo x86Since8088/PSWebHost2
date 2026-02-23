@@ -24,7 +24,7 @@ Windows Subsystem for Linux management and integration
 
 ### Browser Tests
 1. Start PSWebHost: pwsh WebHost.ps1
-2. Navigate to: http://localhost:8888/apps/unittests/api/v1/ui/elements/unit-test-runner
+2. Navigate to: http://localhost:8888/apps/UnitTests/cards/unit-test-runner
 3. Select "WSLManager Browser Tests"
 4. Click "Run Tests"
 
@@ -57,14 +57,14 @@ Windows Subsystem for Linux management and integration
 Edit $AppName.Tests.ps1:
 ```powershell
 function Test-CLIFunctionality {
-    Test-Assert -TestName "Your New Test" 
-        -Condition (\ -eq \) 
+    Test-Assert -TestName "Your New Test"
+        -Condition (\<value\> -eq \<expected\>)
         -Message "Should do something"
 }
 ```
 
 ### Browser Test
-Edit rowser-tests.js:
+Edit browser-tests.js:
 ```javascript
 async testYourFeature() {
     const result = await this.apiCall('/endpoint');

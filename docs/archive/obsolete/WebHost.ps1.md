@@ -7,7 +7,7 @@ This script is the main entry point for the PowerShell-based web server.
 - **Initialization**: Sets up the web server environment by running `system/init.ps1`.
 - **Command-line Arguments**: Accepts parameters to control its behavior:
   - `-RunInProcess`: Runs the server in the current process.
-  - `-ShowVariables`: Displays variables for debugging and exits.
+  - `-InitializeEnvironmentOnly`: Displays variables for debugging and exits.
   - `-AuthenticationSchemes`: Sets the authentication schemes for the listener (default is "Anonymous").
   - `-Async`: Enables asynchronous request handling.
   - `-Port`: Specifies the port for the listener (default is 8080).

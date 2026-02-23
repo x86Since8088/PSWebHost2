@@ -118,6 +118,14 @@ class UPlotHomeComponent extends HTMLElement {
                         useCases: ['Density maps', 'Matrix data', 'Pattern detection'],
                         color: '#ec4899'
                     })}
+                    ${this.renderChartTypeCard('metrics-chart', {
+                        name: 'Metrics Chart',
+                        icon: 'chart-line',
+                        description: 'Real-time metrics visualization with sql.js storage',
+                        dataSources: ['WebHostMetrics API', 'Custom endpoints'],
+                        useCases: ['System monitoring', 'Performance tracking', 'Real-time dashboards'],
+                        color: '#10b981'
+                    })}
                 </div>
 
                 <!-- Chart Builder Modal -->

@@ -3,7 +3,7 @@
 
 - Name: Task Management
   parent: System Management\WebHost
-  url: /apps/WebHostTaskManagement/api/v1/ui/elements/task-manager
+  url: /apps/WebHostTaskManagement/cards/task-manager
   hover_description: Manage scheduled tasks, monitor background jobs, and view active runspaces
   icon: tasks
   tags:

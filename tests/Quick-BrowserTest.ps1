@@ -16,7 +16,7 @@
 .EXAMPLE
     .\Quick-BrowserTest.ps1 -TestUrl "/apps/uplot/api/v1/ui/elements/bar-chart?chartId=test1"
 .EXAMPLE
-    .\Quick-BrowserTest.ps1 -TestUrl "/apps/vault/api/v1/ui/elements/vault-manager" -ElementSelector ".vault-manager" -Interactive
+    .\Quick-BrowserTest.ps1 -TestUrl "/apps/vault/cards/vault-manager" -ElementSelector ".vault-manager" -Interactive
 #>
 
 param(

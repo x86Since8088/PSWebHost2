@@ -18,7 +18,10 @@ const UserManagementComponent = ({ url, element }) => {
         fetch("/api/v1/users")
             .then(response => {
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const error = new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    error.status = response.status;
+                    error.statusText = response.statusText;
+                    throw error;
                 }
                 return response.json();
             })
@@ -50,7 +53,10 @@ const UserManagementComponent = ({ url, element }) => {
         fetch(`/api/v1/users?UserID=${userId}`, { method: 'DELETE' })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Failed to delete user');
+                    const error = new Error('Failed to delete user');
+                    error.status = response.status;
+                    error.statusText = response.statusText;
+                    throw error;
                 }
                 return fetchUsers();
             })
@@ -74,7 +80,10 @@ const UserManagementComponent = ({ url, element }) => {
         fetch(url, { method: method, body: formData })
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Failed to save user');
+                    const error = new Error('Failed to save user');
+                    error.status = response.status;
+                    error.statusText = response.statusText;
+                    throw error;
                 }
                 return fetchUsers();
             })

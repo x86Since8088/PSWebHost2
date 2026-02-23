@@ -5,7 +5,7 @@
 $InitializationScript = "$($psscriptroot -replace '[/\\]tests[\\/].*')\system\init.ps1"
 . $InitializationScript
 
-Describe "GET /api/v1/ui/elements/system-status" -Tags 'Route', 'UI', 'SystemStatus' {
+Describe "GET /cards/system-status" -Tags 'Route', 'UI', 'SystemStatus' {
 
     BeforeAll {
         $ProjectRoot = $psscriptroot -replace '[/\\]tests[\\/].*'
@@ -40,7 +40,7 @@ Describe "GET /api/v1/ui/elements/system-status" -Tags 'Route', 'UI', 'SystemSta
             if (-not $global:PSWebHostTesting.WebHostStarted) { Set-ItResult -Skipped -Because "WebHost not started"; return }
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/system-status" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/system-status" `
                     -Method GET -UseBasicParsing
                 $response.StatusCode | Should -Be 200
             } catch {
@@ -57,7 +57,7 @@ Describe "GET /api/v1/ui/elements/system-status" -Tags 'Route', 'UI', 'SystemSta
             if (-not $global:PSWebHostTesting.WebHostStarted) { Set-ItResult -Skipped -Because "WebHost not started"; return }
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/system-status" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/system-status" `
                     -Method GET -UseBasicParsing
                 $response.Headers["Content-Type"] | Should -Match "application/json"
             } catch {
@@ -69,7 +69,7 @@ Describe "GET /api/v1/ui/elements/system-status" -Tags 'Route', 'UI', 'SystemSta
             if (-not $global:PSWebHostTesting.WebHostStarted) { Set-ItResult -Skipped -Because "WebHost not started"; return }
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/system-status" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/system-status" `
                     -Method GET -UseBasicParsing
                 $json = $response.Content | ConvertFrom-Json
                 $json | Should -BeOfType [System.Object[]]
@@ -82,7 +82,7 @@ Describe "GET /api/v1/ui/elements/system-status" -Tags 'Route', 'UI', 'SystemSta
             if (-not $global:PSWebHostTesting.WebHostStarted) { Set-ItResult -Skipped -Because "WebHost not started"; return }
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/system-status" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/system-status" `
                     -Method GET -UseBasicParsing
                 $json = $response.Content | ConvertFrom-Json
                 if ($json.Count -gt 0) {
@@ -97,7 +97,7 @@ Describe "GET /api/v1/ui/elements/system-status" -Tags 'Route', 'UI', 'SystemSta
             if (-not $global:PSWebHostTesting.WebHostStarted) { Set-ItResult -Skipped -Because "WebHost not started"; return }
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/system-status" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/system-status" `
                     -Method GET -UseBasicParsing
                 $json = $response.Content | ConvertFrom-Json
                 if ($json.Count -gt 0) {
@@ -112,7 +112,7 @@ Describe "GET /api/v1/ui/elements/system-status" -Tags 'Route', 'UI', 'SystemSta
             if (-not $global:PSWebHostTesting.WebHostStarted) { Set-ItResult -Skipped -Because "WebHost not started"; return }
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/system-status" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/system-status" `
                     -Method GET -UseBasicParsing
                 $json = $response.Content | ConvertFrom-Json
                 if ($json.Count -gt 0) {
@@ -130,7 +130,7 @@ Describe "GET /api/v1/ui/elements/system-status" -Tags 'Route', 'UI', 'SystemSta
             if (-not $global:PSWebHostTesting.WebHostStarted) { Set-ItResult -Skipped -Because "WebHost not started"; return }
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/system-status" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/system-status" `
                     -Method GET -UseBasicParsing
                 $content = $response.Content.ToLower()
                 $content | Should -Not -Match '"password"'
@@ -150,7 +150,7 @@ Describe "GET /api/v1/ui/elements/system-status" -Tags 'Route', 'UI', 'SystemSta
             $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/system-status" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/system-status" `
                     -Method GET -UseBasicParsing
             } catch {
                 # Expected to fail

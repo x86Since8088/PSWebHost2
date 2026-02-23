@@ -29,21 +29,21 @@ All menu entries in `routes/api/v1/ui/elements/main-menu/main-menu.yaml` have be
 | Server Load | `/api/v1/ui/elements/server-heatmap` | ✅ | `public/elements/server-heatmap/component.js` | ✅ VALID |
 | Real-time Events | `/api/v1/ui/elements/realtime-events` | ✅ | `public/elements/realtime-events/component.js` | ✅ VALID |
 | File Explorer | `/api/v1/ui/elements/file-explorer` | ✅ | `public/elements/file-explorer/component.js` | ✅ VALID |
-| System Log | `/api/v1/ui/elements/system-log` | ✅ | `public/elements/system-log/component.js` | ✅ VALID |
-| Architecture | `/api/v1/ui/elements/markdown-viewer?file=...` | ✅ | `public/elements/markdown-viewer/component.js` | ✅ VALID |
+| System Log | `/cards/system-log` | ✅ | `public/elements/system-log/component.js` | ✅ VALID |
+| Architecture | `/cards/markdown-viewer?file=...` | ✅ | `public/elements/markdown-viewer/component.js` | ✅ VALID |
 | Unit Test Runner | `/api/v1/ui/elements/unit-test-runner` | ✅ | `public/elements/unit-test-runner/component.js` | ✅ VALID |
-| Site Settings | `/api/v1/ui/elements/site-settings` | ✅ | `public/elements/site-settings/component.js` | ✅ VALID |
+| Site Settings | `/cards/site-settings` | ✅ | `public/elements/site-settings/component.js` | ✅ VALID |
 | Apps | `/api/v1/ui/elements/apps-manager` | ✅ | Returns HTML (Pattern A) | ✅ VALID |
-| Role Management | `/api/v1/ui/elements/admin/role-management` | ✅ | `public/elements/admin/role-management/component.js` | ✅ VALID |
-| User Management | `/api/v1/ui/elements/admin/users-management` | ✅ | `public/elements/admin/users-management/component.js` | ✅ VALID |
-| Task Management | `/apps/WebHostTaskManagement/api/v1/ui/elements/task-manager` | ✅ | `apps/WebHostTaskManagement/public/elements/task-manager/component.js` | ✅ VALID |
-| Linked Nodes | `/api/v1/ui/elements/nodes-manager` | ✅ | Returns HTML (Pattern A) | ✅ VALID |
+| Role Management | `/cards/admin/role-management` | ✅ | `public/elements/admin/role-management/component.js` | ✅ VALID |
+| User Management | `/cards/admin/users-management` | ✅ | `public/elements/admin/users-management/component.js` | ✅ VALID |
+| Task Management | `/apps/WebHostTaskManagement/cards/task-manager` | ✅ | `apps/WebHostTaskManagement/public/elements/task-manager/component.js` | ✅ VALID |
+| Linked Nodes | `/cards/nodes-manager` | ✅ | Returns HTML (Pattern A) | ✅ VALID |
 
 ### ❌ Removed Invalid Entries
 
 | Entry | URL | Issue | Resolution |
 |-------|-----|-------|------------|
-| Job Status | `/api/v1/ui/elements/job-status` | Data API, no component | ✅ Removed from menu (use Task Management instead) |
+| Job Status | `/cards/job-status` | Data API, no component | ✅ Removed from menu (use Task Management instead) |
 
 ---
 
@@ -164,7 +164,7 @@ This ensures all new apps created with `New-PSWebHostApp` will have a menu file.
 
 ```
 ✅ routes/api/v1/ui/elements/apps-manager/get.ps1 (returns HTML)
-✅ routes/api/v1/ui/elements/nodes-manager/get.ps1 (returns HTML)
+✅ routes/cards/nodes-manager/get.ps1 (returns HTML)
 ```
 
 ---

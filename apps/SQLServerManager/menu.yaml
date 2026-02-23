@@ -3,7 +3,7 @@
 # Databases > SQL Server
 
 - Name: SQL Server Manager
-  url: /apps/sqlservermanager/api/v1/ui/elements/sqlserver-manager
+  url: /apps/sqlservermanager/cards/sqlserver-manager
   hover_description: Microsoft SQL Server administration
   icon: database
   tags:

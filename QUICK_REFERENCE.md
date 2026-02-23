@@ -1,318 +1,223 @@
-# PsWebHost Quick Reference Card
+# PSWebHost Debug System - Quick Reference
 
-## 🚀 Getting Started
+**Last Updated**: 2026-02-02
+**Full Details**: See `POST_COMPRESSION_CHEATSHEET.md` and `FILE_QUEUE_SYSTEM.md`
 
-### Start the Server
+---
+
+## =4 CRITICAL FIXES TO REMEMBER
+
+### 1. PSCustomObject from ConvertFrom-Json
 ```powershell
-cd e:\sc\git\PsWebHost
-.\WebHost.ps1 -Port 8080 -Async
+# L WRONG
+$obj.NewProperty = "value"
+
+#  CORRECT
+$obj | Add-Member -MemberType NoteProperty -Name 'NewProperty' -Value 'value' -Force
 ```
 
-### Configuration
+### 2. Browser Refresh Commands
 ```powershell
-# Edit settings
-notepad config/settings.json
+# L WRONG - Will timeout (page reloads)
+& $EnqueueScript -Command "location.reload()" -Type eval -Wait
 
-# Enable debug logging for /api/v1/auth
-{
-  "debug_url": {
-    "/api/v1/auth": {
-      "VerbosePreference": "Continue"
-    }
-  }
-}
+#  CORRECT - Don't wait
+& $EnqueueScript -Command "location.reload()" -Type eval
 ```
 
----
-
-## 🔐 Authentication Flow (5 Steps)
-
-```
-1. GET /api/v1/auth/getauthtoken
-   └─ Display login form
-
-2. POST /api/v1/auth/getauthtoken
-   └─ Submit email → Show auth methods
-
-3. POST /api/v1/authprovider/password
-   └─ Submit credentials → Validate
-
-4. GET /api/v1/auth/getaccesstoken
-   └─ Issue token (disabled)
-
-5. GET /api/v1/auth/sessionid
-   └─ Check session
-```
-
----
-
-## 📁 Key File Locations
-
-| Component | Location |
-|-----------|----------|
-| Main Server | `WebHost.ps1` |
-| Route Handlers | `routes/api/v1/` |
-| Modules | `modules/` |
-| Static Files | `public/` |
-| Config | `config/settings.json` |
-| Logs | `PsWebHost_Data/Logs/` |
-| Database | `PsWebHost_Data/pswebhost.db` |
-
----
-
-## 🔧 Core Functions
-
-### HTTP Handling
-| Function | Purpose |
-|----------|---------|
-| `Process-HttpRequest` | Route dispatcher |
-| `context_reponse` | Send HTTP response |
-| `Get-RequestBody` | Extract POST data |
-
-### Authentication
-| Function | Purpose |
-|----------|---------|
-| `Invoke-AuthenticationMethod` | Authenticate user |
-| `Set-PSWebSession` | Create session |
-| `Test-LoginLockout` | Check brute force |
-
-### Logging
-| Function | Purpose |
-|----------|---------|
-| `Write-PSWebHostLog` | Log to queue |
-| `New-PSWebHostResult` | Standardized error object |
-| `PSWebLogon` | Log auth events |
-
----
-
-## 📊 HTTP Status Codes
-
-| Code | Meaning | Example |
-|------|---------|---------|
-| 200 | OK | GET successful |
-| 302 | Redirect | Auth success |
-| 400 | Bad Request | Invalid email |
-| 401 | Unauthorized | Wrong password |
-| 404 | Not Found | Unknown route |
-| 429 | Too Many Requests | Lockout active |
-| 500 | Server Error | Exception thrown |
-
----
-
-## 🧪 Testing Commands
-
-### Test Login Form
-```bash
-curl http://localhost:8080/api/v1/auth/getauthtoken/get
-```
-
-### Submit Email
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/getauthtoken/post \
-  -d "email=user@example.com&password=TestPassword123"
-```
-
-### Check Session
-```bash
-curl http://localhost:8080/api/v1/auth/sessionid/get \
-  -H "Cookie: PSWebSessionID=<guid>"
-```
-
-### Authenticate
-```bash
-curl -X POST http://localhost:8080/api/v1/authprovider/password/post \
-  -d "username=user@example.com&password=TestPassword123" \
-  -H "Cookie: PSWebSessionID=<guid>"
-```
-
----
-
-## 🛡️ Security Features
-
-| Feature | Implementation |
-|---------|-----------------|
-| Session Security | HttpOnly, Secure, 7-day expiry |
-| Input Validation | Email, password, file paths |
-| Brute Force | Login lockout (IP + username) |
-| Authorization | RBAC via .security.json files |
-| Logging | Comprehensive audit trail |
-
----
-
-## 📝 Creating New Routes
-
-### 1. Create Handler File
+### 3. Script Invocation (When Converted from Functions)
 ```powershell
-# routes/api/v1/myfeature/get.ps1
-param (
-    [System.Net.HttpListenerContext]$Context,
-    [System.Net.HttpListenerRequest]$Request=$Context.Request,
-    [System.Net.HttpListenerResponse]$Response=$Context.Response,
-    $SessionData
-)
+# L WRONG
+$result = Get-DebugMenuCards
 
-# Your logic here
-context_reponse -Response $Response -StatusCode 200 -String "Hello"
+#  CORRECT
+$result = & "$PSScriptRoot\Get-DebugMenuCards.ps1"
 ```
 
-### 2. Auto-Created Security File
+---
+
+## =� File-Based Queue System
+
+**Architecture**: PowerShell writes to `outbox/` � Browser polls � Executes � Posts to `inbox/`
+
+**Directory**: `PsWebHost_Data/apps/WebHostDebugExtensions/outbox|inbox/`
+
+**Command Lifecycle**: pending � executing � received � completed/failed
+
+**Details**: See `FILE_QUEUE_SYSTEM.md` for full documentation
+
+---
+
+## <� Common Commands
+
+### Send Command
+```powershell
+.\apps\WebHostDebugExtensions\system\utility\Debug_Client_Command_Enqueue.ps1 `
+    -Command "openCard" -Type predefined `
+    -Params @{url="/path"; title="Title"} `
+    -SessionID all -Wait -TimeoutSeconds 30
+```
+
+### Test Browser Connection
+```powershell
+.\diagnose_browser_connection.ps1
+```
+
+### Clean Old Files
+```powershell
+.\apps\WebHostDebugExtensions\system\utility\Debug_Command_Cleanup.ps1 `
+    -OutboxMaxAgeMinutes 30 -InboxMaxAgeMinutes 120
+```
+
+---
+
+## <� Card Loading Patterns
+
+### Normal Card (React Component)
+**Endpoint Returns**: `Content-Type: application/json`
 ```json
 {
-  "Allowed_Roles": ["unauthenticated"]
+    "scriptPath": "/apps/myapp/public/elements/mycard/component.js",
+    "title": "My Card"
 }
 ```
+**Result**: Loads React component, renders dynamically
+
+### HTML Card
+**Endpoint Returns**: `Content-Type: text/html`
+```html
+<!DOCTYPE html><html>...</html>
+```
+**Result**: Displays HTML content directly in card
+
+**Note**: Both patterns are valid. System auto-detects based on Content-Type.
 
 ---
 
-## 📚 Documentation
+## =' Predefined Commands (NEW)
 
-| File | Purpose |
-|------|---------|
-| `AUTHENTICATION_ARCHITECTURE.md` | Complete auth system trace |
-| `DOCUMENTATION_INDEX.md` | Documentation guide |
-| `SESSION_SUMMARY.md` | This session summary |
-| `COMPLETION_REPORT.md` | Project completion report |
-| `MODULES_REVIEW.md` | Module compliance review |
+**Must load**: `commands.js` in page
+```html
+<script src="/apps/WebHostDebugExtensions/public/elements/debug-console/commands.js"></script>
+```
+
+### Card Management (UPDATED)
+- `openCard` - `{url, title}` - Opens a card
+- `closeCard` - `{cardId}` or `{all: true}` - Closes specific/all cards
+- **`closeAllCards`** - **NEW** - No params, closes all open cards
+- `validateCard` - `{cardId}` - Validates card state
+- **`getCardCount`** - **NEW** - Returns count and IDs of open cards
+- **`waitForCardLoad`** - **NEW** - `{cardId, timeoutMs}` - Waits for card to finish loading
+
+### DOM/Debug
+- `dumpState` - Get app state
+- `browserInfo` - Browser details
+- `listCards` - All open cards
+- `querySelector` - `{selector}` - Query DOM elements
+
+**Full List**: See `commands.js` (40+ commands)
 
 ---
 
-## ⚙️ Error Handling Pattern
+## = Troubleshooting
 
+### Commands Not Returning Results
+1. **Check browser is open** - Must have active browser tab
+2. **Verify polling** - Commands disappear from outbox?
+3. **Check inbox** - `ls PsWebHost_Data\apps\WebHostDebugExtensions\inbox\*\*.json`
+4. **Test connectivity** - `.\diagnose_browser_connection.ps1`
+
+### Cards Timing Out
+1. **Increase timeout** - `-TimeoutSeconds 45`
+2. **Check card endpoint** - Test URL directly in browser
+3. **Close other cards first** - Too many open cards cause delays
+4. **Use closeAllCards** - `closeAllCards` predefined command before testing
+
+### Browser Not Polling
+1. **Refresh browser** - Reload main app page
+2. **Check authentication** - Re-login if needed
+3. **Verify commands.js loaded** - Check browser console for errors
+
+---
+
+## =� Test Scripts
+
+### Continuous Card Testing with Logging (NEW - BEST FOR QA)
 ```powershell
-# ✅ CORRECT - Safe pattern
-$result = Command -ErrorAction SilentlyContinue -ErrorVariable err
-if ($err) {
-    Write-PSWebHostLog -Severity 'Error' -Message "Command failed: $err"
-    context_reponse -Response $Response -StatusCode 500 -String "Error"
-    return
-}
-
-# ❌ WRONG - Throws exceptions
-$result = Command -ErrorAction Stop  # DON'T USE
-
-# ❌ WRONG - Unhandled exceptions
-try { $result = Command }  # DON'T USE without proper error handling
+.\test_cards_continuous.ps1 -DelayBetweenCards 5 -MaxCards 10
 ```
+**Does**: Opens each card, validates, logs all QA data to server
+**Logs to**: `CardValidation`, `IframeCardLoad` categories
+**Works with**: Both component and iframe cards
 
----
-
-## 🐛 Troubleshooting
-
-### Server Won't Start
+### Iframe Loader Testing
 ```powershell
-# Check port already in use
-netstat -ano | findstr :8080
-
-# Check HttpListener exception
-Get-EventLog -LogName System -Source "PowerShell" -Newest 10
+.\test_iframe_loader.ps1
 ```
+**Does**: Tests iframe-based cards, verifies loader script injection
+**Logs to**: `IframeCardLoad` category with DOM analysis
 
-### Authentication Failing
+### Automated Card Validation Page (HTML-based)
 ```powershell
-# Enable verbose logging
-# Edit config/settings.json and restart
-
-# Check auth logs
-Get-ChildItem PsWebHost_Data/Logs | Select-Object -Last 5 | Select-Object FullName
+.\test_card_validation_page.ps1
 ```
+**Does**: Opens HTML validation page that auto-runs tests and submits results to server log
+**URL**: `/public/card-validation-test.html`
+**Direct**: `window.openCard("/public/card-validation-test.html")`
+**Log Category**: `CardValidation`
+**View Logs**: Open System Log card, filter by "CardValidation"
 
-### Module Import Errors
+### Sequential Card Testing (PowerShell-based)
 ```powershell
-# Re-load modules manually
-Get-Module | Remove-Module
-& system/init.ps1
+.\test_cards_improved.ps1 -DelayBetweenCards 3
 ```
+**Does**: Opens each card, validates DOM, checks for errors, closes before next
 
----
-
-## 📋 Module Dependencies
-
-```
-WebHost.ps1
-├─ PSWebHost_Support (core routing/sessions)
-├─ PSWebHost_Authentication (user/auth logic)
-├─ PSWebHost_Database (persistence)
-├─ PSWebHost_Formatters (data conversion)
-├─ Sanitization (input validation)
-└─ smtp (email service)
-```
-
----
-
-## 🔐 Authentication Providers
-
-| Provider | Status | Files |
-|----------|--------|-------|
-| Password | ✅ Ready | `authprovider/password/` |
-| Windows | ✅ Ready | `authprovider/windows/` |
-| Google | ⚠️ Partial | `authprovider/google/` |
-| O365 | ⚠️ Partial | `authprovider/o365/` |
-| Entra ID | ⚠️ Partial | `authprovider/entraid/` |
-| Certificate | ⚠️ Partial | `authprovider/certificate/` |
-| YubiKey | ⚠️ Partial | `authprovider/yubikey/` |
-
----
-
-## 📊 Session Object Structure
-
+### Browser Connection Test (RUN THIS FIRST)
 ```powershell
-$session = @{
-    SessionID = "guid-string"
-    UserID = "user@example.com"  # null if not authenticated
-    Roles = @("user", "admin")
-    Provider = "Password"         # Auth provider used
-    IsAuthenticated = $true
-    CreatedAt = [DateTime]
-    LastActivity = [DateTime]
-    Runspaces = @{}              # Async runspace tracking
-}
+.\diagnose_browser_connection.ps1
 ```
+**Does**: Verifies browser is connected and polling
 
----
-
-## 🚦 Route Resolution Algorithm
-
+### File-Based Discovery
+```powershell
+.\test_cards_file_based.ps1 -TimeoutSeconds 30
 ```
-1. Extract requested path: /api/v1/auth/getauthtoken
-2. Extract HTTP method: get, post, put, delete
-3. Resolve file: routes/api/v1/auth/getauthtoken/{method}.ps1
-4. Load security config: routes/api/v1/auth/getauthtoken/{method}.security.json
-5. Check user roles against Allowed_Roles
-6. If authorized: invoke handler
-7. If not: return 401 Unauthorized
-```
+**Does**: Discovers cards from menu.yaml, tests all
 
 ---
 
-## 📞 Common Issues
+## =� Key Files
 
-| Problem | Solution |
-|---------|----------|
-| Port already in use | Change port or kill existing process |
-| Session not persisting | Check database: `PsWebHost_Data/pswebhost.db` |
-| Auth provider failing | Check module imports in `system/init.ps1` |
-| Verbose output missing | Enable in `config/settings.json` `debug_url` |
-| Static files not loading | Check path in `/public/` directory |
+### Utilities
+- `Debug_Client_Command_Enqueue.ps1` - Send commands
+- `Debug_Command_Cleanup.ps1` - Clean old files
 
----
+### Browser Components
+- `commands.js` - **CRITICAL** - Predefined commands library (UPDATED)
+- `component.js` - Debug console with polling
+- `psweb_spa.js` - Main SPA with card management
 
-## 💡 Tips & Tricks
+### Test/Diagnostic Scripts
+- `diagnose_browser_connection.ps1` - Check browser connectivity
+- `test_cards_sequential_with_validation.ps1` - Sequential testing
 
-1. **Hot Module Reloading:** Modules reload automatically every 30 seconds
-2. **Settings Reloading:** Config reloads every 30 seconds
-3. **Session Persistence:** Syncs to database every 1 minute
-4. **Async Processing:** Enable `-Async` for production
-5. **Debug Endpoints:** Configure per-URL in `config/settings.json`
-
----
-
-## 📖 Learn More
-
-- Full architecture: `AUTHENTICATION_ARCHITECTURE.md`
-- Project overview: `README.md`
-- Settings reference: `config/settings.json.md`
-- All documentation: `DOCUMENTATION_INDEX.md`
+### Documentation
+- **`QUICK_REFERENCE.md`** - This file (concise)
+- `FILE_QUEUE_SYSTEM.md` - Complete queue system docs
+- `POST_COMPRESSION_CHEATSHEET.md` - Comprehensive reference (~8KB)
+- `CARD_TIMEOUT_INVESTIGATION_REPORT.md` - Timeout analysis
 
 ---
 
-**PsWebHost v1.0 - Quick Reference | Last Updated: 2024**
+## =� Best Practices
+
+1. **Always close cards** - Use `closeAllCards` between tests
+2. **Test browser first** - Run `diagnose_browser_connection.ps1`
+3. **Use reasonable timeouts** - 30-45s for card operations
+4. **Clean up regularly** - Run cleanup script periodically
+5. **Sequential testing** - Test one card at a time to avoid overload
+
+---
+
+**Need Help?** Start with `diagnose_browser_connection.ps1` to verify system status.

@@ -21,4 +21,4 @@ This script is a comprehensive validator for the PsWebHost environment. It is de
   - After checking for tools and modules, it runs the `db/sqlite/validatetables.ps1` script to verify that the database schema is correctly configured.
 
 - **Debugging**: 
-  - Includes a `-ShowVariables` switch that, when used, will output a JSON representation of the script's key variables for debugging purposes.
+  - Includes a `-InitializeEnvironmentOnly` switch that, when used, will output a JSON representation of the script's key variables for debugging purposes.

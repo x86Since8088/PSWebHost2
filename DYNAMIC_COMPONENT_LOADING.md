@@ -55,7 +55,7 @@ Now passes the full endpoint URL (from menu.yaml) to the component loader.
 
 ### Menu Flow
 
-1. **User clicks menu item** with URL `/apps/WebHostTaskManagement/api/v1/ui/elements/task-manager`
+1. **User clicks menu item** with URL `/apps/WebHostTaskManagement/cards/task-manager`
 2. **`openCard()` is called** with this full URL
 3. **Extracts `elementId`**: "task-manager"
 4. **Calls `loadComponentScript()`**: Passing "task-manager" AND the full endpoint URL
@@ -189,7 +189,7 @@ If you want to migrate an existing component to dynamic loading:
 ```yaml
 - Name: Task Management
   parent: System Management\WebHost
-  url: /apps/WebHostTaskManagement/api/v1/ui/elements/task-manager
+  url: /apps/WebHostTaskManagement/cards/task-manager
 ```
 
 **Endpoint:** `apps/WebHostTaskManagement/routes/api/v1/ui/elements/task-manager/get.ps1`
@@ -247,7 +247,7 @@ Components are cached in `window.cardComponents[elementId]` after first load:
 2. Check browser console for:
    ```
    Loading component script for task-manager...
-   Fetching component metadata from: /apps/WebHostTaskManagement/api/v1/ui/elements/task-manager
+   Fetching component metadata from: /apps/WebHostTaskManagement/cards/task-manager
    ✓ Using scriptPath from endpoint: /apps/WebHostTaskManagement/public/elements/task-manager/component.js
    ✓ Component task-manager loaded and registered
    ```

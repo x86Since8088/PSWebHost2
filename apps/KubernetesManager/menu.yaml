@@ -3,7 +3,7 @@
 # Containers > Kubernetes
 
 - Name: Kubernetes Status
-  url: /apps/kubernetesmanager/api/v1/ui/elements/kubernetes-status
+  url: /apps/kubernetesmanager/cards/kubernetes-status
   hover_description: View Kubernetes cluster status and resources
   icon: cloud
   tags:

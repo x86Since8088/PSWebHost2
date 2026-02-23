@@ -5,7 +5,7 @@
 $InitializationScript = "$($psscriptroot -replace '[/\\]tests[\\/].*')\system\init.ps1"
 . $InitializationScript
 
-Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStream' {
+Describe "GET /cards/event-stream" -Tags 'Route', 'UI', 'EventStream' {
 
     BeforeAll {
         $ProjectRoot = $psscriptroot -replace '[/\\]tests[\\/].*'
@@ -41,7 +41,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
 
             $statusCode = 0
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream" `
                     -Method GET -UseBasicParsing
                 $statusCode = $response.StatusCode
             } catch {
@@ -55,7 +55,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
             if (-not $global:PSWebHostTesting.WebHostStarted) { Set-ItResult -Skipped -Because "WebHost not started"; return }
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream" `
                     -Method GET -UseBasicParsing
             } catch {
                 # Error response expected
@@ -72,7 +72,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
 
             $statusCode = 0
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream?filter=test" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream?filter=test" `
                     -Method GET -UseBasicParsing
                 $statusCode = $response.StatusCode
             } catch {
@@ -88,7 +88,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
 
             $statusCode = 0
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream?count=10" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream?count=10" `
                     -Method GET -UseBasicParsing
                 $statusCode = $response.StatusCode
             } catch {
@@ -106,7 +106,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
             $encodedDate = [System.Web.HttpUtility]::UrlEncode($earliest)
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream?earliest=$encodedDate" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream?earliest=$encodedDate" `
                     -Method GET -UseBasicParsing
                 $statusCode = $response.StatusCode
             } catch {
@@ -124,7 +124,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
             $encodedDate = [System.Web.HttpUtility]::UrlEncode($latest)
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream?latest=$encodedDate" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream?latest=$encodedDate" `
                     -Method GET -UseBasicParsing
                 $statusCode = $response.StatusCode
             } catch {
@@ -145,7 +145,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
             $encodedFilter = [System.Web.HttpUtility]::UrlEncode($sqlInjection)
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream?filter=$encodedFilter" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream?filter=$encodedFilter" `
                     -Method GET -UseBasicParsing
                 $statusCode = $response.StatusCode
             } catch {
@@ -163,7 +163,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
 
             $statusCode = 0
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream?count=notanumber" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream?count=notanumber" `
                     -Method GET -UseBasicParsing
                 $statusCode = $response.StatusCode
             } catch {
@@ -180,7 +180,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
 
             $statusCode = 0
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream?earliest=notadate" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream?earliest=notadate" `
                     -Method GET -UseBasicParsing
                 $statusCode = $response.StatusCode
             } catch {
@@ -196,7 +196,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
 
             $statusCode = 0
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream?count=-5" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream?count=-5" `
                     -Method GET -UseBasicParsing
                 $statusCode = $response.StatusCode
             } catch {
@@ -211,7 +211,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
 
             $statusCode = 0
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream?count=999999999" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream?count=999999999" `
                     -Method GET -UseBasicParsing
                 $statusCode = $response.StatusCode
             } catch {
@@ -230,7 +230,7 @@ Describe "GET /api/v1/ui/elements/event-stream" -Tags 'Route', 'UI', 'EventStrea
             $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
             try {
-                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/api/v1/ui/elements/event-stream" `
+                $response = Invoke-WebRequest -Uri "$($global:PSWebHostTesting.BaseUrl)/cards/event-stream" `
                     -Method GET -UseBasicParsing
             } catch {
                 # Expected to fail without auth

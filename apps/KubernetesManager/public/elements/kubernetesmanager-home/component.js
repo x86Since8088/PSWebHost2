@@ -46,8 +46,7 @@ class KubernetesManagerHome extends React.Component {
             React.createElement('h2', null, 'Kubernetes Manager'),
             React.createElement('div', { className: 'status-card' },
                 React.createElement('p', null, Category: ${status.category}),
-                React.createElement('p', null, `SubCategory: ``),
-
+                React.createElement('p', null, SubCategory: ${status.subCategory}),
                 React.createElement('p', null, Status: ${status.status}),
                 React.createElement('p', null, Version: ${status.version})
             )

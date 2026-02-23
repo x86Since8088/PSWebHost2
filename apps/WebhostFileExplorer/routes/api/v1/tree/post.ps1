@@ -5,19 +5,28 @@ param (
     $sessiondata,
     [switch]$Test,
     [string[]]$Roles = @(),
-    [hashtable]$Body = @{}
+    [hashtable]$Query = @{}
 )
 
-# Dot-source File Explorer helper functions
-try {
-    $helperPath = Join-Path $PSScriptRoot "..\..\..\..\modules\FileExplorerHelper.ps1"
+<#
+.SYNOPSIS
+    Expand tree node to get its child folders
 
-    if (-not (Test-Path $helperPath)) {
-        throw "Helper file not found: $helperPath"
-    }
+.EXAMPLE
+    # Expand personal storage root
+    .\post.ps1 -Test -Query @{ expandPath = 'local|localhost|User:me' }
 
-    # Always dot-source (each script scope needs its own copy)
-    . $helperPath
+.EXAMPLE
+    # Expand subfolder
+    .\post.ps1 -Test -Query @{ expandPath = 'local|localhost|User:me/Documents' }
+
+.EXAMPLE
+    # Expand site folder (requires site_admin role)
+    .\post.ps1 -Test -Roles @('authenticated','site_admin') -Query @{ expandPath = 'local|localhost|Site:public' }
+#>
+
+# Import File Explorer helper module functions
+try {Import-TrackedModule "FileExplorerHelper"
 }
 catch {
     if ($Test) {
@@ -28,7 +37,7 @@ catch {
         Write-Host "`n=== End Error ===" -ForegroundColor Red
         return
     }
-    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Failed to load FileExplorerHelper.ps1: $($_.Exception.Message)"
+    Write-PSWebHostLog -Severity 'Error' -Category 'FileExplorer' -Message "Failed to import FileExplorerHelper module: $($_.Exception.Message)"
     $Report = Get-PSWebHostErrorReport -ErrorRecord $_ -Context $Context -Request $Request -sessiondata $sessiondata
     context_response -Response $Response -StatusCode 500 -String $Report.body -ContentType $Report.contentType
     return
@@ -48,6 +57,14 @@ if ($Test) {
     Write-Host "`n=== Tree POST Test Mode ===" -ForegroundColor Cyan
     Write-Host "UserID: $($sessiondata.UserID)" -ForegroundColor Yellow
     Write-Host "Roles: $($Roles -join ', ')" -ForegroundColor Yellow
+
+    if ($Query.Count -eq 0) {
+        Write-Host "`n=== Usage Examples ===" -ForegroundColor Yellow
+        Write-Host ".\post.ps1 -Test -Query @{ expandPath = 'local|localhost|User:me' }" -ForegroundColor Gray
+        Write-Host ".\post.ps1 -Test -Query @{ expandPath = 'local|localhost|User:me/Documents' }" -ForegroundColor Gray
+        Write-Host ".\post.ps1 -Test -Roles @('authenticated','site_admin') -Query @{ expandPath = 'local|localhost|Site:public' }" -ForegroundColor Gray
+        return
+    }
 }
 
 # Validate session
@@ -59,8 +76,12 @@ if ($Test) {
 }
 
 # Read request body
-if ($Test -and $Body.Count -gt 0) {
-    $data = $Body
+if ($Test) {
+    # In test mode, create mock request body
+    $data = @{
+        treeState = @{ nodes = @() }
+        expandPath = if ($Query['expandPath']) { $Query['expandPath'] } else { 'local|localhost|User:me' }
+    } | ConvertTo-Json | ConvertFrom-Json
 } else {
     $reader = New-Object System.IO.StreamReader($Request.InputStream)
     $body = $reader.ReadToEnd()
@@ -118,6 +139,114 @@ try {
         if ($Test) {
             Write-Host "Using fallback parsing for path: $expandPath" -ForegroundColor Yellow
         }
+    }
+
+    # Special handling for User:others root expansion (list all users)
+    if ($logicalPath -eq 'User:others') {
+        # Require system_admin role
+        if ($sessiondata.Roles -notcontains 'system_admin') {
+            $json = New-WebHostFileExplorerResponse -Status 'fail' -Message 'system_admin role required for User:others access'
+            if ($Test) {
+                Write-Host "`n=== Test Result: 403 Forbidden ===" -ForegroundColor Red
+                Write-Host "Message: system_admin role required" -ForegroundColor Yellow
+                return
+            }
+            Send-WebHostFileExplorerResponse -Response $Response -StatusCode 403 -JsonContent $json
+            return
+        }
+
+        # Get database path
+        $dbPath = if ($Global:PSWebServer['Config'].Database.Path) {
+            $Global:PSWebServer['Config'].Database.Path
+        } else {
+            $projectRoot = if ($Global:PSWebServer.Project_Root.Path) {
+                $Global:PSWebServer.Project_Root.Path
+            } else {
+                Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+            }
+            Join-Path $projectRoot "system\db\sqlite\PSWebHost.db"
+        }
+
+        if (-not (Test-Path $dbPath)) {
+            $json = New-WebHostFileExplorerResponse -Status 'fail' -Message 'User database not found'
+            if ($Test) {
+                Write-Host "`n=== Test Result: 500 Internal Server Error ===" -ForegroundColor Red
+                Write-Host "Message: User database not found: $dbPath" -ForegroundColor Yellow
+                return
+            }
+            Send-WebHostFileExplorerResponse -Response $Response -StatusCode 500 -JsonContent $json
+            return
+        }
+
+        # Query all users
+        $query = "SELECT UserID, Email, FirstName, LastName FROM Users ORDER BY Email;"
+        $users = Invoke-PSWebSQLiteQuery -File $dbPath -Query $query
+
+        if ($Test) {
+            Write-Host "Found $($users.Count) users in database" -ForegroundColor Green
+        }
+
+        # Build children list with email/last4 format
+        $children = @()
+        foreach ($user in $users) {
+            $last4 = $user.UserID.Substring([Math]::Max(0, $user.UserID.Length - 4))
+            $displayName = if ($user.FirstName -or $user.LastName) {
+                "$($user.Email) - $($user.FirstName) $($user.LastName) (...$last4)"
+            } else {
+                "$($user.Email) (...$last4)"
+            }
+
+            # Child path: local|localhost|User:others/{email}/{last4}
+            $childPath = "$node|$nodeName|User:others/$($user.Email)/$last4"
+
+            $children += @{
+                path = $childPath
+                name = $displayName
+                type = "folder"
+                hasContent = $true
+                isExpanded = $false
+                children = @()
+                metadata = @{
+                    userID = $user.UserID
+                    email = $user.Email
+                }
+            }
+        }
+
+        # Build expanded node
+        $expandedNode = @{
+            path = $expandPath
+            name = "User Files (Admin)"
+            type = "folder"
+            hasContent = $children.Count -gt 0
+            isExpanded = $true
+            children = $children
+        }
+
+        # Return response
+        $responseData = @{
+            status = "success"
+            message = "User listing retrieved successfully"
+            expandedNode = $expandedNode
+            path = $expandPath
+            childCount = $children.Count
+        }
+
+        if ($Test) {
+            Write-Host "`n=== Tree POST Test Results (User:others) ===" -ForegroundColor Cyan
+            Write-Host "Status: 200 OK" -ForegroundColor Green
+            Write-Host "User Count: $($children.Count)" -ForegroundColor Yellow
+            Write-Host "`nUsers:" -ForegroundColor Cyan
+            foreach ($child in $children) {
+                Write-Host "  - $($child.name)" -ForegroundColor Gray
+            }
+            Write-Host "`n=== End Test Results ===" -ForegroundColor Cyan
+            return
+        }
+
+        $jsonResponse = $responseData | ConvertTo-Json -Depth 10 -Compress
+        Send-WebHostFileExplorerResponse -Response $Response -StatusCode 200 -JsonContent $jsonResponse
+        return
     }
 
     # Resolve logical path to physical path with authorization

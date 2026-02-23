@@ -186,13 +186,13 @@ const ServerHeatmapCard = ({ onError }) => {
     const chartResizeRef = useRef(null);
     const isResizing = useRef(false);
 
-    // Load uPlot component if not already loaded
+    // Load metrics-chart component if not already loaded
     useEffect(() => {
-        if (!window.cardComponents || !window.cardComponents.uplot) {
+        if (!window.cardComponents || !window.cardComponents['metrics-chart']) {
             const script = document.createElement('script');
-            script.src = '/public/elements/uplot/component.js';
-            script.onload = () => console.log('uPlot component loaded');
-            script.onerror = () => console.error('Failed to load uPlot component');
+            script.src = '/apps/UI_Uplot/public/elements/metrics-chart/component.js';
+            script.onload = () => console.log('metrics-chart component loaded');
+            script.onerror = () => console.error('Failed to load metrics-chart component');
             document.head.appendChild(script);
         }
     }, []);
@@ -201,7 +201,7 @@ const ServerHeatmapCard = ({ onError }) => {
         let isMounted = true;
 
         const fetchData = () => {
-            window.psweb_fetchWithAuthHandling('/apps/WebHostMetrics/api/v1/ui/elements/server-heatmap')
+            window.psweb_fetchWithAuthHandling('/apps/WebHostMetrics/cards/server-heatmap')
                 .then(res => {
                     if (!res.ok) {
                         if (isMounted) {
@@ -258,7 +258,7 @@ const ServerHeatmapCard = ({ onError }) => {
 
     // Fetch history data when requested
     const fetchHistory = (minutes = 60) => {
-        window.psweb_fetchWithAuthHandling(`/apps/WebHostMetrics/api/v1/ui/elements/server-heatmap?history=${minutes}`)
+        window.psweb_fetchWithAuthHandling(`/apps/WebHostMetrics/cards/server-heatmap?history=${minutes}`)
             .then(res => res.json())
             .then(data => {
                 setHistoryData(data);
@@ -384,37 +384,14 @@ const ServerHeatmapCard = ({ onError }) => {
 
                         {/* CPU History Chart - Full Width Below */}
                         <div className="cpu-chart-section" style={{borderTop: '1px solid var(--border-color, #ddd)', paddingTop: '12px'}}>
-                            <div className="chart-controls" style={{display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center'}}>
+                            <div style={{marginBottom: '8px'}}>
                                 <span style={{fontSize: '0.9em', fontWeight: '600'}}>CPU History</span>
-                                <span style={{fontSize: '0.75em', color: '#666', marginLeft: '8px'}}>
-                                    {timeRange === '5m' || timeRange === '15m' || timeRange === '30m' || timeRange === '1h' ? '5s samples' : '1m averages'}
-                                </span>
-                                <div style={{display: 'flex', gap: '4px', marginLeft: 'auto'}}>
-                                    {['5m', '15m', '30m', '1h', '3h', '6h', '12h', '24h'].map(range => (
-                                        <button
-                                            key={range}
-                                            onClick={() => setTimeRange(range)}
-                                            style={{
-                                                padding: '3px 8px',
-                                                fontSize: '11px',
-                                                cursor: 'pointer',
-                                                border: '1px solid #ddd',
-                                                borderRadius: '3px',
-                                                backgroundColor: timeRange === range ? '#0366d6' : '#fff',
-                                                color: timeRange === range ? '#fff' : '#24292e',
-                                                fontWeight: timeRange === range ? '600' : '400'
-                                            }}
-                                        >
-                                            {range}
-                                        </button>
-                                    ))}
-                                </div>
                             </div>
                             <div style={{height: chartHeight + 'px', position: 'relative', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #e1e4e8'}}>
-                                {window.cardComponents && window.cardComponents.uplot ?
-                                    React.createElement(window.cardComponents.uplot, {
+                                {window.cardComponents && window.cardComponents['metrics-chart'] ?
+                                    React.createElement(window.cardComponents['metrics-chart'], {
                                         element: {
-                                            url: `/api/v1/ui/elements/uplot?source=/apps/WebHostMetrics/api/v1/metrics/history&metric=cpu&timerange=${timeRange}&delay=5&title=CPU Usage&ylabel=Usage %&height=${chartHeight}`
+                                            url: `/api/v1/ui/elements/metrics-chart?historyEndpoint=/apps/WebHostMetrics/api/v1/metrics/history&realtimeEndpoint=/apps/WebHostMetrics/api/v1/metrics&metric=cpu&timerange=${timeRange}&granularity=15s&delay=5&title=CPU Usage&ylabel=Usage %&height=${chartHeight}`
                                         },
                                         onError: onError
                                     })
