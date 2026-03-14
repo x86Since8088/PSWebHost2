@@ -1,1 +1,3 @@
-{"Allowed_Roles":["authenticated"]}
+{
+    "Allowed_Roles": ["authenticated", "metrics"]
+}

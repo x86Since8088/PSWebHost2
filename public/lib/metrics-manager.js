@@ -1,13 +1,13 @@
 // Metrics Manager - Unified data management for metrics
 // Handles historical loading from perfhistorylogs and periodic polling from /metrics
-// Now integrated with sql.js for persistent metrics storage
+// Integrated with DuckDB-WASM for in-browser metrics storage
 
 class MetricsManager {
     constructor(options = {}) {
         this.datasets = new Map(); // dataset name -> data
         this.pollIntervals = new Map(); // dataset name -> interval ID
         this.cacheEnabled = options.cache !== false;
-        this.sqlEnabled = options.sql !== false; // Enable sql.js storage by default
+        this.dbEnabled = options.db !== false; // Enable DuckDB-WASM storage by default
         this.metricsDB = null; // Will hold MetricsDatabase instance
         this.isInitializing = false;
         this.initPromise = null;
@@ -26,9 +26,9 @@ class MetricsManager {
             this.initCache();
         }
 
-        // Initialize sql.js database if enabled
-        if (this.sqlEnabled) {
-            this.initSqlDatabase();
+        // Initialize DuckDB-WASM database if enabled
+        if (this.dbEnabled) {
+            this.initDatabase();
         }
     }
 
@@ -62,8 +62,8 @@ class MetricsManager {
         });
     }
 
-    // Initialize sql.js database for metrics storage
-    async initSqlDatabase() {
+    // Initialize DuckDB-WASM database for metrics storage
+    async initDatabase() {
         if (this.isInitializing || this.metricsDB) return this.initPromise;
 
         this.isInitializing = true;
@@ -92,13 +92,13 @@ class MetricsManager {
                 });
 
                 await this.metricsDB.initialize();
-                console.log('[MetricsManager] sql.js database initialized');
+                console.log('[MetricsManager] DuckDB-WASM database initialized');
                 this.isInitializing = false;
                 return this.metricsDB;
 
             } catch (error) {
-                console.error('[MetricsManager] Error initializing sql.js:', error);
-                this.sqlEnabled = false;
+                console.error('[MetricsManager] Error initializing DuckDB-WASM:', error);
+                this.dbEnabled = false;
                 this.isInitializing = false;
                 throw error;
             }
@@ -148,9 +148,9 @@ class MetricsManager {
                 options: options
             });
 
-            // Store in sql.js database
-            if (this.sqlEnabled && this.metricsDB) {
-                await this.storeInSql(data);
+            // Store in DuckDB-WASM database
+            if (this.dbEnabled && this.metricsDB) {
+                await this.storeInDatabase(data);
             }
 
             // Cache in IndexedDB
@@ -217,9 +217,9 @@ class MetricsManager {
                     });
                 }
 
-                // Store in sql.js database
-                if (this.sqlEnabled && this.metricsDB) {
-                    await this.storeInSql([{
+                // Store in DuckDB-WASM database
+                if (this.dbEnabled && this.metricsDB) {
+                    await this.storeInDatabase([{
                         Timestamp: new Date().toISOString(),
                         ...data
                     }]);
@@ -482,8 +482,8 @@ class MetricsManager {
         }
     }
 
-    // Store metrics data in sql.js database
-    async storeInSql(data) {
+    // Store metrics data in DuckDB-WASM database
+    async storeInDatabase(data) {
         if (!this.metricsDB || !Array.isArray(data)) return;
 
         try {
@@ -532,21 +532,21 @@ class MetricsManager {
                     };
                 }
 
-                // Insert into sql.js
+                // Insert into DuckDB
                 this.metricsDB.insertMetrics(metrics);
             }
 
-            console.log(`[MetricsManager] Stored ${data.length} samples in sql.js`);
+            console.log(`[MetricsManager] Stored ${data.length} samples in DuckDB`);
 
         } catch (error) {
-            console.error('[MetricsManager] Error storing in sql.js:', error);
+            console.error('[MetricsManager] Error storing in DuckDB:', error);
         }
     }
 
-    // Query metrics from sql.js database
-    async queryFromSql(metricType, startTime, endTime, options = {}) {
+    // Query metrics from DuckDB-WASM database
+    async queryFromDatabase(metricType, startTime, endTime, options = {}) {
         if (!this.metricsDB) {
-            console.warn('[MetricsManager] sql.js database not initialized');
+            console.warn('[MetricsManager] DuckDB database not initialized');
             return null;
         }
 
@@ -569,18 +569,18 @@ class MetricsManager {
             }
 
         } catch (error) {
-            console.error('[MetricsManager] Error querying sql.js:', error);
+            console.error('[MetricsManager] Error querying DuckDB:', error);
             return null;
         }
     }
 
-    // Get sql.js database stats
+    // Get database stats
     getDbStats() {
         if (!this.metricsDB) return null;
         return this.metricsDB.getStats();
     }
 
-    // Export sql.js database
+    // Export database
     async exportDb() {
         if (!this.metricsDB) return null;
         return this.metricsDB.exportToJSON();
@@ -593,7 +593,7 @@ class MetricsManager {
         }
         this.datasets.clear();
 
-        // Clean up sql.js database
+        // Clean up DuckDB database
         if (this.metricsDB) {
             this.metricsDB.close();
             this.metricsDB = null;

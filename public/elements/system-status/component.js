@@ -34,9 +34,10 @@ const SystemStatusCard = ({ onError }) => {
     }, [onError]);
 
     const styles = `
-        .log-entry { border-bottom: 1px solid #eee; padding: 4px 0; font-family: monospace; font-size: 0.9em; }
+        #system-status-content { background: #ffffff; padding: 12px; }
+        .log-entry { border-bottom: 1px solid #eee; padding: 4px 0; font-family: monospace; font-size: 0.9em; color: #333; background: #fff; }
         .log-entry .level-INFO { color: #333; }
-        .log-entry .level-WARN { color: #ffa500; }
+        .log-entry .level-WARN { color: #cc8800; }
         .log-entry .level-ERROR { color: #dc3545; font-weight: bold; }
     `;
 

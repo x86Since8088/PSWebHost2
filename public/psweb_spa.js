@@ -1569,6 +1569,16 @@ const Card = ({ element, onRemove, onOpenSettings, onMaximize, onCardResize, isM
     );
 };
 
+// Simple TitleCard component for static title elements
+const TitleCard = ({ element }) => {
+    return (
+        <div className="title-card" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {element.icon && <img src={element.icon} alt="icon" style={{ height: '32px', width: '32px' }} />}
+            <h1 style={{ margin: 0, fontSize: '1.5em', fontWeight: 'bold' }}>{element.Title || 'PSWeb Server'}</h1>
+        </div>
+    );
+};
+
 const Pane = ({ zone, cardIds, elements, onRemoveCard, onOpenSettings, onMaximize, onCardResize, maximizedCard }) => {
     if (!cardIds || cardIds.length === 0) return null;
 
@@ -1576,6 +1586,7 @@ const Pane = ({ zone, cardIds, elements, onRemoveCard, onOpenSettings, onMaximiz
         <div className={`pane-section ${zone}`}>
             {cardIds.map(id => {
                 if (id === 'user-card') return <UserCard key={id} element={{...elements[id], id: id}} />;
+                if (id === 'title') return <TitleCard key={id} element={{...elements[id], id: id}} />;
                 return <Card key={id} element={{...elements[id], id: id}} onRemove={onRemoveCard} onOpenSettings={onOpenSettings} onMaximize={onMaximize} onCardResize={onCardResize} isMaximized={maximizedCard === id} />;
             })}
         </div>
@@ -2670,16 +2681,33 @@ const App = () => {
     };
 
     window.openCard = async (url, title) => {
-        // Extract element ID from URL if it's an API endpoint
-        // e.g., /cards/system-log -> system-log
-        // e.g., /cards/admin/users-management -> admin/users-management
+        // Extract element ID from URL
+        // Supported formats:
+        // - /api/v1/ui/elements/system-log -> system-log
+        // - /cards/system-log -> system-log
+        // - /apps/AppName/cards/debug-console -> debug-console
         let elementId = 'iframe-card';
         let elementUrl = url;
 
-        const elementMatch = url.match(/\/api\/v1\/ui\/elements\/(.+?)(?:[?]|$)/);
+        // Try multiple URL patterns to extract elementId
+        let elementMatch = url.match(/\/api\/v1\/ui\/elements\/(.+?)(?:[?]|$)/);
         if (elementMatch) {
             elementId = elementMatch[1];
-            elementUrl = url; // Keep the full URL for fetching
+            elementUrl = url;
+        } else {
+            // Try /cards/[elementId] pattern
+            elementMatch = url.match(/\/cards\/([^/?]+)(?:[?]|$)/);
+            if (elementMatch) {
+                elementId = elementMatch[1];
+                elementUrl = url;
+            } else {
+                // Try /apps/[AppName]/cards/[elementId] pattern
+                elementMatch = url.match(/\/apps\/[^/]+\/cards\/([^/?]+)(?:[?]|$)/);
+                if (elementMatch) {
+                    elementId = elementMatch[1];
+                    elementUrl = url;
+                }
+            }
         }
 
         // Check if a card with this elementId is already open
@@ -2786,14 +2814,33 @@ const App = () => {
     };
 
     window.openCardCopy = async (url, title) => {
-        // Extract element ID from URL if it's an API endpoint
+        // Extract element ID from URL
+        // Supported formats:
+        // - /api/v1/ui/elements/system-log -> system-log
+        // - /cards/system-log -> system-log
+        // - /apps/AppName/cards/debug-console -> debug-console
         let elementId = 'iframe-card';
         let elementUrl = url;
 
-        const elementMatch = url.match(/\/api\/v1\/ui\/elements\/(.+?)(?:[?]|$)/);
+        // Try multiple URL patterns to extract elementId
+        let elementMatch = url.match(/\/api\/v1\/ui\/elements\/(.+?)(?:[?]|$)/);
         if (elementMatch) {
             elementId = elementMatch[1];
             elementUrl = url;
+        } else {
+            // Try /cards/[elementId] pattern
+            elementMatch = url.match(/\/cards\/([^/?]+)(?:[?]|$)/);
+            if (elementMatch) {
+                elementId = elementMatch[1];
+                elementUrl = url;
+            } else {
+                // Try /apps/[AppName]/cards/[elementId] pattern
+                elementMatch = url.match(/\/apps\/[^/]+\/cards\/([^/?]+)(?:[?]|$)/);
+                if (elementMatch) {
+                    elementId = elementMatch[1];
+                    elementUrl = url;
+                }
+            }
         }
 
         // Find all existing cards with this elementId to determine copy number

@@ -17,7 +17,8 @@ const UPlotComponent = ({ element, onError }) => {
     const adapterRef = React.useRef(null);
     const uplotInstanceRef = React.useRef(null);  // Ref for immediate access to chart instance
     const incrementalFetchCountRef = React.useRef(0);  // Track incremental fetch count for debug logging
-    const metricsDbRef = React.useRef(null);  // sql.js MetricsDatabase instance
+    const metricsDbRef = React.useRef(null);  // DuckDB MetricsDatabase instance
+    const metricsCacheRef = React.useRef(null);  // IndexedDB MetricsCache instance for persistence
     const lastHistoryFetchRef = React.useRef(null);  // Track last history fetch time
     const isMountedRef = React.useRef(true);  // Track if component is mounted
     const fetchLockRef = React.useRef(false);  // Timer mutex to prevent overlapping fetches
@@ -156,7 +157,7 @@ const UPlotComponent = ({ element, onError }) => {
         loadScripts();
     }, []);
 
-    // Initialize sql.js database and fetch initial data
+    // Initialize DuckDB database and fetch initial data
     React.useEffect(() => {
         if (!librariesLoaded) return;
 
@@ -173,10 +174,26 @@ const UPlotComponent = ({ element, onError }) => {
                     });
                 }
 
+                // Load MetricsCache if not already loaded (for IndexedDB persistence)
+                if (!window.MetricsCache) {
+                    await new Promise((resolve, reject) => {
+                        const script = document.createElement('script');
+                        script.src = '/public/lib/metrics-cache.js';
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        document.head.appendChild(script);
+                    });
+                }
+
                 // Initialize database instance
                 metricsDbRef.current = new window.MetricsDatabase({ dbName: `uplot_${configRef.current.metric}` });
                 await metricsDbRef.current.initialize();
-                console.log(`[uPlot DEBUG] 💾 sql.js database initialized for ${configRef.current.metric}`);
+                console.log(`[uPlot DEBUG] DuckDB database initialized for ${configRef.current.metric}`);
+
+                // Initialize IndexedDB cache for persistence across page loads
+                metricsCacheRef.current = new window.MetricsCache(`PSWebHostMetrics_${configRef.current.metric}`);
+                await metricsCacheRef.current.initPromise;
+                console.log(`[uPlot DEBUG] IndexedDB cache initialized for ${configRef.current.metric}`);
 
                 // Fetch initial history data
                 await fetchHistoryData();
@@ -265,72 +282,75 @@ const UPlotComponent = ({ element, onError }) => {
         const fetchStartTime = performance.now();
         try {
             const config = configRef.current;
-            const historyUrl = new URL(config.historyEndpoint, window.location.origin);
-            historyUrl.searchParams.set('metric', config.metric);
-            historyUrl.searchParams.set('timerange', config.timeRange);
-            historyUrl.searchParams.set('granularity', config.granularity);
+            const timeRangeMs = getTimeWindowMs(config.timeRange);
+            const endTime = new Date();
+            const startTime = new Date(Date.now() - timeRangeMs);
 
-            const response = await window.psweb_fetchWithAuthHandling(historyUrl.toString());
-            if (!isMountedRef.current) {
-                unmountAbortCountRef.current++;
-                logToServer('Warn', 'Unmount protection triggered - aborting history fetch', {
-                    abortCount: unmountAbortCountRef.current,
-                    stage: 'after-fetch'
-                });
-                return;
-            }
+            // OPTIMIZATION: Check IndexedDB cache first for instant loading
+            let cachedData = null;
+            let cacheHit = false;
+            if (metricsCacheRef.current) {
+                try {
+                    cachedData = await metricsCacheRef.current.get(
+                        config.metric,
+                        startTime.toISOString(),
+                        endTime.toISOString(),
+                        config.granularity
+                    );
 
-            if (!response.ok) {
-                const error = new Error(`History endpoint returned ${response.status}`);
-                error.status = response.status;
-                error.statusText = response.statusText;
-                throw error;
-            }
+                    // Check if cache is fresh enough (within 60 seconds)
+                    if (cachedData && cachedData.cachedAt) {
+                        const cacheAge = Date.now() - new Date(cachedData.cachedAt).getTime();
+                        if (cacheAge < 60000 && cachedData.data) {  // 60 second cache validity
+                            cacheHit = true;
+                            console.log(`[uPlot DEBUG] ⚡ Cache HIT for ${config.metric} (age: ${Math.round(cacheAge/1000)}s)`);
+                            logToServer('Info', 'Cache hit - using cached data', {
+                                metric: config.metric,
+                                cacheAge: Math.round(cacheAge/1000),
+                                dataPoints: cachedData.dataPoints || 0
+                            });
 
-            const responseData = await response.json();
-            if (!isMountedRef.current) {
-                unmountAbortCountRef.current++;
-                logToServer('Warn', 'Unmount protection triggered - aborting history parse', {
-                    abortCount: unmountAbortCountRef.current,
-                    stage: 'after-json-parse'
-                });
-                return;
-            }
+                            // Use cached data directly - it's already in the right format
+                            if (cachedData.data && metricsDbRef.current) {
+                                // Parse cached CSV and insert into DuckDB
+                                const mockResponse = {
+                                    data: { [config.metric]: cachedData.data },
+                                    status: 'success',
+                                    granularity: config.granularity
+                                };
+                                await insertDataIntoDatabase(mockResponse, 'history');
+                                if (!isMountedRef.current) return;
 
-            // DEBUG: Log history response details
-            let totalRecords = 0;
-            if (responseData.data && responseData.data.datasets) {
-                responseData.data.datasets.forEach(dataset => {
-                    if (dataset.data && Array.isArray(dataset.data)) {
-                        totalRecords += dataset.data.length;
+                                // Update chart immediately
+                                await updateChartFromDatabase();
+                                if (!isMountedRef.current) return;
+
+                                setError(null);
+                                setLoading(false);
+
+                                // Still fetch fresh data in background if cache is older than 30s
+                                if (cacheAge > 30000) {
+                                    console.log('[uPlot DEBUG] 🔄 Background refresh (cache > 30s old)');
+                                    // Don't await - let it run in background
+                                    fetchAndCacheHistoryData(config, startTime, endTime, false);
+                                }
+
+                                fetchLockRef.current = false;
+                                return;
+                            }
+                        } else {
+                            console.log(`[uPlot DEBUG] ⏰ Cache STALE for ${config.metric} (age: ${Math.round(cacheAge/1000)}s)`);
+                        }
                     }
-                });
-            }
-            const fetchDuration = performance.now() - fetchStartTime;
-            console.log(`[uPlot DEBUG] 📥 /apps/WebHostMetrics/api/v1/metrics/history response: ${totalRecords} total data points, ${responseData.data?.datasets?.length || 0} datasets, granularity: ${responseData.granularity}, sampleCount: ${responseData.sampleCount}`);
-
-            logToServer('Info', 'History data fetched', {
-                totalRecords: totalRecords,
-                datasets: responseData.data?.datasets?.length || 0,
-                granularity: responseData.granularity,
-                sampleCount: responseData.sampleCount,
-                fetchDuration: fetchDuration.toFixed(2)
-            });
-
-            // Insert into sql.js database
-            if (totalRecords > 0 && metricsDbRef.current) {
-                await insertDataIntoSqlJs(responseData, 'history');
-                if (!isMountedRef.current) return;  // Check after await
+                } catch (cacheErr) {
+                    console.warn('[uPlot] Cache check error:', cacheErr);
+                    // Continue with network fetch
+                }
             }
 
-            lastHistoryFetchRef.current = new Date();
+            // Cache miss or stale - fetch from network
+            await fetchAndCacheHistoryData(config, startTime, endTime, true);
 
-            // Update chart from sql.js
-            await updateChartFromSqlJs();
-            if (!isMountedRef.current) return;  // Check after await
-
-            setError(null);
-            setLoading(false);
         } catch (err) {
             if (isMountedRef.current) {
                 console.error('[uPlot] History fetch error:', err);
@@ -339,6 +359,92 @@ const UPlotComponent = ({ element, onError }) => {
             }
         } finally {
             fetchLockRef.current = false;
+        }
+    };
+
+    // Helper function to fetch history data from network and cache it
+    const fetchAndCacheHistoryData = async (config, startTime, endTime, updateUI) => {
+        const fetchStartTime = performance.now();
+
+        const historyUrl = new URL(config.historyEndpoint, window.location.origin);
+        historyUrl.searchParams.set('metric', config.metric);
+        historyUrl.searchParams.set('timerange', config.timeRange);
+        historyUrl.searchParams.set('granularity', config.granularity);
+
+        const response = await window.psweb_fetchWithAuthHandling(historyUrl.toString());
+        if (!isMountedRef.current) {
+            unmountAbortCountRef.current++;
+            logToServer('Warn', 'Unmount protection triggered - aborting history fetch', {
+                abortCount: unmountAbortCountRef.current,
+                stage: 'after-fetch'
+            });
+            return;
+        }
+
+        if (!response.ok) {
+            const error = new Error(`History endpoint returned ${response.status}`);
+            error.status = response.status;
+            error.statusText = response.statusText;
+            throw error;
+        }
+
+        const responseData = await response.json();
+        if (!isMountedRef.current) {
+            unmountAbortCountRef.current++;
+            logToServer('Warn', 'Unmount protection triggered - aborting history parse', {
+                abortCount: unmountAbortCountRef.current,
+                stage: 'after-json-parse'
+            });
+            return;
+        }
+
+        // DEBUG: Log history response details
+        let totalRecords = 0;
+        const csvData = responseData.data?.[config.metric];
+        if (csvData) {
+            totalRecords = csvData.split('\n').length - 1;  // Subtract header
+        }
+
+        const fetchDuration = performance.now() - fetchStartTime;
+        console.log(`[uPlot DEBUG] 📥 Network fetch: ${totalRecords} records in ${fetchDuration.toFixed(0)}ms`);
+
+        logToServer('Info', 'History data fetched from network', {
+            totalRecords: totalRecords,
+            granularity: responseData.granularity,
+            fetchDuration: fetchDuration.toFixed(2)
+        });
+
+        // Store in IndexedDB cache for future use
+        if (metricsCacheRef.current && csvData) {
+            try {
+                await metricsCacheRef.current.store(
+                    config.metric,
+                    startTime.toISOString(),
+                    endTime.toISOString(),
+                    config.granularity,
+                    csvData
+                );
+                console.log(`[uPlot DEBUG] 💾 Cached ${totalRecords} records for ${config.metric}`);
+            } catch (cacheErr) {
+                console.warn('[uPlot] Cache store error:', cacheErr);
+            }
+        }
+
+        // Insert into DuckDB database
+        if (totalRecords > 0 && metricsDbRef.current) {
+            await insertDataIntoDatabase(responseData, 'history');
+            if (!isMountedRef.current) return;
+        }
+
+        lastHistoryFetchRef.current = new Date();
+
+        // Update chart from DuckDB (only if this is the primary fetch, not background)
+        if (updateUI) {
+            await updateChartFromDatabase();
+            if (!isMountedRef.current) return;
+
+            setError(null);
+            setLoading(false);
         }
     };
 
@@ -406,13 +512,13 @@ const UPlotComponent = ({ element, onError }) => {
                 console.log(`[uPlot DEBUG] 📊 First incremental fetch: ${totalRecords} CSV records`);
             }
 
-            // Insert into sql.js database (with deduplication)
+            // Insert into DuckDB database (with deduplication)
             if (responseData.data && Object.keys(responseData.data).length > 0) {
-                await insertDataIntoSqlJs(responseData, 'incremental');
+                await insertDataIntoDatabase(responseData, 'incremental');
                 if (!isMountedRef.current) return;  // Check after await
 
-                // Update chart from sql.js
-                await updateChartFromSqlJs();
+                // Update chart from DuckDB
+                await updateChartFromDatabase();
                 if (!isMountedRef.current) return;  // Check after await
             }
 
@@ -426,8 +532,8 @@ const UPlotComponent = ({ element, onError }) => {
         }
     };
 
-    // Insert API data into sql.js database
-    const insertDataIntoSqlJs = async (responseData, source) => {
+    // Insert API data into DuckDB database
+    const insertDataIntoDatabase = async (responseData, source) => {
         if (!metricsDbRef.current || !isMountedRef.current) return;
 
         const metric = configRef.current.metric;
@@ -487,11 +593,11 @@ const UPlotComponent = ({ element, onError }) => {
                     insertCount++;
                 }
 
-                // Insert all at once (35-70x faster than individual inserts)
+                // Insert all at once using batch insert
                 if (batchData.length > 0) {
                     await metricsDbRef.current.insertMetricsBatch(batchData);
                     if (!isMountedRef.current) return;  // Check after await
-                    console.log(`[uPlot DEBUG] 📊 Batch inserted ${insertCount} history records`);
+                    console.log(`[uPlot DEBUG] Batch inserted ${insertCount} history records`);
                 }
 
             } else if (source === 'incremental') {
@@ -545,18 +651,18 @@ const UPlotComponent = ({ element, onError }) => {
             }
 
             if (insertCount > 0 && isMountedRef.current) {
-                console.log(`[uPlot DEBUG] 💾 Inserted ${insertCount} records into sql.js from ${source}`);
+                console.log(`[uPlot DEBUG] Inserted ${insertCount} records into DuckDB from ${source}`);
             }
 
         } catch (err) {
             if (isMountedRef.current) {
-                console.error(`[uPlot] sql.js insert error (${source}):`, err);
+                console.error(`[uPlot] DuckDB insert error (${source}):`, err);
             }
         }
     };
 
-    // Query sql.js and update chart
-    const updateChartFromSqlJs = async () => {
+    // Query DuckDB and update chart
+    const updateChartFromDatabase = async () => {
         if (!metricsDbRef.current || !containerRef.current || !isMountedRef.current) return;
 
         try {
@@ -565,7 +671,7 @@ const UPlotComponent = ({ element, onError }) => {
             const endTime = new Date().toISOString();
             const startTime = new Date(Date.now() - timeRangeMs).toISOString();
 
-            // Query sql.js for chart data
+            // Query DuckDB for chart data
             let chartData;
             const sqlQuery = `
                 SELECT timestamp, cpu_total
@@ -593,7 +699,7 @@ const UPlotComponent = ({ element, onError }) => {
                 if (!isMountedRef.current) return;  // Check after await
 
                 const totalRows = countResults[0]?.count || 0;
-                console.log(`[uPlot DEBUG] 🗑️  Pruned old data, ${totalRows} rows remain`);
+                console.log(`[uPlot DEBUG] Pruned old data, ${totalRows} rows remain`);
             }
 
             if (results.length === 0) {
@@ -624,7 +730,7 @@ const UPlotComponent = ({ element, onError }) => {
 
         } catch (err) {
             if (isMountedRef.current) {
-                console.error('[uPlot] sql.js query error:', err);
+                console.error('[uPlot] DuckDB query error:', err);
             }
         }
     };

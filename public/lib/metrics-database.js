@@ -1,24 +1,23 @@
 /**
  * MetricsDatabase - DuckDB-WASM wrapper for storing and querying metrics in-browser
  *
- * This is a drop-in replacement for the sql.js version with the SAME public API.
- * Uses Web Worker + DuckDB-WASM for 100x performance improvement.
+ * Uses Web Worker + DuckDB-WASM for high-performance in-browser analytics.
  *
- * Key improvements over sql.js:
+ * Key features:
  * - Off main thread execution (no UI blocking)
- * - Columnar storage (10-100x faster for time-series queries)
- * - Resolution-aware downsampling
+ * - Columnar storage optimized for time-series queries
+ * - Resolution-aware downsampling for charts
  * - Zero-copy data transfer via Transferable ArrayBuffers
+ * - Query cancellation for discarding stale results
  *
- * Performance targets:
- * - Insert 1000 rows: 5ms (vs 500ms with sql.js)
- * - Query 1h window: 2ms (vs 200ms with sql.js)
- * - Downsample: 1ms (vs 100ms with sql.js)
+ * Performance characteristics:
+ * - Insert 1000 rows: ~5ms
+ * - Query 1h window: ~2ms
+ * - Downsample: ~1ms
  *
- * Usage (IDENTICAL to sql.js version):
+ * Usage:
  *   const db = new MetricsDatabase({
  *     dbName: 'PSWebHostMetrics',
- *     autoSaveInterval: 30000,
  *     retentionHours: 24,
  *     maxRecords: 100000
  *   });
@@ -97,10 +96,7 @@ class MetricsDatabase {
 
                 initPromise.then((result) => {
                     this.workerReady = true;
-                    this.sqlLoaded = true; // Compatibility flag
-
-                    // Create proxy db object for compatibility with existing code
-                    this.db = this._createDbProxy();
+                    this.sqlLoaded = true; // Legacy compatibility flag
 
                     console.log(`[MetricsDatabase] DuckDB-WASM initialized (${result.storage} storage)`);
                     resolve();
@@ -421,17 +417,20 @@ class MetricsDatabase {
             }
 
             // Set timeout for worker response
+            // INIT needs longer timeout to allow for DuckDB retries (up to 48s with exponential backoff)
+            const timeoutMs = type === 'INIT' ? 90000 : 30000;
             const timeout = setTimeout(() => {
                 if (this.pendingRequests.has(id)) {
                     this.pendingRequests.delete(id);
                     this._logToServer('Error', 'Worker request timeout', {
                         messageType: type,
                         messageId: id,
-                        pendingCount: this.pendingRequests.size
+                        pendingCount: this.pendingRequests.size,
+                        timeoutMs: timeoutMs
                     });
                     reject(new Error(`Worker request timeout (type: ${type})`));
                 }
-            }, 30000); // 30 second timeout
+            }, timeoutMs); // INIT: 90s, others: 30s
 
             // Store timeout so we can clear it
             this.pendingRequests.get(id).timeout = timeout;
@@ -516,40 +515,6 @@ class MetricsDatabase {
         }
     }
 
-    _createDbProxy() {
-        // Create a proxy that mimics the sql.js db interface for compatibility
-        // This allows existing code like `db.run(sql)` to still work
-        const self = this;
-        return {
-            run: async (sql, params) => {
-                try {
-                    await self._sendMessage('EXEC', { sql, params });
-                } catch (err) {
-                    console.error('[MetricsDatabase] Proxy run error:', err);
-                }
-            },
-            exec: async (sql) => {
-                try {
-                    const result = await self._sendMessage('QUERY', { sql });
-                    return result.rows || [];
-                } catch (err) {
-                    console.error('[MetricsDatabase] Proxy exec error:', err);
-                    return [];
-                }
-            },
-            prepare: (sql) => {
-                // Return a mock statement object for compatibility
-                console.warn('[MetricsDatabase] db.prepare() called - not fully supported in worker mode');
-                return {
-                    run: async () => {},
-                    step: () => false,
-                    getAsObject: () => ({}),
-                    free: () => {}
-                };
-            }
-        };
-    }
-
     /**
      * Prune old records - Called automatically or manually
      * @returns {Promise<void>}
@@ -567,39 +532,8 @@ class MetricsDatabase {
         }
     }
 
-    /**
-     * No-op for compatibility - Worker handles persistence automatically
-     */
-    _saveToDisk() {
-        // DuckDB worker handles persistence internally
-        // This is a no-op for compatibility with code expecting this method
-    }
-
-    /**
-     * Legacy methods for compatibility - no longer needed but kept for existing code
-     */
-    _base64ToArrayBuffer(base64) {
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i);
-        }
-        return bytes.buffer;
-    }
-
-    _arrayBufferToBase64(buffer) {
-        let binary = '';
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < bytes.byteLength; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return btoa(binary);
-    }
 }
 
 // Export to global scope
 window.MetricsDatabase = MetricsDatabase;
-
-// Also export original sql.js version as LegacyMetricsDatabase (for rollback if needed)
-// Load this from the backup file if feature flag is set
 console.log('[MetricsDatabase] DuckDB-WASM wrapper loaded');

@@ -67,22 +67,23 @@ begin {
         Write-Host "========================================================================================================`n" -ForegroundColor Red
         exit 1
     }
+    $Start = Get-Date
 
     if ($null -ne $global:PSWebServer -and -not $ForceInit.IsPresent) {
         return Get-Variable -Scope Global -Name *web* | %{Get-ObjectSafeWalk $_}| ConvertTo-Json -Depth 20
     }
 
+    $WebHostRoot = $PSScriptRoot  # Save before dot-sourcing changes context
+    if ($null -ne $global:PSWebServer -and (! $ForceInit.IsPresent)) {
+        Write-Host "Using the previously loaded environment..."
+    }
+    else {
+        . (Join-Path $WebHostRoot 'system/init.ps1')
+        Write-Host "Init.ps1 completed after $(((Get-date) - $start).TotalMilliseconds) milliseconds"
+    }
+
     if (!$Resume.IsPresent) {
         Write-Verbose 'Starting init.ps1...'
-        $Start = Get-Date
-        $WebHostRoot = $PSScriptRoot  # Save before dot-sourcing changes context
-        if ($null -ne $global:PSWebServer -and (! $ForceInit.IsPresent)) {
-            . (Join-Path $WebHostRoot 'system/init.ps1')
-            Write-Host "Init.ps1 completed after $(((Get-date) - $start).TotalMilliseconds) milliseconds"
-        }
-        else {
-            Write-Host "Using the previously loaded environment..."
-        }
 
         # Load and initialize PSWebHost_Jobs module
         Write-Verbose 'Loading PSWebHost_Jobs module...'

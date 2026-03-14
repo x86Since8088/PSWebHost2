@@ -1,0 +1,203 @@
+{
+  "scan_metadata": {
+    "timestamp": "2026-02-23T22:37:00-06:00",
+    "log_file": "C:\\SC\\PsWebHost\\PsWebHost_Data\\Logs\\log_2026-02-23T221842_2861627-0600.tsv",
+    "total_lines": 1464,
+    "file_size_bytes": 377067,
+    "agent": "Agent_PSWeb_LogWatch"
+  },
+  "severity_summary": {
+    "critical": 0,
+    "error": 7,
+    "warning": 19,
+    "info": 1438
+  },
+  "error_patterns": [
+    {
+      "pattern_id": "EP001",
+      "name": "Session Type Conversion Error",
+      "severity": "error",
+      "category": "AsyncWorker",
+      "frequency": 4,
+      "first_seen": "2026-02-23T22:18:45.319Z",
+      "last_seen": "2026-02-23T22:18:45.320Z",
+      "message_pattern": "Cannot process argument transformation on parameter 'Session'. Cannot convert the \"System.Object[]\" value of type \"System.Object[]\" to type \"System.Collections.Hashtable\"",
+      "affected_components": [
+        "AsyncWorker",
+        "Get-PSWebSessions",
+        "Invoke-RouteScript"
+      ],
+      "affected_runspaces": [1, 4, 5, 7],
+      "endpoint": "/apps/WebHostDebugExtensions/api/v1/debug/commands/poll",
+      "root_cause": "PowerShell array wrapping of hashtable return value",
+      "fix_status": "ready",
+      "fix_location": "modules\\PSWebHost_Support\\PSWebHost_Support.psm1:436",
+      "auto_fixable": true
+    },
+    {
+      "pattern_id": "WP001",
+      "name": "Runspace InstanceId Null Warning",
+      "severity": "warning",
+      "category": "AsyncWorker",
+      "frequency": 15,
+      "first_seen": "2026-02-23T22:18:45.117Z",
+      "last_seen": "2026-02-23T22:18:45.159Z",
+      "message_pattern": "[Runspace X] Runspace InstanceId is null or empty, cannot track runspace info",
+      "affected_components": [
+        "AsyncWorker",
+        "AsyncRunspacePool"
+      ],
+      "affected_runspaces": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+      "root_cause": "Runspace initialization does not set InstanceId",
+      "fix_status": "documented",
+      "auto_fixable": false,
+      "impact": "Telemetry/monitoring only - no functional impact"
+    },
+    {
+      "pattern_id": "EP002",
+      "name": "Response Builder Null Array Error",
+      "severity": "error",
+      "category": "Response",
+      "frequency": 1,
+      "first_seen": "2026-02-23T22:19:27.5948593Z",
+      "last_seen": "2026-02-23T22:19:27.5948593Z",
+      "message_pattern": "Failed to build response. Error: Cannot index into a null array.",
+      "affected_components": [
+        "context_response"
+      ],
+      "source_file": "modules\\PSWebHost_Support\\PSWebHost_Support.psm1",
+      "source_function": "context_response",
+      "runspace": 17,
+      "root_cause": "Unknown - null array access in request pipeline",
+      "fix_status": "needs_investigation",
+      "auto_fixable": false,
+      "impact": "Single occurrence - transient issue"
+    },
+    {
+      "pattern_id": "EP003",
+      "name": "Worker Request Timeout",
+      "severity": "error",
+      "category": "MetricsDatabase",
+      "frequency": 2,
+      "first_seen": "2026-02-24T04:23:01",
+      "last_seen": "2026-02-24T04:36:23",
+      "message_pattern": "Worker request timeout",
+      "affected_components": [
+        "AsyncWorker",
+        "MetricsDatabase"
+      ],
+      "user_id": "6ec71a85-fb79-4ebc-aa1d-587c7f8b403c",
+      "message_type": "INIT",
+      "root_cause": "Slow worker initialization or resource contention",
+      "fix_status": "monitoring",
+      "auto_fixable": false,
+      "impact": "Performance degradation - frontend delays"
+    },
+    {
+      "pattern_id": "WP002",
+      "name": "Request Throttling After Error",
+      "severity": "warning",
+      "category": "RequestThrottle",
+      "frequency": 1,
+      "first_seen": "2026-02-24T04:19:00.4436591Z",
+      "last_seen": "2026-02-24T04:19:00.4436591Z",
+      "message_pattern": "Request throttled: /apps/WebHostDebugExtensions/api/v1/debug/commands/poll (status 500)",
+      "affected_components": [
+        "RequestThrottle"
+      ],
+      "endpoint": "/apps/WebHostDebugExtensions/api/v1/debug/commands/poll",
+      "throttle_duration_seconds": 60,
+      "related_error": "EP001",
+      "root_cause": "Consequence of Session Type Conversion Error",
+      "fix_status": "will_resolve_with_ep001",
+      "auto_fixable": false,
+      "impact": "Protective feature - working as designed"
+    },
+    {
+      "pattern_id": "WP003",
+      "name": "Unauthorized Access Attempt",
+      "severity": "warning",
+      "category": "Security",
+      "frequency": 2,
+      "first_seen": "2026-02-24T04:32:45.0029198Z",
+      "last_seen": "2026-02-24T04:33:09.5048472Z",
+      "message_pattern": "Unauthorized access to /cards/site-settings by user with roles: unauthenticated",
+      "affected_components": [
+        "Invoke-RouteScript"
+      ],
+      "endpoint": "/cards/site-settings",
+      "user_roles": ["unauthenticated"],
+      "affected_runspaces": [13, 10],
+      "root_cause": "Unauthenticated user accessing protected endpoint",
+      "fix_status": "security_review_needed",
+      "auto_fixable": false,
+      "impact": "Security working correctly - may indicate UI issue"
+    },
+    {
+      "pattern_id": "WP004",
+      "name": "PSWebHost_Jobs Module Not Loaded",
+      "severity": "warning",
+      "category": "AppInit",
+      "frequency": 1,
+      "first_seen": "2026-02-24T04:18:43.0388664Z",
+      "last_seen": "2026-02-24T04:18:43.0388664Z",
+      "message_pattern": "PSWebHost_Jobs module not loaded - job catalog features will be limited",
+      "affected_components": [
+        "WebHostTaskManagement"
+      ],
+      "source_file": "apps\\WebHostTaskManagement\\app_init.ps1",
+      "root_cause": "Optional module not available or not loaded",
+      "fix_status": "configuration_review",
+      "auto_fixable": false,
+      "impact": "Reduced functionality - may be intentional"
+    }
+  ],
+  "fix_priority": [
+    {
+      "priority": 1,
+      "pattern_id": "EP001",
+      "reason": "Causing request failures and throttling",
+      "fix_ready": true
+    },
+    {
+      "priority": 2,
+      "pattern_id": "WP003",
+      "reason": "Potential UI/UX issue for unauthenticated users",
+      "fix_ready": false
+    },
+    {
+      "priority": 3,
+      "pattern_id": "WP004",
+      "reason": "Verify configuration intent",
+      "fix_ready": false
+    },
+    {
+      "priority": 4,
+      "pattern_id": "EP003",
+      "reason": "Performance monitoring and tuning",
+      "fix_ready": false
+    },
+    {
+      "priority": 5,
+      "pattern_id": "EP002",
+      "reason": "Single occurrence - monitor for recurrence",
+      "fix_ready": false
+    },
+    {
+      "priority": 6,
+      "pattern_id": "WP001",
+      "reason": "No functional impact - telemetry only",
+      "fix_ready": false
+    }
+  ],
+  "agent_spawn_recommendations": [
+    {
+      "agent_type": "SessionBugFixer",
+      "target_pattern": "EP001",
+      "confidence": "high",
+      "safety": "safe",
+      "spawn_recommended": true,
+      "task": "Apply type cast fix to Get-PSWebSessions return statement"
+    }
+  ]
+}

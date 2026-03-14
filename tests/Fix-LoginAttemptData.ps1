@@ -9,7 +9,7 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 
 # Load WebHost environment
 Write-Host "[1/2] Loading WebHost environment..." -ForegroundColor Yellow
-. (Join-Path $PSScriptRoot '..\WebHost.ps1') -InitializeEnvironmentOnly
+. (Join-Path $PSScriptRoot '...\..\WebHost.ps1') -InitializeEnvironmentOnly
 Write-Host "      ✓ Environment loaded" -ForegroundColor Green
 
 # Fix invalid datetime values

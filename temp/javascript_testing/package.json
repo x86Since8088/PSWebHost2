@@ -1,0 +1,15 @@
+{
+  "name": "pswebhost-metrics-tests",
+  "version": "1.0.0",
+  "description": "Test suite for PsWebHost metrics system",
+  "scripts": {
+    "test:api": "node test-metrics-api.js",
+    "test:csv": "node test-csv-parsing.js",
+    "test:worker": "node test-duckdb-worker-simulation.js",
+    "test:uplot": "node test-uplot-data-format.js",
+    "test:all": "npm run test:worker && npm run test:uplot && echo 'API tests require token - run: node test-metrics-api.js TOKEN'"
+  },
+  "keywords": ["metrics", "testing", "duckdb", "uplot"],
+  "author": "PsWebHost",
+  "license": "MIT"
+}

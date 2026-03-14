@@ -57,6 +57,10 @@
                 switch (cmd.Type) {
                     case 'eval':
                         result = eval(cmd.Command);
+                        // Handle async functions (Promises)
+                        if (result && typeof result.then === 'function') {
+                            result = await result;
+                        }
                         break;
 
                     case 'predefined':

@@ -9,7 +9,7 @@ try {
     # Return card metadata (JSON pattern)
     $cardInfo = @{
         component = 'sqlite-manager'
-        scriptPath = '/public/elements/sqlite-manager/component.js'
+        scriptPath = '/apps/SQLiteManager/public/elements/sqlite-manager/component.js'
         title = 'Sqlite Manager'
         description = 'Card component'
     }

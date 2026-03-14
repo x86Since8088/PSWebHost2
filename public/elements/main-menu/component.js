@@ -262,7 +262,18 @@ const MainMenuContainer = ({ element, onError }) => {
 
     return (
         <div className="main-menu">
-            <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', marginBottom: '10px' }}/>
+            <div className="card-title" style={{
+                padding: '12px 16px',
+                borderBottom: '1px solid #e0e0e0',
+                backgroundColor: '#f8f9fa',
+                marginBottom: '10px',
+                fontWeight: 600,
+                fontSize: '16px',
+                color: '#2c3e50'
+            }}>
+                Main Menu
+            </div>
+            <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', marginBottom: '10px', padding: '8px' }}/>
             <MainMenu searchTerm={searchTerm} onError={onError} />
         </div>
     );

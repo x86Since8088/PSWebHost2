@@ -1,4 +1,4 @@
-$Path = (Resolve-Path "$PSScriptRoot\..\WebHost.ps1").Path
+$Path = (Resolve-Path "$PSScriptRoot\...\..\WebHost.ps1").Path
 . $Path -verbose 2>&1 |
     Where-Object{$_}|
     ForEach-Object{

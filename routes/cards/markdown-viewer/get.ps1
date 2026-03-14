@@ -12,8 +12,7 @@ $filePath = $Request.QueryString["file"]
 
 if ([string]::IsNullOrEmpty($filePath)) {
     $errorResponse = @{
-                        scriptPath = '/public/elements/markdown-viewer/component.js'
-                scriptPath = '/public/elements/markdown-viewer/component.js'
+        scriptPath = '/public/elements/markdown-viewer/component.js'
         status = 'error'
         message = 'No file specified. Use ?file=path/to/file.md'
     } | ConvertTo-Json
@@ -47,8 +46,7 @@ foreach ($path in $searchPaths) {
 
 if (-not $foundPath) {
     $errorResponse = @{
-                        scriptPath = '/public/elements/markdown-viewer/component.js'
-                scriptPath = '/public/elements/markdown-viewer/component.js'
+        scriptPath = '/public/elements/markdown-viewer/component.js'
         status = 'error'
         message = "File not found: $filePath"
         searched = $searchPaths
@@ -74,8 +72,7 @@ try {
     $markdownContent = Get-Content -Path $foundPath -Raw -ErrorAction Stop
 
     $successResponse = @{
-                        scriptPath = '/public/elements/markdown-viewer/component.js'
-                scriptPath = '/public/elements/markdown-viewer/component.js'
+        scriptPath = '/public/elements/markdown-viewer/component.js'
         status = 'success'
         file = $filePath
         path = $foundPath
@@ -86,8 +83,7 @@ try {
     context_response -Response $Response -String $successResponse -ContentType "application/json"
 } catch {
     $errorResponse = @{
-                        scriptPath = '/public/elements/markdown-viewer/component.js'
-                scriptPath = '/public/elements/markdown-viewer/component.js'
+        scriptPath = '/public/elements/markdown-viewer/component.js'
         status = 'error'
         message = "Error reading file: $($_.Exception.Message)"
     } | ConvertTo-Json

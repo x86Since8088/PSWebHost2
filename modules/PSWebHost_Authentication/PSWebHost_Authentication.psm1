@@ -1161,7 +1161,15 @@ function Set-LoginSession {
     if (-not $AuthenticationTime) { Write-PSWebHostLog -Severity Error -Category 'Set-LoginSession_Parameter' -message "The -AuthenticationTime parameter is required." -WriteHost -ForegroundColor Red; return }
     # AuthenticationState may be omitted by callers; if so, preserve existing state or default to 'completed' when a UserID is provided.
     if (-not $LogonExpires) { Write-PSWebHostLog -Severity Error -Category 'Set-LoginSession_Parameter' -message "$MyTag The -LogonExpires parameter is required." -WriteHost -ForegroundColor Red; return }
-    if (-not $UserAgent) { Write-PSWebHostLog -Severity Error -Category 'Set-LoginSession_Parameter' -message "$MyTag The -UserAgent parameter is required." -WriteHost -ForegroundColor Red; return }
+    # UserAgent may be empty for API key authentication (no browser)
+    if (-not $UserAgent) {
+        if ($Provider -eq 'API_Key') {
+            $UserAgent = 'API_Key_Client'
+        } else {
+            Write-PSWebHostLog -Severity Error -Category 'Set-LoginSession_Parameter' -message "$MyTag The -UserAgent parameter is required." -WriteHost -ForegroundColor Red
+            return
+        }
+    }
     $dbFile = Join-Path $Global:PSWebServer.Project_Root.Path "PsWebHost_Data\pswebhost.db"
     Write-Verbose "$MyTag $((Get-Date -f 'yyyMMdd HH:mm:ss')) Calling: Sanitize-SqlQueryString -String $SessionID"
     $safeSessionID = Sanitize-SqlQueryString -String $SessionID

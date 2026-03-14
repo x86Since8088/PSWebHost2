@@ -433,7 +433,7 @@ function Get-PSWebSessions {
     }
     $returnValue = $global:PSWebSessions[$SessionID]
     Write-Verbose "[Get-PSWebSessions] Returning session type: $($returnValue.GetType().FullName) IsArray: $($returnValue -is [System.Array])"
-    return $returnValue
+    return [hashtable]$returnValue
 }
 
 function Remove-PSWebSession {
@@ -658,6 +658,8 @@ function Invoke-HttpRequestPublic {
             $appInfo = $Global:PSWebServer.Apps[$appName]
             $baseDirectory = $appInfo.PublicPath
             Write-Verbose "$MyTag App public file: app=$appName, file=$filePath, base=$baseDirectory"
+            # For app public files, baseDirectory is already the public folder, so don't prepend "public/"
+            $filePathToSanitize = $filePath
         } else {
             Write-Verbose "$MyTag App '$appName' not found"
             context_response -Response $response -StatusCode 404 -StatusDescription "Not Found" -String "App not found"
@@ -668,6 +670,8 @@ function Invoke-HttpRequestPublic {
         $filePath = $matches.filepath
         $baseDirectory = $projectRoot
         Write-Verbose "$MyTag Project public file: $filePath"
+        # For project root, baseDirectory is project root, so we need to prepend "public/"
+        $filePathToSanitize = "public/$filePath"
     } else {
         Write-Verbose "$MyTag Invalid public path pattern: $requestedPath"
         context_response -Response $response -StatusCode 400 -StatusDescription "Bad Request" -String "Invalid path"
@@ -675,7 +679,7 @@ function Invoke-HttpRequestPublic {
     }
 
     # Sanitize and resolve file path
-    $sanitizedPath = Sanitize-FilePath -FilePath "public/$filePath" -BaseDirectory $baseDirectory
+    $sanitizedPath = Sanitize-FilePath -FilePath $filePathToSanitize -BaseDirectory $baseDirectory
 
     if ($sanitizedPath.Score -ne 'pass') {
         Write-Verbose "$MyTag Sanitization failed: $($sanitizedPath.Message)"
@@ -778,10 +782,12 @@ function Invoke-HttpRequestRoute {
             $apiKeyAuthenticated = $true
 
             # Update the in-memory session with API key authentication
+            # Use a default UserAgent for API key auth if none provided (common for CLI/script clients)
+            $apiUserAgent = if ($Request.UserAgent) { $Request.UserAgent } else { 'API_Key_Client' }
             $global:PSWebSessions[$SessionID] = [hashtable]::Synchronized(@{
                 UserID = $apiKeyResult.UserID
                 Provider = "API_Key"
-                UserAgent = $Request.UserAgent
+                UserAgent = $apiUserAgent
                 AuthTokenExpiration = (Get-Date).AddHours(1)
                 LastUpdated = (Get-Date)
                 AuthenticationState = "completed"
@@ -792,6 +798,19 @@ function Invoke-HttpRequestRoute {
 
             Write-Verbose "$MyTag API_Key session created in memory for UserID: $($apiKeyResult.UserID), SessionID: $SessionID"
             Write-PSWebHostLog -Severity 'Info' -Category 'Authentication' -Message "$MyTag API key authenticated: $($apiKeyResult.KeyName) from $remoteIP with roles: $($apiKeyResult.Roles -join ', '), SessionID: $SessionID"
+
+            # Set session cookie for bearer auth session
+            $sessionCookie = New-Object System.Net.Cookie("PSWebSessionID", $SessionID)
+            $hostName = $Request.Url.HostName
+            if ($hostName -notmatch '^(localhost|(\d{1,3}\.){3}\d{1,3}|::1)$') {
+                $sessionCookie.Domain = $hostName
+            }
+            $sessionCookie.Expires = (Get-Date).AddDays(7)
+            $sessionCookie.Path = "/"
+            $sessionCookie.HttpOnly = $true
+            $sessionCookie.Secure = $Request.IsSecureConnection
+            $response.AppendCookie($sessionCookie)
+            Write-Verbose "$MyTag Session cookie set for bearer auth: $SessionID"
         } else {
             Write-Verbose "$MyTag API key authentication failed for bearer token"
             Write-PSWebHostLog -Severity 'Warning' -Category 'Security' -Message "$MyTag Invalid API key bearer token from $($Request.RemoteEndPoint.Address)"
@@ -1233,9 +1252,13 @@ function Process-HttpRequest {
             return
         }
         default {
-            # ALL OTHER ROUTES - Require session cookie
-            # Ensure cookie is established for non-public routes
-            if (-not $sessionCookie) {
+            # ALL OTHER ROUTES - Require session cookie (unless bearer token provided)
+            # Check for Authorization header first (bearer token auth doesn't need cookie)
+            $authHeader = $request.Headers['Authorization']
+            $hasBearerToken = $authHeader -and $authHeader.StartsWith('Bearer ', [System.StringComparison]::OrdinalIgnoreCase)
+
+            # Ensure cookie is established for non-public routes (unless bearer auth)
+            if (-not $sessionCookie -and -not $hasBearerToken) {
                 Write-Verbose "$($MyTag) Redirecting to establish cookie: $($request.Url.AbsoluteUri)"
                 context_response -Response $response -StatusCode 302 -RedirectLocation $request.Url.AbsoluteUri
                 return

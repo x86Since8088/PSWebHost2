@@ -94,8 +94,7 @@ $filePath = $Request.QueryString["file"]
 
 if ([string]::IsNullOrEmpty($filePath)) {
     $errorResponse = @{
-                        scriptPath = '/public/elements/help-viewer/component.js'
-                scriptPath = '/public/elements/help-viewer/component.js'
+        scriptPath = '/public/elements/help-viewer/component.js'
         status = 'error'
         message = 'No help file specified. Use ?file=path/to/file.md'
     } | ConvertTo-Json
@@ -124,8 +123,7 @@ foreach ($path in $searchPaths) {
 
 if (-not $foundPath) {
     $errorResponse = @{
-                        scriptPath = '/public/elements/help-viewer/component.js'
-                scriptPath = '/public/elements/help-viewer/component.js'
+        scriptPath = '/public/elements/help-viewer/component.js'
         status = 'error'
         message = "Help file not found: $filePath"
         searched = $searchPaths
@@ -142,8 +140,7 @@ try {
     $html = Convert-MarkdownToHtml -Markdown $markdownContent
 
     $successResponse = @{
-                        scriptPath = '/public/elements/help-viewer/component.js'
-                scriptPath = '/public/elements/help-viewer/component.js'
+        scriptPath = '/public/elements/help-viewer/component.js'
         status = 'success'
         file = $filePath
         html = $html
@@ -153,8 +150,7 @@ try {
     context_response -Response $Response -String $successResponse -ContentType "application/json"
 } catch {
     $errorResponse = @{
-                        scriptPath = '/public/elements/help-viewer/component.js'
-                scriptPath = '/public/elements/help-viewer/component.js'
+        scriptPath = '/public/elements/help-viewer/component.js'
         status = 'error'
         message = "Error reading help file: $($_.Exception.Message)"
     } | ConvertTo-Json
